@@ -1,0 +1,12 @@
+PASS  D-phone-1h3b: every player is racing (local car moving)  — 601.6
+PASS  D-phone-1h3b: every client shows the SAME server result order  — [[1,"bot1",180.9,false],[2,"bot3",184.508,false],[3,"bot2",185.175,false],[4,"p1",211.8,false]]
+PASS  D-phone-1h3b: every HUMAN finished the race (no human DNF)  — [[4,"p1",211.8,false]]
+FAIL  D-phone-1h3b: server tick never overran its 50 ms budget  — ticks 4337, tick p95 0.59 ms, overruns 1, late ticks 1, dropped 0 ms, starved frames 15512, skipped frames 0, rejected {}
+INFO  D-phone-1h3b p1: server input  — frames consumed 25416, missed 15512 (61.0 %), skipped 0, max queued 206
+PASS  D-phone-1h3b: no records offered from multiplayer
+TARGET FAIL  D-phone-1h3b p1: mispredict p95 <= 1 m  — 2.003 m
+TARGET FAIL  D-phone-1h3b p1: hard snaps <= 2/min  — 167 in 3.5 min
+INFO  D-phone-1h3b p1: client  — rtt 597.6 ms, lead 74, fps 1.4, render every 1, main thread {"recvDelayP50":0,"recvDelayP95":0,"frameGapP50":588,"frameGapP95":827,"behindMax":128,"resyncSteps":0,"stallsOver250ms":311,"stallsOver1s":1,"frames":511}
+PASS  Joy: no page errors
+5/6 functional checks passed; 0/2 quality targets met (render every 1 frame(s))
+EXIT 1

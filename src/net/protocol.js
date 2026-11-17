@@ -7,11 +7,11 @@ export const PROTOCOL = 2;
 export const NET_HZ = 20, SIM_HZ = 120, STEPS_PER_TICK = SIM_HZ / NET_HZ;
 export const MAX_MSG_BYTES = 1024;          // client -> server text frame cap
 export const MAX_FRAMES_PER_MSG = 24;       // 200 ms of input per message at most
-export const FRAME_RATE_MAX = 150, FRAME_BURST = 60;   // per-connection input frames/s (sim is 120/s)
+export const FRAME_RATE_MAX = 150, FRAME_BURST = 300;  // per-connection input frames/s (sim is 120/s); burst covers catch-up + lead growth after a stall
 export const MSG_RATE_MAX = 40, MSG_BURST = 40;        // all messages per connection per second
-export const MAX_AHEAD_FRAMES = 240;        // frames more than 2 s ahead of the server are a time-manipulation attempt
-export const QUEUE_DROP_FRAMES = 72;        // >600 ms queued: the server skips ahead (bounded latency)
-export const MAX_LEAD_FRAMES = 60;          // client never runs more than 500 ms ahead of the server
+export const MAX_AHEAD_FRAMES = 360;        // frames more than 3 s ahead of the server are a time-manipulation attempt
+export const QUEUE_DROP_FRAMES = 240;       // >2 s queued: the server skips ahead (bounded latency); must exceed MAX_LEAD_FRAMES
+export const MAX_LEAD_FRAMES = 180;         // client never runs more than 1.5 s ahead of the server (slow devices)
 export const BACKPRESSURE_BYTES = 64 * 1024;
 export const INTERP_DELAY_MS = 120;         // remote cars render ~120 ms in the past
 export const EXTRAP_MAX_MS = 100;           // bounded extrapolation when snapshots are late

@@ -83,12 +83,17 @@ export class NetClient {
     this.stats.snaps++; const sn = this.serverNow(); if (this.stats.snapAges.length < 100000) this.stats.snapAges.push(sn - s.sn);
     R.interp.push(s); R.last = s;
     if (s.ph === 'race') R.pred.reconcile(s);
-    // adaptive lead: keep ~2-8 frames queued at the server
-    this.qe += (s.q - this.qe) * 0.15;
-    // floor: our own frame interval (inputs leave in per-frame bursts) + half the round trip + 2 steps
-    const floor = Math.ceil((this.frameMs + this.clock.rtt / 2) / (SIM_DT * 1000)) + 2;
-    if (++this.snapN % 10 === 0 && s.ph === 'race') { if (this.qe < 2) this.lead += 2; else if (this.qe > 8 + this.frameMs / 8.33) this.lead -= 1; }
+    // Lead control from what the server actually observed (not from our clock estimate, which a blocked
+    // main thread biases): el = lowest recent arrival margin in steps (negative = our frames were late).
+    // Keep it >= 4 steps; shrink slowly when it is generous. Floor: our own frame interval + 2 steps.
+    if (s.ph === 'race' && s.el != null) {
+      this.snapN++;
+      if (s.el < 4 && this.snapN - (this.bumpAt || -99) >= 8) { this.lead += s.el < 0 ? Math.min(30, 6 - s.el) : 2; this.bumpAt = this.snapN; }   // window holds ~0.8 s: one bump per window
+      else if (s.el > 24 && this.snapN % 10 === 0) this.lead -= 2;
+    }
+    const floor = Math.ceil(this.frameMs / (SIM_DT * 1000)) + 2;
     this.lead = Math.max(floor, Math.min(MAX_LEAD_FRAMES, this.lead));
+    this.qe += (s.q - this.qe) * 0.15;
     this.onEvent('snap', s);
   }
   // Called every rendered frame with the current local input keys. Returns steps simulated.
@@ -100,7 +105,7 @@ export class NetClient {
     const target = Math.floor((this.serverNow() - R.startAt) / 1000 / SIM_DT) + this.lead;
     let behind = target - R.pred.seq, steps = 0;
     if (behind > this.stats.behindMax) this.stats.behindMax = behind;
-    if (behind > MAX_CATCHUP * 4) { this.stats.resyncSteps += behind; R.pred.resync(target); this.outbox = []; this.outSeq = target; behind = 0; }
+    if (behind > MAX_CATCHUP * 2) { this.stats.resyncSteps += behind; R.pred.resync(target); this.outbox = []; this.outSeq = target; behind = 0; }
     behind = Math.min(behind, MAX_CATCHUP);
     const f = encodeFrame(keys);
     for (let i = 0; i < behind; i++) {

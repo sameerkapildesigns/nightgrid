@@ -16,7 +16,7 @@ import { wrapA, mod } from '../core/math.js';
 import { Vec3 } from '../core/vec.js';
 import { decodeFrame, INTERP_DELAY_MS, EXTRAP_MAX_MS } from './protocol.js';
 
-export const HARD_SNAP_M = 6, SMOOTH_RATE = 12, MAX_PENDING = 360, MAX_CATCHUP_STEPS = 30;
+export const HARD_SNAP_M = 6, SMOOTH_RATE = 12, MAX_PENDING = 360, MAX_CATCHUP_STEPS = 120;   // prediction steps are cheap (one car): up to 1 s per call
 
 export class Predictor {
   // raceMsg: the server's 'race' message; events: presentation hooks for the local car (or null)

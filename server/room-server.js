@@ -17,7 +17,7 @@ import { createSim } from '../src/core/sim.js';
 import { createClock, SIM_DT } from '../src/core/clock.js';
 import { CARS } from '../src/core/roster.js';
 import { parseClient, rateLimiter, compactRacer, decodeFrame, makeToken, NET_HZ, FRAME_RATE_MAX, FRAME_BURST, MSG_RATE_MAX, MSG_BURST,
-  MAX_AHEAD_FRAMES, QUEUE_DROP_FRAMES, BACKPRESSURE_BYTES, PROTOCOL, ZERO_FRAME } from '../src/net/protocol.js';
+  MAX_AHEAD_FRAMES, QUEUE_DROP_FRAMES, MAX_LEAD_FRAMES, BACKPRESSURE_BYTES, PROTOCOL, ZERO_FRAME } from '../src/net/protocol.js';
 
 export const ROOM_DEFAULTS = {
   countdownMs: 4500,          // lobby Start -> lights out (includes track/car preload on clients)
@@ -112,7 +112,10 @@ export class RoomServer {
     if (!c.frames(now, m.f.length)) return this.reject(conn, 'input-rate');
     const q = this.inputs.get(c.id); if (!q || !this.sim) return;   // no race: ignored
     const seat = this.room.seats.find(s => s.id === c.id); if (!seat || seat.left) return;
-    if (m.q + m.f.length - 1 > q.next + MAX_AHEAD_FRAMES) return this.reject(conn, 'time-ahead');   // client clock manipulation / runaway
+    if (m.q + m.f.length - 1 > q.next + MAX_AHEAD_FRAMES) return this.reject(conn, 'time-ahead');   // > 2 s ahead of the server's step: clock manipulation / runaway
+    // arrival margin of this batch's oldest frame (steps before it is needed; negative = late). The
+    // lowest recent margin is reported back so the client can set its lead from what actually arrived.
+    q.early.push(m.q - q.next); if (q.early.length > 8) q.early.shift();
     for (let i = 0; i < m.f.length; i++) { const seq = m.q + i; if (seq >= q.next && !q.buf.has(seq)) q.buf.set(seq, m.f[i]); }
     if (q.buf.size > q.maxQ) q.maxQ = q.buf.size;
     seat.lastInputAt = now; q.lastAt = now;
@@ -141,7 +144,7 @@ export class RoomServer {
     sim.addSeats(R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, pers: s.pers, carMods: CARS[s.car] ? CARS[s.car].mods : null })), null);
     for (const r of sim.racers) if (!r.isAI) r.wallLim = 1.2;
     this.inputs.clear();
-    for (const s of R.seats) if (s.kind === 'human') this.inputs.set(s.id, { buf: new Map(), next: 0, last: ZERO_FRAME, lastAt: 0, starve: 0, skipped: 0, maxQ: 0 });
+    for (const s of R.seats) if (s.kind === 'human') this.inputs.set(s.id, { buf: new Map(), next: 0, last: ZERO_FRAME, lastAt: 0, starve: 0, skipped: 0, maxQ: 0, early: [] });
     this.step = 0; this.clock = createClock(); this.lastTick = R.countdownAt; this.firstFinishAt = 0; this.results = null;
     for (const [conn, c] of this.conns) if (c.id) this.sendRace(conn, c.id);
     if (this.loop) this.t.clearInterval(this.loop);
@@ -152,12 +155,18 @@ export class RoomServer {
     this.send(conn, { t: 'race', p: PROTOCOL, build: R.build, map: R.map, mode: R.mode, seed: R.seed, countdownAt: R.countdownAt, serverNow: this.t.now(), step: this.step,
       seats: R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, car: s.car, paint: s.paint || 0, pers: s.pers || null })), you: id, snap: this.sim.snapshot() });
   }
+  // Exactly one frame per racer per step. A frame that has not arrived when its step runs is MISSED:
+  // the server holds the last input (or releases everything once input is stale) and moves on; the
+  // frame is discarded if it arrives later. So input latency is bounded and never drifts, and a client
+  // that stalled cannot bank time. Snapshots report missed frames so the client raises its lead.
   consume(id, now) {
     const q = this.inputs.get(id); if (!q) return ZERO_FRAME;
-    if (q.buf.size > QUEUE_DROP_FRAMES) {   // client far ahead / burst after a stall: keep latency bounded
-      while (q.buf.size > 24) { if (q.buf.has(q.next)) { q.buf.delete(q.next); q.skipped++; this.stats.skippedFrames++; } q.next++; }
+    if (q.buf.size > QUEUE_DROP_FRAMES) {   // client far ahead (burst after a stall): keep latency bounded
+      const keep = [...q.buf.keys()].sort((a, b) => a - b).slice(-MAX_LEAD_FRAMES)[0];
+      for (const k of [...q.buf.keys()]) if (k < keep) { q.buf.delete(k); q.skipped++; this.stats.skippedFrames++; }
     }
-    if (q.buf.has(q.next)) { q.last = q.buf.get(q.next); q.buf.delete(q.next); q.next++; return q.last; }
+    const seq = q.next++;
+    if (q.buf.has(seq)) { q.last = q.buf.get(seq); q.buf.delete(seq); return q.last; }
     q.starve++; this.stats.starved++;
     return now - q.lastAt > Room.STALE_INPUT_MS ? ZERO_FRAME : q.last;   // brief gap: hold last input; stale: release everything
   }
@@ -217,7 +226,7 @@ export class RoomServer {
       if (!c.id) continue;
       if (conn.bufferedAmount && conn.bufferedAmount() > BACKPRESSURE_BYTES) { this.stats.skippedBackpressure++; continue; }   // drop stale snapshots, never queue
       const q = this.inputs.get(c.id);
-      this.send(conn, { t: 's', k: this.step, sn: now, ph: this.room.phase, rt, tm: sim.time, ack: q ? q.next - 1 : -1, q: q ? q.buf.size : 0, me: q ? sim.racerState(c.id) : null, a: all, dr, fo });
+      this.send(conn, { t: 's', k: this.step, sn: now, ph: this.room.phase, rt, tm: sim.time, ack: q ? q.next - 1 : -1, q: q ? q.buf.size : 0, ms: q ? q.starve : 0, el: q && q.early.length ? Math.min(...q.early) : null, me: q ? sim.racerState(c.id) : null, a: all, dr, fo });
     }
   }
   // ---------------- housekeeping / lifetime ----------------

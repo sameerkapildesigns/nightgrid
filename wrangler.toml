@@ -1,0 +1,33 @@
+# NIGHTGRID multiplayer: Cloudflare Workers FREE plan configuration (NOT deployed by this branch).
+# Deployment needs Sameer's own free Cloudflare account and an explicit go-ahead; see docs/M4-DEPLOY-FREE.md.
+# No secrets are needed or stored here. Free plan: SQLite-backed Durable Objects only (new_sqlite_classes).
+name = "nightgrid"
+main = "server/worker.js"
+compatibility_date = "2026-11-01"
+
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[durable_objects.bindings]]
+name = "REGISTRY"
+class_name = "Registry"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room", "Registry"]
+
+[vars]
+# Conservative app-side guard (NOT a Cloudflare guarantee). Adjust before an event only after the load test.
+DAILY_ROOM_MINUTES = "240"     # 4 room-hours/day across ALL rooms
+MAX_ACTIVE_ROOMS = "3"          # concurrent rooms (raise to 5 for a heats event only after approval)
+ROOM_MAX_MINUTES = "60"
+BUDGET_SAFETY = "0.85"
+MAX_CREATES_PER_DAY = "200"
+ALLOWED_ORIGINS = ""            # empty = same host only; e.g. "https://nightgrid.<account>.workers.dev"

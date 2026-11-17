@@ -11,13 +11,18 @@ import { startLocalServer } from '../../server/local.mjs';
 const OUT = 'test-results/mp'; mkdirSync(OUT, { recursive: true });
 if (!existsSync('dist-test/index.html') || process.env.NG_REBUILD) execSync('npx vite build --mode test --outDir dist-test', { stdio: 'inherit' });
 const ONLY = (process.env.NG_ONLY || '').split(',').filter(Boolean), run = k => !ONLY.length || ONLY.includes(k);
-const srv = await startLocalServer({ port: 0, dist: 'dist-test', netsim: true, lagMs: +(process.env.NG_LAG || 0), log: false, createPerMin: 1000, budget: { maxActiveRooms: 6 }, room: { countdownMs: 6000, maxRaceMs: +(process.env.NG_MAXRACE || 75000), resultsHoldMs: 60000 } });
+const MAXRACE = +(process.env.NG_MAXRACE || 75000);
+const srv = await startLocalServer({ port: 0, dist: 'dist-test', netsim: true, lagMs: +(process.env.NG_LAG || 0), log: false, createPerMin: 1000, budget: { maxActiveRooms: 6 }, room: { countdownMs: 6000, maxRaceMs: MAXRACE, resultsHoldMs: 60000 } });
 const BASE = srv.url + '/';
 const results = []; const C = (n, ok, d) => check(results, n, ok, d);
+// quality targets: graded against a stated threshold, reported separately (TARGET PASS/FAIL), never forced to pass
+const targets = []; const T = (n, ok, d) => { targets.push({ name: n, ok: !!ok, detail: d }); console.log(`${ok ? 'TARGET PASS' : 'TARGET FAIL'}  ${n}${d ? '  — ' + d : ''}`); };
+const infos = []; const I = (n, d) => { infos.push({ name: n, detail: d }); console.log(`INFO  ${n}  — ${d}`); };
+const TGT = { mispredictP95M: 1.0, hardSnapsPerMin: 2 };   // stated targets (gate 5: p95 > 1 m is a tuning investigation)
 const browser = await launch();
 const VIEW = { desk: { width: 1280, height: 720 }, phone: { width: 844, height: 390 }, portrait: { width: 390, height: 844 } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-const THROTTLE = +(process.env.NG_RENDER_EVERY || 8);   // test-only: non-screenshot pages render every Nth frame (2 CPU cores + software WebGL)
+const THROTTLE = +(process.env.NG_RENDER_EVERY || 1);   // default 1 = every frame rendered (no throttling). >1 is a diagnostic option only, reported in the output
 async function shot(p, n) {
   await p.page.evaluate(() => { window.__ngRenderEvery = 1; }); await sleep(1500);
   await p.page.screenshot({ path: `${OUT}/${n}.jpg`, type: 'jpeg', quality: 75 });
@@ -51,21 +56,33 @@ async function readyAll(ps) { for (const p of ps) { await click(p, '[data-act=re
 async function raceAndFinish(ps, { label, full = false, shots = true }) {
   const host = ps[0];
   await waitMp(host, 'm => m.room && m.room.canStart', 30000);
+  const rsv = [...srv.rooms.values()].find(r => r.room.seats.some(x => x.name === host.name)); if (rsv) rsv.cfg.maxRaceMs = full ? 300000 : 50000;
   await click(host, '[data-act=start]');
   for (const p of ps) await waitMp(p, 'm => m.race', 60000);
   for (const p of ps) await p.page.evaluate(t => { __ng.mpAutodrive(true); window.__ngRenderEvery = t; }, THROTTLE);
   for (const p of ps) await waitMp(p, 'm => m.state === "race"', 60000);
+  const tRace = Date.now();
   await sleep(9000);
   if (shots) for (const p of ps) await shot(p, `${label}-race-${p.name}-${p.kind}`);
   const mid = await Promise.all(ps.map(mp));
   C(`${label}: every player is racing (local car moving)`, mid.every(m => m.me && m.me.prog > 30), mid.map(m => m.me && m.me.prog).join(','));
-  await Promise.all(ps.map(p => waitMp(p, 'm => m.results', full ? 400000 : 140000)));
-  const res = await Promise.all(ps.map(mp));
+  await Promise.all(ps.map(p => waitMp(p, 'm => m.results', (full ? 300000 : 50000) + 60000)));
+  const res = await Promise.all(ps.map(mp)); for (const m of res) m.raceS = (Date.now() - tRace) / 1000;
   const orders = res.map(m => JSON.stringify(m.results));
   C(`${label}: every client shows the SAME server result order`, orders.every(o => o === orders[0]), orders[0]);
-  if (full) C(`${label}: race completed by finishing (not the time cap)`, res[0].results.filter(x => !x[3]).length >= 1, orders[0]);
+  const humanIds = res.map(m => m.you), humanRows = res[0].results.filter(x => humanIds.includes(x[1]));
+  if (full) C(`${label}: every HUMAN finished the race (no human DNF)`, humanRows.every(x => !x[3]), JSON.stringify(humanRows));
+  else I(`${label}: time-capped race (DNF expected)`, JSON.stringify(humanRows));
+  const rs = [...srv.rooms.values()].find(r => r.room.seats.some(x => x.name === ps[0].name));
+  if (rs) { const t = rs.stats.tickMs.slice().sort((x, y) => x - y); C(`${label}: server tick never overran its 50 ms budget`, rs.stats.overruns === 0, `ticks ${rs.stats.ticks}, tick p95 ${t[Math.floor(t.length * .95)].toFixed(2)} ms, overruns ${rs.stats.overruns}, late ticks ${rs.stats.lateTicks}, dropped ${Math.round(rs.stats.droppedMs)} ms, starved frames ${rs.stats.starved}, skipped frames ${rs.stats.skippedFrames}, rejected ${JSON.stringify(rs.stats.rejected)}`); }
+  if (rs) for (const m of res) { const q = rs.inputs.get(m.you); if (q) I(`${label} ${m.you}: server input`, `frames consumed ${q.next}, missed ${q.starve} (${(100 * q.starve / Math.max(1, q.next)).toFixed(1)} %), skipped ${q.skipped}, max queued ${q.maxQ}`); }
   C(`${label}: no records offered from multiplayer`, res.every(m => m.recordsOffered === 0));
-  C(`${label}: prediction p95 / hard snaps`, true, res.map(m => `${m.you}: p95 ${(+m.mispredictP95).toFixed(3)} m, hard ${m.hard}, rtt ${m.rtt}, lead ${m.lead}, fps ${m.fps}`).join(' | '));
+  for (const m of res) {
+    const mins = Math.max(0.1, (m.raceS || 60) / 60);
+    T(`${label} ${m.you}: mispredict p95 <= ${TGT.mispredictP95M} m`, m.mispredictP95 <= TGT.mispredictP95M, `${(+m.mispredictP95).toFixed(3)} m`);
+    T(`${label} ${m.you}: hard snaps <= ${TGT.hardSnapsPerMin}/min`, m.hard / mins <= TGT.hardSnapsPerMin, `${m.hard} in ${mins.toFixed(1)} min`);
+    I(`${label} ${m.you}: client`, `rtt ${m.rtt} ms, lead ${m.lead}, fps ${m.fps}, render every ${THROTTLE}, main thread ${JSON.stringify(m.net)}`);
+  }
   await sleep(3500);
   if (shots) for (const p of ps) await shot(p, `${label}-results-${p.name}-${p.kind}`);
   return res;
@@ -128,7 +145,15 @@ try {
     await raceAndFinish([a], { label: 'C-1h3b', full: true });
     await close([a]);
   }
+  if (run('D')) {   // unthrottled single PHONE (touch, 844x390) + 3 bots, full race on Kage
+    const a = await player('Joy', 'phone'); const code = await create(a); void code;
+    for (let i = 0; i < 3; i++) await click(a, '[data-act=addbot]');
+    await click(a, '[data-act=map][data-map=technical]'); await readyAll([a]);
+    await raceAndFinish([a], { label: 'D-phone-1h3b', full: true });
+    await close([a]);
+  }
 } catch (e) { C('suite crashed', false, e.stack); }
 await browser.close(); await srv.close();
-writeFileSync(`${OUT}/mp.json`, JSON.stringify(results, null, 1));
-const fails = results.filter(r => !r.ok).length; console.log(`\n${results.length - fails}/${results.length} multiplayer browser checks passed`); process.exit(fails ? 1 : 0);
+writeFileSync(`${OUT}/mp.json`, JSON.stringify({ renderEvery: THROTTLE, targets: TGT, functional: results, quality: targets, info: infos }, null, 1));
+const fails = results.filter(r => !r.ok).length, tf = targets.filter(t => !t.ok).length;
+console.log(`\n${results.length - fails}/${results.length} functional checks passed; ${targets.length - tf}/${targets.length} quality targets met (render every ${THROTTLE} frame(s))`); process.exit(fails ? 1 : 0);

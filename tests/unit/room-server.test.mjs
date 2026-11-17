@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { RoomServer } from '../../server/room-server.js';
 import { fakeTimers, fakeConn, fakeRandom } from '../helpers/fake-timers.mjs';
-import { encodeFrame, PROTOCOL, ZERO_FRAME } from '../../src/net/protocol.js';
+import { encodeFrame, PROTOCOL, ZERO_FRAME, QUEUE_DROP_FRAMES } from '../../src/net/protocol.js';
 import { createBudget } from '../../src/net/budget.js';
 
 const BUILD = 'test-build';
@@ -82,7 +82,7 @@ test('input integrity: out-of-order / duplicate frames ignored, far-future frame
   msg(S, a, { t: 'in', q: 100000, f: [UP] }); assert.equal(a.last('error').error, 'time-ahead');
   let limited = 0; for (let i = 0; i < 20; i++) { msg(S, a, { t: 'in', q: S.inputs.get('p1').next + i * 24, f: Array(24).fill(UP) }); if (a.last('error') && a.last('error').error === 'input-rate') limited++; }
   assert.ok(S.stats.rejected['input-rate'] >= 1, 'input-rate limit hit');
-  run(100); assert.ok(S.inputs.get('p1').buf.size <= 36, 'queue bounded: ' + S.inputs.get('p1').buf.size);
+  run(100); assert.ok(S.inputs.get('p1').buf.size <= QUEUE_DROP_FRAMES, 'queue bounded: ' + S.inputs.get('p1').buf.size);
 });
 test('stale input: a human who stops sending has every input released after 250 ms (no stuck accelerator)', () => {
   const { S, run, cs: [a] } = startRace(S => { const h = player(S, 'A'); msg(S, h, { t: 'addBot' }); return [h]; });

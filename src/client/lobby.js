@@ -23,8 +23,9 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
     return `<li><i class="sw" style="background:${col};box-shadow:0 0 8px ${col}"></i><span class="nm">${esc(s.name)}</span>${tags}<span class="car">${esc(car)}</span>${st}${rm}</li>`;
   }
   function render() {
-    if (!ui.open) return;
     const net = getNet(), room = net && net.room, you = net && net.you;
+    const entry = document.getElementById('mpBtn'); if (entry) entry.textContent = room ? `Room ${room.code} · ${room.seats.length}/${room.maxSeats} · open` : 'Race friends · private room';
+    if (!ui.open) return;
     let h = `<div class="sh"><span>Race friends</span><button class="chip" data-act="close" aria-label="Close multiplayer">Close</button></div>`;
     if (!room) {
       h += `<p class="lead">Private room for 2 to 4 racers. Bots can fill empty seats.</p>

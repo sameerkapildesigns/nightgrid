@@ -2539,6 +2539,9 @@ async function mpBeginRace(m) {
     for (const st of m.seats) ensureAsset(st.car);
     mpSetupRacers(m); sim.setMode(m.mode);
     MP.race = { msg: m, startAt: m.countdownAt }; MP.results = null;
+    // input sampling, prediction steps and sending run on their own 25 ms timer, not on render frames,
+    // so a slow render frame does not decide when inputs leave (the render frame only reads state)
+    clearInterval(MP.tick); MP.tick = setInterval(mpInputTick, 25);
     AU.init(); hudCache = {}; $('sector').textContent = `S1 · ${SECTORS[0].name}`; $('sector').style.color = SECTORS[0].css;
     MP.ui.show(false); $('title').classList.add('hide'); $('results').classList.add('hide'); $('pause').classList.add('hide'); $('hud').classList.add('on');
     document.body.classList.add('mprace'); paused = false; cineUI(false); FIN.on = false; FIN.t = 99; shownResults = false;
@@ -2581,6 +2584,11 @@ function mpFrame(wall, dt0) {
   mpStatus(sn);
   void steps;
 }
+function mpInputTick() {
+  const net = MP.net; if (!MP.race || MP.preparing || !net || !net.race) return;
+  if (DEBUG && MP.autodrive) mpAutodrive(net.race.pred);
+  net.frame(keys);
+}
 function mpLocalFinish(byServer) {
   state = 'finished'; finishT = 0; orbitA = 0; FIN.on = CINE.on && !byServer; FIN.t = byServer ? 99 : 0;
   const f = frameAt(MAIN, raceS(player.path, player.s) + 34, _fci); FIN.pos.copy(f.P).addScaledVector(f.R, MAIN.WR[f.i] - 2.2).addScaledVector(f.U, 3.4); FIN.up.copy(f.U);
@@ -2609,7 +2617,7 @@ function mpShowResults() {
 }
 const escHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function mpEndRaceView() {
-  MP.race = null; document.body.classList.remove('mprace'); cineUI(false); FIN.on = false; FIN.t = 99;
+  clearInterval(MP.tick); MP.tick = null; MP.race = null; document.body.classList.remove('mprace'); cineUI(false); FIN.on = false; FIN.t = 99;
   $('results').classList.add('hide'); $('hud').classList.remove('on'); $('crashv').classList.remove('on'); $('toGarage').textContent = 'BACK TO GARAGE';
   $('results').querySelector('.kicker').textContent = 'RACE COMPLETE';
   releaseAllInputs(); mpRestoreSP();
@@ -2670,7 +2678,7 @@ if (DEBUG) {
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
     get mp() { const n = MP.net, R = n && n.race; return { inRoom: !!(n && n.room), code: n && n.code, you: n && n.you, status: n && n.status, room: n && n.room, race: !!MP.race, state, lastErr: MP.lastErr, results: MP.results && MP.results.order.map(o => [o.pos, o.id, o.time, o.dnf]),
-      net: n ? (q => ({ recvDelayP50: q(n.stats.recvDelay, .5), recvDelayP95: q(n.stats.recvDelay, .95), frameGapP50: q(n.stats.frameGaps, .5), frameGapP95: q(n.stats.frameGaps, .95), behindMax: n.stats.behindMax, resyncSteps: n.stats.resyncSteps }))((a, p) => { if (!a.length) return null; const b = a.slice(-3000).sort((x, y) => x - y); return Math.round(b[Math.floor(b.length * p)]); }) : null,
+      net: n ? (q => ({ recvDelayP50: q(n.stats.recvDelay, .5), recvDelayP95: q(n.stats.recvDelay, .95), frameGapP50: q(n.stats.frameGaps, .5), frameGapP95: q(n.stats.frameGaps, .95), behindMax: n.stats.behindMax, resyncSteps: n.stats.resyncSteps, stallsOver250ms: n.stats.frameGaps.filter(g => g > 250).length, stallsOver1s: n.stats.frameGaps.filter(g => g > 1000).length, frames: n.stats.frameGaps.length }))((a, p) => { if (!a.length) return null; const b = a.slice(-3000).sort((x, y) => x - y); return Math.round(b[Math.floor(b.length * p)]); }) : null,
       rtt: n ? +n.clock.rtt.toFixed(1) : null, lead: n && n.lead, pending: R ? R.pred.pending : null, corrections: R ? R.pred.stats.corrections.length : 0, mispredictP95: R ? (a => a.length ? a[Math.floor(a.length * 0.95)] : 0)(R.pred.stats.corrections.slice(10).sort((x, y) => x - y)) : null, hard: R ? R.pred.stats.hard : 0,
       me: player ? { lap: player.lap, prog: +player.prog.toFixed(1), finished: player.finished, speed: +player.speed.toFixed(1) } : null, racers: racers.map(r => ({ id: r.id, name: r.name, lap: r.lap, prog: +r.prog.toFixed(1), body: r.ship ? (r.ship.fallback ? 'FALLBACK' : 'glTF:' + r.ship.key) : null })), recordsOffered: records.rejected.length + (lastRecordOffer ? 1 : 0) }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },

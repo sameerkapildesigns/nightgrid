@@ -32,6 +32,9 @@ test('parseClient: schema validation, size cap, protocol version, bounded batche
   assert.equal(P.parseClient(J({ t: 'config', map: 5 })).error, 'bad-config');
   assert.equal(P.parseClient(J({ t: 'car', car: 'wedge', paint: 1.5 })).error, 'bad-car');
 });
+test('bounds are consistent: max lead < queue-drop bound < time-ahead bound', () => {
+  assert.ok(P.MAX_LEAD_FRAMES < P.QUEUE_DROP_FRAMES && P.QUEUE_DROP_FRAMES <= P.MAX_AHEAD_FRAMES);
+});
 test('token bucket limits rate and refills over time', () => {
   const lim = P.rateLimiter(10, 5); let ok = 0; for (let i = 0; i < 20; i++) if (lim(1000)) ok++; assert.equal(ok, 5);
   assert.equal(lim(1100), true); assert.equal(lim(1100), false); assert.equal(lim(1100 + 1000, 5), true);
