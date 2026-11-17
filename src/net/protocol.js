@@ -90,5 +90,5 @@ export const ERROR_TEXT = {
   'capacity': 'All race servers are busy right now. Try again in a few minutes.', 'daily-budget': "Today's free race time is used up. Try again tomorrow.",
   'not-host': 'Only the host can do that.', 'need-2-racers': 'Add a bot or wait for a friend: a race needs at least 2 racers.', 'not-all-ready': 'Waiting for everyone to be ready.',
   'player-reconnecting': 'Waiting for a player to reconnect.', 'seat-expired': 'Your seat expired after disconnecting. Join again from the lobby.',
-  'origin': 'This page is not allowed to join rooms.', 'server-unreachable': 'Multiplayer server not reachable. Check your connection, or this site may be single-player only.', 'connection-lost': 'Connection to the room was lost.', 'time-ahead': 'Your clock jumped; reconnecting may help.', 'rate': 'Too many requests. Slow down.', 'room-closed': 'The room was closed.'
+  'origin': 'This page is not allowed to join rooms.', 'server-unreachable': 'Multiplayer server not reachable. Check your connection, or this site may be single-player only.', 'connection-lost': 'Connection to the room was lost.', 'budget-unavailable': 'The race server could not confirm free capacity, so the room closed. Try again later.', 'time-ahead': 'Your clock jumped; reconnecting may help.', 'rate': 'Too many requests. Slow down.', 'room-closed': 'The room was closed.'
 };

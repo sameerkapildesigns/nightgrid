@@ -1,0 +1,34 @@
+PASS  A: guest sees no host-only bot controls
+PASS  A: lobby shows 2 humans + 2 bots, host marker, all ready  — [["Ana","human",true],["Ben","human",true],["GHOST","bot",true],["VEX","bot",true]]
+PASS  A-2h2b: every player is racing (local car moving)  — 415.8,1140.8
+PASS  A-2h2b: every client shows the SAME server result order  — [[1,"bot1",182.55,false],[2,"bot2",184.125,false],[3,"p2",null,true],[4,"p1",null,true]]
+FAIL  A-2h2b: every HUMAN finished the race (no human DNF)  — [[3,"p2",null,true],[4,"p1",null,true]]
+FAIL  A-2h2b: server tick never overran its 50 ms budget  — ticks 6075, tick p95 0.48 ms, overruns 1, late ticks 17, dropped 0 ms, starved frames 56619, skipped frames 0, rejected {"time-ahead":19}
+INFO  A-2h2b p1: server input  — frames consumed 36000, missed 28899 (80.3 %), skipped 0, max queued 112
+INFO  A-2h2b p2: server input  — frames consumed 36000, missed 27720 (77.0 %), skipped 0, max queued 170
+PASS  A-2h2b: no records offered from multiplayer
+TARGET FAIL  A-2h2b p1: mispredict p95 <= 1 m  — 2.666 m
+TARGET FAIL  A-2h2b p1: hard snaps <= 2/min  — 587 in 4.9 min
+INFO  A-2h2b p1: client  — rtt 1514.6 ms, lead 180, fps 1.1, render every 1, main thread {"recvDelayP50":0,"recvDelayP95":0,"frameGapP50":1485,"frameGapP95":1778,"behindMax":376,"resyncSteps":14444,"stallsOver250ms":184,"stallsOver1s":184,"frames":311}
+TARGET FAIL  A-2h2b p2: mispredict p95 <= 1 m  — 2.404 m
+TARGET FAIL  A-2h2b p2: hard snaps <= 2/min  — 635 in 4.9 min
+INFO  A-2h2b p2: client  — rtt 23.7 ms, lead 180, fps 0.8, render every 1, main thread {"recvDelayP50":0,"recvDelayP95":0,"frameGapP50":1467,"frameGapP95":1789,"behindMax":332,"resyncSteps":14033,"stallsOver250ms":186,"stallsOver1s":186,"frames":341}
+PASS  A: 4 racers in results
+FAIL  A-rematch-2h1b: every player is racing (local car moving)  — 296,28.5
+PASS  A-rematch-2h1b: every client shows the SAME server result order  — [[1,"bot1",null,true],[2,"p2",null,true],[3,"p1",null,true]]
+INFO  A-rematch-2h1b: time-capped race (DNF expected)  — [[2,"p2",null,true],[3,"p1",null,true]]
+FAIL  A-rematch-2h1b: server tick never overran its 50 ms budget  — ticks 7189, tick p95 0.47 ms, overruns 1, late ticks 18, dropped 0 ms, starved frames 68587, skipped frames 0, rejected {"time-ahead":51}
+INFO  A-rematch-2h1b p1: server input  — frames consumed 6001, missed 5967 (99.4 %), skipped 0, max queued 27
+INFO  A-rematch-2h1b p2: server input  — frames consumed 6001, missed 6001 (100.0 %), skipped 0, max queued 8
+PASS  A-rematch-2h1b: no records offered from multiplayer
+TARGET FAIL  A-rematch-2h1b p1: mispredict p95 <= 1 m  — 1.898 m
+TARGET FAIL  A-rematch-2h1b p1: hard snaps <= 2/min  — 120 in 0.8 min
+INFO  A-rematch-2h1b p1: client  — rtt 1460 ms, lead 90, fps 1.2, render every 1, main thread {"recvDelayP50":0,"recvDelayP95":0,"frameGapP50":1484,"frameGapP95":1779,"behindMax":376,"resyncSteps":21834,"stallsOver250ms":245,"stallsOver1s":245,"frames":409}
+TARGET FAIL  A-rematch-2h1b p2: mispredict p95 <= 1 m  — 2.068 m
+TARGET FAIL  A-rematch-2h1b p2: hard snaps <= 2/min  — 137 in 0.8 min
+INFO  A-rematch-2h1b p2: client  — rtt 18.9 ms, lead 41, fps 1.2, render every 1, main thread {"recvDelayP50":0,"recvDelayP95":0,"frameGapP50":91,"frameGapP95":1773,"behindMax":383,"resyncSteps":22665,"stallsOver250ms":256,"stallsOver1s":256,"frames":518}
+PASS  A: guest leave frees the seat
+PASS  Ana: no page errors
+PASS  Ben: no page errors
+11/15 functional checks passed; 0/8 quality targets met (render every 1 frame(s))
+EXIT 1

@@ -97,3 +97,13 @@ test('clock sync: estimates server offset from the lowest-RTT samples despite qu
   for (let i = 0; i < 12; i++) { const c = i * 100, up = 20 + (i % 3) * 40, down = 20; C.sample(c, c + up + off, c + up + down); }
   assert.ok(Math.abs(C.offset - off) < 25, 'offset ' + (C.offset - off)); assert.equal(C.rtt, 40);
 });
+test('NetClient: lead-control state is per race (a rematch can raise lead again)', async () => {
+  const { NetClient } = await import('../../src/net/client.js');
+  const { S, msg } = serverAndRaceMsg('velocity', [{ id: 'p1', kind: 'human' }], 'p1');
+  const nc = new NetClient({ wsUrl: 'ws://x', WebSocketImpl: class { }, now: () => 0, build: 'b' }); nc.clock.ready = true;
+  const race = { ...msg, t: 'race', p: 2, build: 'b', countdownAt: 0 };
+  nc.beginRace(race); for (let i = 0; i < 40; i++) nc.onSnap({ ph: 'race', el: -50, q: 0, sn: 0, a: [], ack: -1 });
+  const l1 = nc.lead; assert.ok(l1 >= 60, 'lead raised in race 1: ' + l1);
+  nc.beginRace(race); const l2a = nc.lead; for (let i = 0; i < 40; i++) nc.onSnap({ ph: 'race', el: -50, q: 0, sn: 0, a: [], ack: -1 });
+  assert.ok(nc.lead > l2a, `lead raised again in race 2: ${l2a} -> ${nc.lead}`); void S;
+});

@@ -127,7 +127,7 @@ test('budget: race refused when the shared daily budget is spent', async () => {
   ctx.S.budget = { beat: c => budget0.beat(c, T.now()), canRace: c => budget0.canRace(c, T.now()), release: c => budget0.release(c, T.now()) };
   assert.ok(budget0.admit('ABCDEF', T.now()).ok);
   const h = player(ctx.S, 'H'); msg(ctx.S, h, { t: 'addBot' }); msg(ctx.S, h, { t: 'ready', ready: true });
-  ctx.run(8 * 60e3 + 1000);   // lobby open 8 min: heartbeats charge 8 min; 8 + 3 reserved > 10
+  for (let i = 0; i < 9; i++) { ctx.run(60e3); await new Promise(r => setImmediate(r)); }   // lobby open 9 min: heartbeats charge it; 9 + 3 reserved > 10
   msg(ctx.S, h, { t: 'start' }); await new Promise(r => setImmediate(r));
   assert.equal(h.last('error').error, 'daily-budget'); assert.equal(ctx.S.room.phase, 'lobby');
   assert.ok(budget0.state.usedMs >= 8 * 60e3);
@@ -141,4 +141,28 @@ test('server tick cost: 4 cars on each map, measured (informational, asserts onl
     console.log(`# tick cost ${map}: p50 ${p50.toFixed(3)} ms p95 ${p95.toFixed(3)} ms per 50 ms tick (6 steps, 4 cars)`);
     assert.ok(p95 < 25, `${map} p95 ${p95}`);
   }
+});
+test('budget fails CLOSED: canRace throwing refuses the start; 3 failed heartbeats close the room', async () => {
+  const ctx = mk({ cfg: { beatMs: 1000, lobbyIdleMs: 3600e3 } }); let beats = 0;
+  ctx.S.budget = { canRace: () => { throw new Error('rpc down'); }, beat: () => { beats++; return Promise.reject(new Error('rpc down')); }, release: () => { } };
+  const h = player(ctx.S, 'H'); msg(ctx.S, h, { t: 'addBot' }); msg(ctx.S, h, { t: 'ready', ready: true }); msg(ctx.S, h, { t: 'start' });
+  await new Promise(r => setImmediate(r)); assert.equal(h.last('error').error, 'capacity'); assert.equal(ctx.S.room.phase, 'lobby');
+  for (let i = 0; i < 4; i++) { ctx.run(1100); await new Promise(r => setImmediate(r)); }
+  assert.ok(beats >= 3); assert.deepEqual(ctx.closed, ['budget-unavailable']);
+});
+test('restore after hibernation keeps lobby ready flags and seats; a restored race is aborted with a notice', () => {
+  const { S } = mk(); const h = player(S, 'H'); msg(S, h, { t: 'addBot' }); msg(S, h, { t: 'ready', ready: true });
+  const meta = JSON.parse(JSON.stringify(S.meta()));
+  const T = fakeTimers(); const R2 = new RoomServer({ code: 'ABCDEF', build: BUILD, timers: T, random: fakeRandom, restored: meta });
+  assert.equal(R2.room.seats[0].ready, true); assert.equal(R2.room.seats[0].connected, false); assert.equal(R2.notice, null);
+  const c = fakeConn(); R2.adopt(c, 'p1'); assert.equal(R2.room.seats[0].connected, true);
+  const tok = h.last('welcome').token; const c2 = fakeConn(); R2.connect(c2); R2.message(c2, JSON.stringify({ t: 'hello', p: PROTOCOL, build: BUILD, token: tok })); assert.equal(c2.last('welcome').id, 'p1', 'token survives');
+  const R3 = new RoomServer({ code: 'ABCDEF', build: BUILD, timers: fakeTimers(), random: fakeRandom, restored: { ...meta, phase: 'race' } });
+  assert.equal(R3.notice, 'room-restarted-race-aborted'); assert.equal(R3.room.phase, 'lobby'); assert.equal(R3.room.seats[0].ready, false);
+});
+test('a batch straddling the 3 s ahead bound keeps its valid frames; a batch fully beyond is rejected', () => {
+  const { S, run, cs: [a] } = startRace(S => { const h = player(S, 'A'); msg(S, h, { t: 'addBot' }); return [h]; });
+  run(4500); const q = S.inputs.get('p1'); const lim = q.next + 360;
+  msg(S, a, { t: 'in', q: lim - 4, f: Array(10).fill(UP) }); assert.equal(q.buf.has(lim), true); assert.equal(q.buf.has(lim + 1), false); assert.equal(S.stats.aheadDropped, 5);
+  msg(S, a, { t: 'in', q: lim + 50, f: [UP] }); assert.equal(a.last('error').error, 'time-ahead');
 });

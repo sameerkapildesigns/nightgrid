@@ -58,11 +58,27 @@ the measured cost per human-minute.
 To stop everything: `npx wrangler delete` (removes the Worker and its Durable Objects). The custom
 domain for the single-player site is not touched by any of this.
 
-## Not verified until hosted
+## What has and has not been tested
 
-These were exercised only through the local Node adaptor, which uses the same `RoomServer`:
-* `server/worker.js` itself;
-* hibernation and alarms;
-* Registry RPC under load;
-* real phone networks;
-* Durable Object CPU/duration accounting.
+* `server/worker.js` (Worker routing, Registry DO, Room DOs, WebSocket Hibernation API accept, attachments,
+  storage, alarms) runs in **local workerd** via `wrangler dev` (no account, no login): `npm run test:worker`,
+  3/3 (docs/evidence/m4/worker-wrangler-tests.txt). This found and fixed two DO-only bugs: eviction lost
+  the idle/empty timer baselines, and the constructor's `setAlarm` cancelled the alarm being delivered.
+* Node (`server/local.mjs`) cannot run `cloudflare:workers`. Node tests cover `RoomServer`, protocol and
+  netcode, not the DO adaptor.
+* **Not verified until hosted:**
+  - real hibernation eviction timing in Cloudflare;
+  - Cloudflare's request/duration accounting and Free-plan enforcement;
+  - Registry behaviour across Cloudflare locations;
+  - real phone networks.
+
+## Guarding against accidental paid usage
+
+* The Free plan has no overage billing. Per Cloudflare's pricing page, once a free limit is exceeded,
+  further operations of that type **fail with an error** until 00:00 UTC. The app shows "Today's free
+  race time is used up" / "All race servers are busy".
+* Paid usage requires subscribing to Workers Paid in the dashboard with a payment method. Nothing in
+  `wrangler.toml` or the steps above does that. Do not click "Upgrade" or "Purchase Workers Paid", and do
+  not add a card.
+* `wrangler.toml` uses only Free-compatible features: SQLite DOs, static assets, vars. No KV, R2, D1,
+  Queues, Logpush, paid observability or custom domains.

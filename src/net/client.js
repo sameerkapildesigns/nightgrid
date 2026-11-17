@@ -73,7 +73,7 @@ export class NetClient {
     if (m.build !== this.build || m.p !== PROTOCOL) { this.onEvent('error', { error: 'build-mismatch', fatal: true }); return; }
     const pred = new Predictor(m, this.simEvents);
     this.race = { msg: m, pred, interp: new Interpolator(pred.sim.track), startAt: m.countdownAt, ended: false };
-    this.results = null; this.outbox = []; this.outSeq = pred.seq; this.qe = 4; this.snapN = 0;
+    this.results = null; this.outbox = []; this.outSeq = pred.seq; this.qe = 4; this.snapN = 0; this.bumpAt = null;   // per-race lead state (a stale cooldown froze lead control in rematches)
     // initial lead: half the round trip + jitter allowance + 2 steps
     this.lead = Math.min(MAX_LEAD_FRAMES, Math.ceil(((this.clock.rtt || 100) / 2 + 30) / (SIM_DT * 1000)) + 2);
     this.onEvent('race', m);
@@ -88,7 +88,7 @@ export class NetClient {
     // Keep it >= 4 steps; shrink slowly when it is generous. Floor: our own frame interval + 2 steps.
     if (s.ph === 'race' && s.el != null) {
       this.snapN++;
-      if (s.el < 4 && this.snapN - (this.bumpAt || -99) >= 8) { this.lead += s.el < 0 ? Math.min(30, 6 - s.el) : 2; this.bumpAt = this.snapN; }   // window holds ~0.8 s: one bump per window
+      if (s.el < 4 && (this.bumpAt == null || this.snapN - this.bumpAt >= 8)) { this.lead += s.el < 0 ? Math.min(30, 6 - s.el) : 2; this.bumpAt = this.snapN; }   // window holds ~0.8 s: one bump per window
       else if (s.el > 24 && this.snapN % 10 === 0) this.lead -= 2;
     }
     const floor = Math.ceil(this.frameMs / (SIM_DT * 1000)) + 2;

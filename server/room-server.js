@@ -42,7 +42,7 @@ export class RoomServer {
     this.conns = new Map();   // conn -> { id, frames(now,n), msgs(now) }
     this.tokens = new Map();  // session token -> seat id (server memory/storage only; never sent to other clients, never logged)
     this.inputs = new Map();  // seat id -> input queue state
-    this.sim = null; this.loop = null; this.notice = null; this.closed = false; this.results = null;
+    this.sim = null; this.loop = null; this.notice = null; this.closed = false; this.results = null; this.beatFails = 0;
     this.lastActivity = this.t.now(); this.lastBeat = this.t.now(); this.emptySince = this.t.now(); this.resultsTimer = null;
     this.stats = { ticks: 0, steps: 0, tickMs: [], overruns: 0, lateTicks: 0, droppedMs: 0, sentBytes: 0, sentMsgs: 0, recvMsgs: 0, recvBytes: 0, skippedBackpressure: 0, rejected: {}, persists: 0, starved: 0, skippedFrames: 0 };
     if (restored) this.restore(restored);
@@ -51,9 +51,14 @@ export class RoomServer {
   restore(meta) {
     const wasRacing = meta.phase && meta.phase !== 'lobby';
     Object.assign(this.room, { hostId: meta.hostId, map: meta.map, mode: meta.mode, nextBot: meta.nextBot, nextHuman: meta.nextHuman, seats: meta.seats.map(s => ({ ...s })), phase: 'lobby', version: (meta.version || 0) + 1 });
-    for (const s of this.room.seats) { s.ready = s.kind === 'bot'; if (s.kind === 'human') { s.connected = false; s.dcAt = this.t.now(); } }
+    // hibernation wake in the lobby keeps ready flags; a restart that killed a race re-asks everyone
+    for (const s of this.room.seats) { if (wasRacing) s.ready = s.kind === 'bot'; if (s.kind === 'human') { s.dcAt = s.connected ? this.t.now() : (s.dcAt || this.t.now()); s.connected = false; } }
     this.room.seats = this.room.seats.filter(s => !s.left);
     for (const [tok, id] of meta.tokens || []) this.tokens.set(tok, id);
+    // timer baselines survive eviction, so an idle/empty room still closes on time after a wake
+    for (const k of ['createdAt']) if (meta[k]) this.room[k] = meta[k];
+    if (meta.lastActivity) this.lastActivity = meta.lastActivity; if (meta.lastBeat) this.lastBeat = meta.lastBeat;
+    if (meta.emptySince !== undefined) this.emptySince = meta.emptySince;
     if (wasRacing) this.notice = 'room-restarted-race-aborted';
   }
   // ---------------- transport hooks ----------------
@@ -112,7 +117,10 @@ export class RoomServer {
     if (!c.frames(now, m.f.length)) return this.reject(conn, 'input-rate');
     const q = this.inputs.get(c.id); if (!q || !this.sim) return;   // no race: ignored
     const seat = this.room.seats.find(s => s.id === c.id); if (!seat || seat.left) return;
-    if (m.q + m.f.length - 1 > q.next + MAX_AHEAD_FRAMES) return this.reject(conn, 'time-ahead');   // > 2 s ahead of the server's step: clock manipulation / runaway
+    // frames > 3 s ahead of the server's step cannot be legitimate lead: the excess is dropped and counted
+    // (a batch straddling the bound keeps its valid part); a batch entirely beyond it is rejected
+    if (m.q > q.next + MAX_AHEAD_FRAMES) return this.reject(conn, 'time-ahead');
+    const lim = q.next + MAX_AHEAD_FRAMES; if (m.q + m.f.length - 1 > lim) { this.stats.aheadDropped = (this.stats.aheadDropped || 0) + (m.q + m.f.length - 1 - lim); m.f = m.f.slice(0, lim - m.q + 1); }
     // arrival margin of this batch's oldest frame (steps before it is needed; negative = late). The
     // lowest recent margin is reported back so the client can set its lead from what actually arrived.
     q.early.push(m.q - q.next); if (q.early.length > 8) q.early.shift();
@@ -131,7 +139,10 @@ export class RoomServer {
   async requestStart(conn, c) {
     if (c.id !== this.room.hostId) return this.send(conn, { t: 'error', error: 'not-host' });
     const b = Room.startBlocker(this.room); if (b) return this.send(conn, { t: 'error', error: b });
-    if (this.budget) { const ok = await this.budget.canRace(this.code); if (!ok || !ok.ok) return this.send(conn, { t: 'error', error: (ok && ok.error) || 'daily-budget' }); }
+    if (this.budget) {   // fail CLOSED: if the shared budget cannot be asked, no race starts
+      let ok = null; try { ok = await this.budget.canRace(this.code); } catch (e) { ok = { ok: false, error: 'capacity' }; this.stats.budgetErrors = (this.stats.budgetErrors || 0) + 1; }
+      if (!ok || !ok.ok) return this.send(conn, { t: 'error', error: (ok && ok.error) || 'capacity' });
+    }
     const seed = new Uint32Array(1); this.random(seed);
     const r = Room.start(this.room, c.id, this.t.now(), seed[0] || 1, this.cfg.countdownMs);
     if (!r.ok) return this.send(conn, { t: 'error', error: r.error });
@@ -235,12 +246,13 @@ export class RoomServer {
     const R = this.room;
     if (!this.loop) { const hk = Room.tick(R, now); if (hk.changes.length) { this.broadcastLobby(); this.save(); } }
     const anyConnected = R.seats.some(s => s.kind === 'human' && s.connected && !s.left);
-    if (anyConnected) this.emptySince = 0; else if (!this.emptySince) this.emptySince = now;
+    const e0 = this.emptySince; if (anyConnected) this.emptySince = 0; else if (!this.emptySince) this.emptySince = now; if (e0 !== this.emptySince) this.save();
     if (this.emptySince && now - this.emptySince >= this.cfg.emptyCloseMs) return this.closeRoom('empty');
     if (R.phase === 'lobby' && now - this.lastActivity >= this.cfg.lobbyIdleMs) return this.closeRoom('idle');
     if (this.budget && now - this.lastBeat >= this.cfg.beatMs) {
-      this.lastBeat = now;
-      Promise.resolve(this.budget.beat(this.code)).then(b => { if (b && b.close) this.closeRoom(b.close); }).catch(() => { });
+      this.lastBeat = now; this.save();
+      Promise.resolve().then(() => this.budget.beat(this.code)).then(b => { this.beatFails = 0; if (b && b.close) this.closeRoom(b.close); })
+        .catch(() => { this.stats.budgetErrors = (this.stats.budgetErrors || 0) + 1; if (++this.beatFails >= 3) this.closeRoom('budget-unavailable'); });   // fail closed after 3 missed heartbeats
     }
     this.wakeLater();
   }
@@ -272,7 +284,7 @@ export class RoomServer {
     this.stats.rejected[why] = (this.stats.rejected[why] || 0) + 1; this.send(conn, { t: 'error', error: why, fatal });
     if (fatal) { try { conn.close(4000, why); } catch (e) { } this.conns.delete(conn); }
   }
-  meta() { const R = this.room; return { code: R.code, build: R.build, phase: R.phase, hostId: R.hostId, map: R.map, mode: R.mode, nextBot: R.nextBot, nextHuman: R.nextHuman, version: R.version, seats: R.seats.map(s => ({ ...s })), tokens: [...this.tokens] }; }
+  meta() { const R = this.room; return { code: R.code, build: R.build, phase: R.phase, hostId: R.hostId, map: R.map, mode: R.mode, nextBot: R.nextBot, nextHuman: R.nextHuman, version: R.version, seats: R.seats.map(s => ({ ...s })), tokens: [...this.tokens], createdAt: R.createdAt, lastActivity: this.lastActivity, lastBeat: this.lastBeat, emptySince: this.emptySince }; }
   save() { if (!this.persist || this.closed) return; this.stats.persists++; try { const p = this.persist(this.meta()); if (p && p.catch) p.catch(() => { }); } catch (e) { } }
   get ticking() { return !!this.loop; }
 }

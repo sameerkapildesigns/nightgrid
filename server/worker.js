@@ -32,8 +32,9 @@ export default {
     if (url.pathname === '/api/rooms' && req.method === 'POST') {
       for (let i = 0; i < 4; i++) {
         const code = makeRoomCode(random);
-        const a = await registry.admit(code); if (!a.ok && a.error === 'exists') continue; if (!a.ok) return json(503, { ok: false, error: a.error });
-        await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code);
+        let a; try { a = await registry.admit(code); } catch (e) { return json(503, { ok: false, error: 'capacity' }); }   // fail closed
+        if (!a.ok && a.error === 'exists') continue; if (!a.ok) return json(503, { ok: false, error: a.error });
+        try { await env.ROOMS.get(env.ROOMS.idFromName(code)).init(code); } catch (e) { try { await registry.release(code); } catch (x) { } return json(503, { ok: false, error: 'capacity' }); }
         return json(201, { ok: true, code });
       }
       return json(503, { ok: false, error: 'capacity' });
@@ -65,25 +66,31 @@ export class Registry extends DurableObject {
 export class Room extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env); this.env = env; this.conns = new Map();   // WebSocket -> conn wrapper
-    ctx.blockConcurrencyWhile(async () => { const meta = await ctx.storage.get('meta'); if (meta) this.boot(meta.code, meta); });
+    ctx.blockConcurrencyWhile(async () => {
+      const meta = await ctx.storage.get('meta'); this.alarmAt = (await ctx.storage.getAlarm()) || 0;
+      if (meta) { this.boot(meta.code, meta); if (!this.alarmAt && this.srv) this.srv.wakeLater(); }   // keep a pending (possibly firing) alarm: never reschedule over it here
+    });
   }
   registry() { return this.env.REGISTRY.get(this.env.REGISTRY.idFromName('global')); }
   boot(code, meta = null) {
-    const ctx = this.ctx;
-    const timers = { now: () => Date.now(), setInterval, clearInterval, setTimeout, clearTimeout, wake: ms => { ctx.storage.setAlarm(Date.now() + ms); } };
+    const ctx = this.ctx; this.booting = true;
+    // wake(): one storage alarm; only rewritten when it must fire earlier (each setAlarm is a storage write)
+    const timers = { now: () => Date.now(), setInterval, clearInterval, setTimeout, clearTimeout,
+      wake: ms => { if (this.booting) return; const at = Date.now() + ms; if (!this.alarmAt || at < this.alarmAt - 500 || this.alarmAt < Date.now()) { this.alarmAt = at; ctx.storage.setAlarm(at); } } };
     this.srv = new RoomServer({ code, build: BUILD, timers, random, cfg: {},
       budget: { beat: c => this.registry().beat(c), canRace: c => this.registry().canRace(c), release: c => this.registry().release(c) },
       persist: m => ctx.storage.put('meta', m),
-      onClose: () => { ctx.storage.deleteAlarm(); ctx.storage.deleteAll(); this.srv = null; },
+      onClose: () => { ctx.storage.deleteAlarm(); ctx.storage.deleteAll(); this.srv = null; this.alarmAt = 0; },
       restored: meta && meta.seats ? meta : null });
     for (const ws of ctx.getWebSockets()) { const a = ws.deserializeAttachment() || {}; this.srv.adopt(this.wrap(ws), a.id); }   // woke from hibernation
+    this.booting = false;
   }
   wrap(ws) {
     let c = this.conns.get(ws);
     if (!c) { c = { ws, send: t => ws.send(t), close: (code, r) => { try { ws.close(code, r); } catch (e) { } } }; this.conns.set(ws, c); }
     return c;
   }
-  async init(code) { if (!this.srv) { this.boot(code); await this.ctx.storage.put('meta', { code }); } return { ok: true }; }
+  async init(code) { if (!this.srv) { this.boot(code); await this.ctx.storage.put('meta', this.srv.meta()); this.srv.wakeLater(); } return { ok: true }; }
   async info() { return this.srv ? { phase: this.srv.room.phase, seats: this.srv.room.seats.length } : null; }
   async fetch(req) {
     const pair = new WebSocketPair(), [client, server] = Object.values(pair);
@@ -100,5 +107,5 @@ export class Room extends DurableObject {
   }
   async webSocketClose(ws) { const c = this.conns.get(ws); this.conns.delete(ws); if (c && this.srv) this.srv.close(c); }
   async webSocketError(ws) { return this.webSocketClose(ws); }
-  async alarm() { if (this.srv) this.srv.housekeep(); }
+  async alarm() { this.alarmAt = 0; if (this.srv) this.srv.housekeep(); }
 }
