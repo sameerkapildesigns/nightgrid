@@ -1,0 +1,112 @@
+PASS  boot: title reached  — 1094 ms (SwiftShader, local preview)
+PASS  boot: selected car (hypercar) requested first  — hypercar,wedge,endurance
+PASS  boot: rival requests start before the selected car finishes (no waterfall)  — {"reqStart":{"hypercar":319,"wedge":319,"endurance":320},"respEnd":{"wedge":582,"hypercar":793,"endurance":944}}
+PASS  boot: only selected + rival cars requested (no full roster)  — hypercar,wedge,endurance
+PASS  boot: no base64 / CDN model transfer
+PASS  assets: served GLBs are byte-identical in size to the originals  — {"wedge":{"type":"model/gltf-binary","len":1819188},"hypercar":{"type":"model/gltf-binary","len":3759144},"endurance":{"type":"model/gltf-binary","len":5032148}}
+PASS  roster: six approved models in garage order  — hypercar,endurance,wedge,rally,streamliner,wipeout
+PASS  roster: Hypercar is the default selection
+PASS  roster: no Z-32S anywhere in the shipped page
+PASS  roster: every race body is a real glTF (no fallback)  — glTF:hypercar,glTF:hypercar,glTF:wedge,glTF:endurance
+PASS  on-demand: selecting Off-roader fetches rally.glb only  — hypercar,wedge,endurance,rally
+PASS  on-demand: re-selecting a loaded car does not refetch
+PASS  on-demand: Wipeout loads when selected (original 2k/4k textures)  — 29886 tris, 2 meshes
+PASS  boot: no page errors
+PASS  arrows: 44x44 and on-screen (desktop 1280x675)  — [[44,44,true],[44,44,true]]
+PASS  arrows: 44x44 and on-screen (landscape phone 844x390)  — [[44,44,true],[44,44,true]]
+PASS  arrows: 44x44 and on-screen (portrait phone 390x844)  — [[44,44,true],[44,44,true]]
+PASS  garage 960x540: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1024x576: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1024x768: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1152x648: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1280x675: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1366x768: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1920x1080: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  maps: technical builds (length/laps/name/world)  — 2420 m, 3 laps, 59 meshes, switch 147 ms
+PASS  maps: technical shows no record in a clean session  — No record yet
+PASS  maps: legacy builds (length/laps/name/world)  — 5055 m, 3 laps, 81 meshes, switch 195 ms
+PASS  maps: legacy shows no record in a clean session  — No record yet
+PASS  maps: velocity builds (length/laps/name/world)  — 5870 m, 2 laps, 64 meshes, switch 231 ms
+PASS  maps: velocity shows no record in a clean session  — No record yet
+PASS  maps: no page errors
+PASS  flow: Race -> cinematic intro  — precompile {"ms":16,"programs":63,"textures":40}
+PASS  flow: Enter skips intro -> countdown
+PASS  flow: countdown -> race
+PASS  flow: P pauses
+PASS  flow: Enter while paused restarts (countdown)
+PASS  flow: throttle accelerates the player  — 290 km/h after 3 s
+PASS  flow: crossing the line on the final lap finishes (finish camera)
+PASS  flow: Enter skips finish camera -> results  — P1, rows 5
+PASS  records: teleported test lap is rejected  — {"time":5.049999999999752,"map":"velocity","saved":false,"reason":"faster-than-physics"}
+PASS  records: test build never writes real records (localStorage untouched)  — []
+PASS  flow: Race again -> countdown
+PASS  flow: back to garage
+PASS  flow: no page errors
+PASS  timing: intro runs on the wall clock (not frame count)  — intro 6.34 s for len 6 s over 10 frames (max frame 1000 ms)
+PASS  timing: shader precompile happens before intro timing starts  — precompile {"ms":585,"programs":63,"textures":40}; click->intro-start includes it
+PASS  timing: 10 FPS frames advance race time 1:1 (3.0 s wall -> 3.0 s race)  — 3.0000 s
+PASS  timing: 4 FPS frames still advance race time 1:1  — 5.0000 s
+PASS  timing: a 600 ms hitch simulates the 250 ms cap and reports the drop  — +0.250 s, dropped 350 ms
+PASS  timing: a 5 s stall (tab suspension) is not simulated and auto-pauses the race  — Auto-paused: the game was suspended for 5.0 s
+PASS  timing: race clock frozen while paused
+PASS  timing: resumes cleanly after the stall  — 0.1000 s
+PASS  timing: hidden tab pauses the race
+PASS  timing (real time): race time + reported drops == wall time seen by the loop  — loop wall 4.633 s = race 1.550 s + dropped 3.083 s; fps 1.2
+PASS  timing (real time): loop wall time matches performance.now within one frame  — loop 4.63 s vs now 5.00 s
+PASS  timing (real time): FPS meter reports real FPS (can be < 20)  — fps 1.2 (min 0.2)
+PASS  timing: no page errors
+PASS  touch: tapping the cinematic skips the intro
+PASS  touch (landscape 844x390): 4 controls visible, >=44 px, on-screen, non-overlapping  — left:76x76@18,292 right:76x76@106,292 down:84x60@648,304 boost:84x60@742,234
+PASS  touch (landscape): Brake/Boost and steer pads do not cover the speedometer cluster  — {"x":355,"y":283,"w":135,"h":105}
+PASS  touch (landscape): compact credits on-screen and clear of controls  — {"h":10,"w":305,"visible":true}
+PASS  touch (landscape): auto-throttle drives the car  — 0 -> 242 km/h
+PASS  mobile 844x390: Race tap requests fullscreen/orientation lock best-effort; race starts either way  — {"requested":true,"fullscreen":"pending","lock":null}
+PASS  mobile 844x390: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)  — {"tl":{"x":10,"y":8,"w":78,"h":53,"vis":true},"pos":{"x":756,"y":8,"w":78,"h":38,"vis":true},"mm":{"x":750,"y":52,"w":84,"h":84,"vis":true},"spd":{"x":413,"y":321,"w":45,"h":32,"vis":true},"boost":{"x":368,"y":379,"w":107,"h":6,"vis":true}}
+PASS  mobile 844x390: HUD keeps the road centre clear
+PASS  mobile 844x390: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap  — left@18,292 right@106,292 down@648,304 boost@742,234
+PASS  mobile 844x390: hit target at every pad centre is that pad (no overlay above the controls)  — [["left","left"],["right","right"],["down","down"],["boost","boost"]]
+PASS  mobile 844x390: real touch holds each control (left, right, Brake: down=1/up=0, Boost) and release clears it  — {"left":{"held":true,"released":true},"right":{"held":true,"released":true},"down":{"held":true,"released":true},"boost":{"held":true,"released":true}}
+PASS  mobile 844x390: multitouch steer-left + Boost held together; each release clears only its key  — {"multi":{"up":1,"down":0,"left":1,"right":0,"boost":1},"afterOne":{"up":1,"down":0,"left":0,"right":0,"boost":1},"afterAll":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile 844x390: touchcancel clears held steer + Brake  — {"h2":{"up":0,"down":1,"left":0,"right":1,"boost":0},"c2":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile: rotating to portrait mid-race pauses, shows Rotate panel, releases held inputs  — {"paused":true,"keys":{"up":0,"down":0,"left":0,"right":0,"boost":0},"rot":"flex","note":"Paused: rotate to landscape, then tap Resume."}
+PASS  mobile: back to landscape stays paused with an explicit Resume button (no auto-resume)  — {"paused":true,"rot":"none","resume":"block","rt":2.3833}
+PASS  mobile: Resume continues the race with no stuck input  — {"paused":false,"boost":0}
+PASS  mobile 844x390: no page errors
+PASS  mobile 852x393: Race tap requests fullscreen/orientation lock best-effort; race starts either way  — {"requested":true,"fullscreen":"ok","lock":"ok"}
+PASS  mobile 852x393: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)  — {"tl":{"x":10,"y":8,"w":78,"h":53,"vis":true},"pos":{"x":764,"y":8,"w":78,"h":38,"vis":true},"mm":{"x":758,"y":52,"w":84,"h":84,"vis":true},"spd":{"x":417,"y":324,"w":45,"h":32,"vis":true},"boost":{"x":372,"y":382,"w":107,"h":6,"vis":true}}
+PASS  mobile 852x393: HUD keeps the road centre clear
+PASS  mobile 852x393: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap  — left@18,295 right@106,295 down@656,307 boost@750,237
+PASS  mobile 852x393: hit target at every pad centre is that pad (no overlay above the controls)  — [["left","left"],["right","right"],["down","down"],["boost","boost"]]
+PASS  mobile 852x393: real touch holds each control (left, right, Brake: down=1/up=0, Boost) and release clears it  — {"left":{"held":true,"released":true},"right":{"held":true,"released":true},"down":{"held":true,"released":true},"boost":{"held":true,"released":true}}
+PASS  mobile 852x393: multitouch steer-left + Boost held together; each release clears only its key  — {"multi":{"up":1,"down":0,"left":1,"right":0,"boost":1},"afterOne":{"up":1,"down":0,"left":0,"right":0,"boost":1},"afterAll":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile 852x393: touchcancel clears held steer + Brake  — {"h2":{"up":0,"down":1,"left":0,"right":1,"boost":0},"c2":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile 852x393: no page errors
+PASS  mobile 667x375: Race tap requests fullscreen/orientation lock best-effort; race starts either way  — {"requested":true,"fullscreen":"ok","lock":"ok"}
+PASS  mobile 667x375: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)  — {"tl":{"x":10,"y":8,"w":78,"h":53,"vis":true},"pos":{"x":579,"y":8,"w":78,"h":38,"vis":true},"mm":{"x":573,"y":52,"w":84,"h":84,"vis":true},"spd":{"x":324,"y":306,"w":45,"h":32,"vis":true},"boost":{"x":280,"y":364,"w":107,"h":6,"vis":true}}
+PASS  mobile 667x375: HUD keeps the road centre clear
+PASS  mobile 667x375: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap  — left@18,277 right@106,277 down@471,289 boost@565,219
+PASS  mobile 667x375: hit target at every pad centre is that pad (no overlay above the controls)  — [["left","left"],["right","right"],["down","down"],["boost","boost"]]
+PASS  mobile 667x375: real touch holds each control (left, right, Brake: down=1/up=0, Boost) and release clears it  — {"left":{"held":true,"released":true},"right":{"held":true,"released":true},"down":{"held":true,"released":true},"boost":{"held":true,"released":true}}
+PASS  mobile 667x375: multitouch steer-left + Boost held together; each release clears only its key  — {"multi":{"up":1,"down":0,"left":1,"right":0,"boost":1},"afterOne":{"up":1,"down":0,"left":0,"right":0,"boost":1},"afterAll":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile 667x375: touchcancel clears held steer + Brake  — {"h2":{"up":0,"down":1,"left":0,"right":1,"boost":0},"c2":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile 667x375: no page errors
+PASS  mobile portrait 390x844: Rotate panel shown and no new race can start  — rotate=flex state=title
+PASS  desktop: no rotate panel / resume button, HUD sizes unchanged  — {"rot":"none","res":"none","mm":200}
+PASS  tilt (denied): no permission prompt on page load; Touch is default
+PASS  tilt (denied): clear message, Touch fallback  — Motion access was not granted; using Touch steering.
+PASS  tilt (denied): no page errors
+PASS  tilt (nomethod): no permission prompt on page load; Touch is default
+PASS  tilt (no permission API, no events): clear message, Touch fallback  — No tilt sensor events were received; using Touch steering.
+PASS  tilt (nomethod): no page errors
+PASS  tilt (granted): no permission prompt on page load; Touch is default
+PASS  tilt (granted + live events): enabled after explicit tap, recentred  — {"pref":"tilt","live":true,"listening":true,"steer":0,"neutral":0,"msg":"Tilt on. Hold the phone level in landscape and tap Recenter if needed.","calls":1}
+PASS  tilt: right tilt steers right, left tilt steers left (analogue, landscape-primary)  — {"k1":{"up":1,"down":0,"left":0,"right":0.9999990463256836,"boost":0},"k2":{"up":1,"down":0,"left":0.9999980926522767,"right":0,"boost":0}}
+PASS  tilt: pause resets steering (no stuck input)  — {"keys":{"up":0,"down":0,"left":0,"right":0,"boost":0},"steer":0}
+PASS  tilt: Boost/Brake still touch, preference stored (no sensor data stored)
+PASS  tilt (granted): no page errors
+PASS  prod: no debug hooks (NG_DEBUG/__ng undefined), no QA button, QA panel hidden  — {"dbg":"undefined","ng":"undefined","qa":false,"qaPanel":false,"marks":["ng:boot","ng:world-built","ng:selected-car","ng:race-ready","ng:title"]}
+PASS  prod: boots to an enabled Race button  — ng:boot,ng:world-built,ng:selected-car,ng:race-ready,ng:title
+PASS  prod: Race -> intro -> Enter skip -> countdown (no debug hooks used)  — count=3
+PASS  prod: no page errors
+
+110/110 passed

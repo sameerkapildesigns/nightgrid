@@ -270,6 +270,31 @@ try {
       C(`mobile ${w}x${h}: HUD keeps the road centre clear`, !hud.some(r => ov(r, road)));
       C(`mobile ${w}x${h}: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap`, pads.every(b => b.w >= 44 && b.h >= 44 && inV(b)) && pads.filter(b => /left|right/.test(b.k)).every(b => b.x < w * 0.35) && pads.filter(b => /down|boost/.test(b.k)).every(b => b.x > w * 0.65) && !pads.some(b => hud.some(r => ov(b, r))), pads.map(b => `${b.k}@${Math.round(b.x)},${Math.round(b.y)}`).join(' '));
       await page.evaluate(() => __ng.render()); await shot(page, `mobile-hud-${w}x${h}`);
+      // REAL browser touch input via CDP (DOM-dispatched events cannot catch overlay hit-testing bugs)
+      {
+        const cdp = await ctx.newCDPSession(page);
+        const ctr = k => { const b = pads.find(p => p.k === k); return { x: Math.round(b.x + b.w / 2), y: Math.round(b.y + b.h / 2) }; };
+        const hits = await page.evaluate(pts => pts.map(([k, x, y]) => { const e = document.elementFromPoint(x, y); return [k, e && e.closest('#touch button') ? e.closest('#touch button').dataset.k : (e ? (e.id || e.className || e.tagName) : null)]; }), pads.map(b => [b.k, ...Object.values(ctr(b.k))]));
+        C(`mobile ${w}x${h}: hit target at every pad centre is that pad (no overlay above the controls)`, hits.every(([k, t]) => k === t), JSON.stringify(hits));
+        const keysNow = async () => { await page.waitForTimeout(150); return page.evaluate(() => NG_DEBUG.mobile.keys); };
+        const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p, i) => ({ x: p.x, y: p.y, id: p.id ?? i + 1, radiusX: 4, radiusY: 4, force: 1 })) });
+        const res = {};
+        for (const [k, want] of [['left', kk => kk.left === 1], ['right', kk => kk.right === 1], ['down', kk => kk.down === 1 && kk.up === 0], ['boost', kk => kk.boost === 1]]) {
+          await touch('touchStart', [ctr(k)]); const held = await keysNow();
+          await touch('touchEnd', []); const rel = await keysNow();
+          res[k] = { held: want(held), released: !rel.left && !rel.right && !rel.down && !rel.boost && rel.up === 1 };
+        }
+        C(`mobile ${w}x${h}: real touch holds each control (left, right, Brake: down=1/up=0, Boost) and release clears it`, Object.values(res).every(r => r.held && r.released), JSON.stringify(res));
+        await touch('touchStart', [{ ...ctr('left'), id: 1 }]); await touch('touchStart', [{ ...ctr('left'), id: 1 }, { ...ctr('boost'), id: 2 }]);
+        const multi = await keysNow();
+        await touch('touchEnd', [{ ...ctr('left'), id: 1 }]); /* CDP touchEnd releases the listed point (left finger) */ const afterOne = await keysNow();
+        await touch('touchEnd', []); const afterAll = await keysNow();
+        C(`mobile ${w}x${h}: multitouch steer-left + Boost held together; each release clears only its key`, multi.left === 1 && multi.boost === 1 && !afterOne.left && afterOne.boost === 1 && !afterAll.left && !afterAll.boost, JSON.stringify({ multi, afterOne, afterAll }));
+        await touch('touchStart', [ctr('right'), { ...ctr('down'), id: 2 }]); const h2 = await keysNow();
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] }); const c2 = await keysNow();
+        C(`mobile ${w}x${h}: touchcancel clears held steer + Brake`, h2.right === 1 && h2.down === 1 && !c2.right && !c2.down && c2.up === 1, JSON.stringify({ h2, c2 }));
+        await cdp.detach();
+      }
       if (w === 844) {
         // rotation mid-race with a held input: pause, release inputs, rotate panel, explicit Resume
         await page.evaluate(() => document.fullscreenElement && document.exitFullscreen().catch(() => {})); await page.waitForTimeout(300);

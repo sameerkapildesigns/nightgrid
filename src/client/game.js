@@ -2283,8 +2283,8 @@ if (TOUCH) {
   touchHeld = held;
   touchRelease = () => { tilt.reset(); for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
   setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused) keys.up = held.down ? 0 : 1; }, 50);
-  $('cine').addEventListener('pointerdown', () => { if (state === 'intro') endIntro(true); else skipFinishCine(); });
-  $('cine').style.pointerEvents = 'auto';
+  // (M2 fix) no inline pointer-events here: #cine is interactive only while .on (CSS); the
+  // general #cine pointerdown handler above already covers touch.
 }
 
 /* ---------- map switching: dispose the old world (road, collision frames, city, props) and build the new one ---------- */

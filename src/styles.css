@@ -297,6 +297,9 @@ body.cinematic #hud{opacity:0;transition:opacity .3s} body.cinematic #fx{opacity
 #cineTag{position:absolute;left:6vw;top:calc(11vh + 14px);font:600 11px Inter,sans-serif;letter-spacing:.12em;text-transform:uppercase;color:rgba(232,246,255,.7);display:none}
 #cine.fin #cineTag{display:block}
 #cine.on{pointer-events:auto;cursor:pointer}
+/* M2 fix: the cinematic overlay (z-index 6, above the z-index 5 touch pads) and its Skip chip must not
+   take input unless the cinematic is actually on (v5b set an inline pointer-events:auto in touch mode). */
+#cine:not(.on),#cine:not(.on) *{pointer-events:none!important}
 #cineSkip{position:absolute;right:20px;bottom:calc(11vh + 14px);pointer-events:auto}
 
 .tiltOnly{display:none} body.touchmode .tiltOnly{display:block}

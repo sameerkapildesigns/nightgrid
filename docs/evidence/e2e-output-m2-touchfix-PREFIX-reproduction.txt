@@ -1,0 +1,34 @@
+PASS  mobile 844x390: Race tap requests fullscreen/orientation lock best-effort; race starts either way  — {"requested":true,"fullscreen":"ok","lock":"ok"}
+PASS  mobile 844x390: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)  — {"tl":{"x":10,"y":8,"w":78,"h":53,"vis":true},"pos":{"x":756,"y":8,"w":78,"h":38,"vis":true},"mm":{"x":750,"y":52,"w":84,"h":84,"vis":true},"spd":{"x":413,"y":321,"w":45,"h":32,"vis":true},"boost":{"x":368,"y":379,"w":107,"h":6,"vis":true}}
+PASS  mobile 844x390: HUD keeps the road centre clear
+PASS  mobile 844x390: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap  — left@18,292 right@106,292 down@648,304 boost@742,234
+FAIL  mobile 844x390: hit target at every pad centre is that pad (no overlay above the controls)  — [["left","cineMeta"],["right","cineMeta"],["down","cine"],["boost","cine"]]
+FAIL  mobile 844x390: real touch holds each control (left, right, Brake: down=1/up=0, Boost) and release clears it  — {"left":{"held":false,"released":true},"right":{"held":false,"released":true},"down":{"held":false,"released":true},"boost":{"held":false,"released":true}}
+FAIL  mobile 844x390: multitouch steer-left + Boost held together; each release clears only its key  — {"multi":{"up":1,"down":0,"left":0,"right":0,"boost":0},"afterOne":{"up":1,"down":0,"left":0,"right":0,"boost":0},"afterAll":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+FAIL  mobile 844x390: touchcancel clears held steer + Brake  — {"h2":{"up":1,"down":0,"left":0,"right":0,"boost":0},"c2":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile: rotating to portrait mid-race pauses, shows Rotate panel, releases held inputs  — {"paused":true,"keys":{"up":0,"down":0,"left":0,"right":0,"boost":0},"rot":"flex","note":"Paused: rotate to landscape, then tap Resume."}
+PASS  mobile: back to landscape stays paused with an explicit Resume button (no auto-resume)  — {"paused":true,"rot":"none","resume":"block","rt":2.3833}
+PASS  mobile: Resume continues the race with no stuck input  — {"paused":false,"boost":0}
+PASS  mobile 844x390: no page errors
+PASS  mobile 852x393: Race tap requests fullscreen/orientation lock best-effort; race starts either way  — {"requested":true,"fullscreen":"pending","lock":null}
+PASS  mobile 852x393: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)  — {"tl":{"x":10,"y":8,"w":78,"h":53,"vis":true},"pos":{"x":764,"y":8,"w":78,"h":38,"vis":true},"mm":{"x":758,"y":52,"w":84,"h":84,"vis":true},"spd":{"x":417,"y":324,"w":45,"h":32,"vis":true},"boost":{"x":372,"y":382,"w":107,"h":6,"vis":true}}
+PASS  mobile 852x393: HUD keeps the road centre clear
+PASS  mobile 852x393: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap  — left@18,295 right@106,295 down@656,307 boost@750,237
+FAIL  mobile 852x393: hit target at every pad centre is that pad (no overlay above the controls)  — [["left","cineMeta"],["right","cineMeta"],["down","cine"],["boost","cine"]]
+FAIL  mobile 852x393: real touch holds each control (left, right, Brake: down=1/up=0, Boost) and release clears it  — {"left":{"held":false,"released":true},"right":{"held":false,"released":true},"down":{"held":false,"released":true},"boost":{"held":false,"released":true}}
+FAIL  mobile 852x393: multitouch steer-left + Boost held together; each release clears only its key  — {"multi":{"up":1,"down":0,"left":0,"right":0,"boost":0},"afterOne":{"up":1,"down":0,"left":0,"right":0,"boost":0},"afterAll":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+FAIL  mobile 852x393: touchcancel clears held steer + Brake  — {"h2":{"up":1,"down":0,"left":0,"right":0,"boost":0},"c2":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile 852x393: no page errors
+PASS  mobile 667x375: Race tap requests fullscreen/orientation lock best-effort; race starts either way  — {"requested":true,"fullscreen":"pending","lock":null}
+PASS  mobile 667x375: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)  — {"tl":{"x":10,"y":8,"w":78,"h":53,"vis":true},"pos":{"x":579,"y":8,"w":78,"h":38,"vis":true},"mm":{"x":573,"y":52,"w":84,"h":84,"vis":true},"spd":{"x":324,"y":306,"w":45,"h":32,"vis":true},"boost":{"x":280,"y":364,"w":107,"h":6,"vis":true}}
+PASS  mobile 667x375: HUD keeps the road centre clear
+PASS  mobile 667x375: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap  — left@18,277 right@106,277 down@471,289 boost@565,219
+FAIL  mobile 667x375: hit target at every pad centre is that pad (no overlay above the controls)  — [["left","cineMeta"],["right","cineMeta"],["down","cine"],["boost","cine"]]
+FAIL  mobile 667x375: real touch holds each control (left, right, Brake: down=1/up=0, Boost) and release clears it  — {"left":{"held":false,"released":true},"right":{"held":false,"released":true},"down":{"held":false,"released":true},"boost":{"held":false,"released":true}}
+FAIL  mobile 667x375: multitouch steer-left + Boost held together; each release clears only its key  — {"multi":{"up":1,"down":0,"left":0,"right":0,"boost":0},"afterOne":{"up":1,"down":0,"left":0,"right":0,"boost":0},"afterAll":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+FAIL  mobile 667x375: touchcancel clears held steer + Brake  — {"h2":{"up":1,"down":0,"left":0,"right":0,"boost":0},"c2":{"up":1,"down":0,"left":0,"right":0,"boost":0}}
+PASS  mobile 667x375: no page errors
+PASS  mobile portrait 390x844: Rotate panel shown and no new race can start  — rotate=flex state=title
+PASS  desktop: no rotate panel / resume button, HUD sizes unchanged  — {"rot":"none","res":"none","mm":200}
+
+20/32 passed
