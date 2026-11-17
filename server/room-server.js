@@ -1,124 +1,270 @@
-// Authoritative NIGHTGRID room server (transport-agnostic). One instance per room (one Durable Object).
-// The server owns physics, boost, checkpoints, laps and the winner: clients only send inputs; there is
-// no message type for results. Shared pure core (same sim as the browser), fixed 120 Hz steps, 20 Hz
-// input/snapshot. Idle lobby: no ticking (hibernatable). Countdown/race: a 50 ms interval keeps it awake.
-// Persistence: room metadata only on phase changes (never per frame).
-// Restart policy: in-memory race state is not persisted; if the room restarts mid-race the race is
-// ABORTED and everyone is returned to the lobby with a notice (honest, no silent resume).
+// Authoritative NIGHTGRID room (transport-agnostic). One instance per private room: one Durable Object
+// in production (server/worker.js), one object in the local Node runtime (server/local.mjs).
+//
+// Authority: the server owns the clock, grid, physics, collisions, checkpoints/laps, boost, respawns,
+// AI and results. Clients only send per-step input frames (protocol v2); there is no message type that
+// can set a position, speed, lap or result. Shared pure core (same sim as the browser).
+//
+// Timing: fixed 120 Hz simulation advanced by a 20 Hz network tick (setInterval), bounded catch-up via
+// core/clock.js (<= 250 ms simulated per tick; >= 1 s gaps are not simulated). Idle lobby: no interval;
+// housekeeping is requested through timers.wake(ms) (Node: setTimeout, Durable Object: storage alarm),
+// so an idle lobby can hibernate. A countdown/race keeps the interval running (cannot hibernate).
+//
+// Restart policy: race state is in memory only. If the room object restarts mid-race, the race is
+// ABORTED and everyone returns to the lobby with a notice (no silent resume).
 import * as Room from '../src/core/room.js';
 import { createSim } from '../src/core/sim.js';
 import { createClock, SIM_DT } from '../src/core/clock.js';
 import { CARS } from '../src/core/roster.js';
-import { parseClient, rateLimiter, compactRacer, NET_HZ, INPUT_RATE_MAX, MSG_RATE_MAX, BACKPRESSURE_BYTES, PROTOCOL } from '../src/net/protocol.js';
+import { parseClient, rateLimiter, compactRacer, decodeFrame, makeToken, NET_HZ, FRAME_RATE_MAX, FRAME_BURST, MSG_RATE_MAX, MSG_BURST,
+  MAX_AHEAD_FRAMES, QUEUE_DROP_FRAMES, BACKPRESSURE_BYTES, PROTOCOL, ZERO_FRAME } from '../src/net/protocol.js';
 
-const ZERO = { up: 0, down: 0, left: 0, right: 0, boost: 0, drift: 0 };
+export const ROOM_DEFAULTS = {
+  countdownMs: 4500,          // lobby Start -> lights out (includes track/car preload on clients)
+  resultsHoldMs: 20000,       // results shown, then the room returns to the lobby (host can return earlier)
+  finishGraceMs: 30000,       // after the first human finishes, others get 30 s
+  maxRaceMs: 8 * 60e3,        // hard cap on one race
+  emptyCloseMs: 60e3,         // no connected human for 60 s -> room closes
+  lobbyIdleMs: 15 * 60e3,     // no lobby activity for 15 min -> room closes
+  beatMs: 60e3,               // budget heartbeat
+  housekeepMs: 1000
+};
+const DNF_PERS = { vmax: 45, lat: 40, acc: 14, brake: 40, off: 0, short: 0, aggr: 0, block: 0, boostUse: 0, margin: 5 };
+const _k = {};
+
 export class RoomServer {
-  // timers: { now(), setInterval, clearInterval, setTimeout, clearTimeout }; persist(meta) optional; restored: meta from storage
-  constructor({ code, build, timers, persist = null, restored = null, seed = null, resultsHoldMs = 8000, finishGraceMs = 30000 }) {
-    this.t = timers; this.persist = persist; this.resultsHoldMs = resultsHoldMs; this.finishGraceMs = finishGraceMs;
+  // timers: { now(), setInterval, clearInterval, setTimeout, clearTimeout, wake?(ms) }
+  // random: crypto.getRandomValues-compatible. budget: { beat(code), canRace(code), release(code) } (sync or async)
+  constructor({ code, build, timers, random, budget = null, persist = null, onClose = null, restored = null, cfg = {} }) {
+    this.code = code; this.t = timers; this.random = random; this.budget = budget; this.persist = persist; this.onClose = onClose;
+    this.cfg = { ...ROOM_DEFAULTS, ...cfg };
     this.room = Room.createRoom({ code, build, now: this.t.now() });
-    this.conns = new Map();   // conn -> { id, inRate, msgRate, lastSeq, lastBuffered }
-    this.inputs = new Map();  // human id -> { k, seq, at }
-    this.sim = null; this.loop = null; this.notice = null; this.seedFn = seed || (() => (Math.random() * 2 ** 32) >>> 0);
-    this.stats = { ticks: 0, tickMs: [], sentBytes: 0, sentMsgs: 0, recvMsgs: 0, skippedBackpressure: 0, rejected: {}, persists: 0 };
-    if (restored) { Object.assign(this.room, restored, { phase: 'lobby' }); for (const s of this.room.seats) { s.ready = s.kind === 'bot'; s.connected = false; s.dcAt = this.t.now(); } if (restored.phase && restored.phase !== 'lobby') this.notice = 'room-restarted-race-aborted'; this.scheduleExpiry(); }
+    this.conns = new Map();   // conn -> { id, frames(now,n), msgs(now) }
+    this.tokens = new Map();  // session token -> seat id (server memory/storage only; never sent to other clients, never logged)
+    this.inputs = new Map();  // seat id -> input queue state
+    this.sim = null; this.loop = null; this.notice = null; this.closed = false; this.results = null;
+    this.lastActivity = this.t.now(); this.lastBeat = this.t.now(); this.emptySince = this.t.now(); this.resultsTimer = null;
+    this.stats = { ticks: 0, steps: 0, tickMs: [], overruns: 0, lateTicks: 0, droppedMs: 0, sentBytes: 0, sentMsgs: 0, recvMsgs: 0, recvBytes: 0, skippedBackpressure: 0, rejected: {}, persists: 0, starved: 0, skippedFrames: 0 };
+    if (restored) this.restore(restored);
+    this.wakeLater();
   }
-  // ---- transport hooks ----
-  connect(conn) { this.conns.set(conn, { id: null, inRate: rateLimiter(INPUT_RATE_MAX), msgRate: rateLimiter(MSG_RATE_MAX), lastSeq: -1 }); }
+  restore(meta) {
+    const wasRacing = meta.phase && meta.phase !== 'lobby';
+    Object.assign(this.room, { hostId: meta.hostId, map: meta.map, mode: meta.mode, nextBot: meta.nextBot, nextHuman: meta.nextHuman, seats: meta.seats.map(s => ({ ...s })), phase: 'lobby', version: (meta.version || 0) + 1 });
+    for (const s of this.room.seats) { s.ready = s.kind === 'bot'; if (s.kind === 'human') { s.connected = false; s.dcAt = this.t.now(); } }
+    this.room.seats = this.room.seats.filter(s => !s.left);
+    for (const [tok, id] of meta.tokens || []) this.tokens.set(tok, id);
+    if (wasRacing) this.notice = 'room-restarted-race-aborted';
+  }
+  // ---------------- transport hooks ----------------
+  connect(conn) { this.conns.set(conn, { id: null, frames: rateLimiter(FRAME_RATE_MAX, FRAME_BURST), msgs: rateLimiter(MSG_RATE_MAX, MSG_BURST) }); }
+  // Durable Object hibernation: a socket that survived eviction is re-attached to its seat.
+  adopt(conn, id) { this.connect(conn); const c = this.conns.get(conn); if (id && this.room.seats.some(s => s.id === id && s.kind === 'human' && !s.left)) { c.id = id; Room.reconnect(this.room, id, this.t.now()); } }
   close(conn) {
     const c = this.conns.get(conn); this.conns.delete(conn); if (!c || !c.id) return;
-    if (![...this.conns.values()].some(x => x.id === c.id)) { Room.disconnect(this.room, c.id, this.t.now()); this.inputs.delete(c.id); this.scheduleExpiry(); this.broadcastLobby(); this.save(); }
+    if (![...this.conns.values()].some(x => x.id === c.id)) { Room.disconnect(this.room, c.id, this.t.now()); this.broadcastLobby(); this.save(); this.wakeLater(); }
   }
   message(conn, text) {
-    const c = this.conns.get(conn); if (!c) return; this.stats.recvMsgs++;
-    const now = this.t.now();
-    const p = parseClient(text); if (!p.ok) return this.reject(conn, p.error);
+    const c = this.conns.get(conn); if (!c || this.closed) return;
+    const now = this.t.now(); this.stats.recvMsgs++; this.stats.recvBytes += typeof text === 'string' ? text.length : 0;
+    if (!c.msgs(now)) return this.reject(conn, 'rate');
+    const p = parseClient(text); if (!p.ok) return this.reject(conn, p.error, p.error === 'protocol-mismatch');
     const m = p.msg;
-    if (m.t === 'input') { if (!c.inRate(now)) return this.reject(conn, 'input-rate'); }
-    else if (!c.msgRate(now)) return this.reject(conn, 'msg-rate');
     if (m.t === 'ping') return this.send(conn, { t: 'pong', c: m.c, s: now });
-    if (m.t === 'hello') {
-      const r = Room.join(this.room, { id: m.id, name: m.name, build: m.build }, now);
-      if (!r.ok) { this.send(conn, { t: 'error', error: r.error }); return conn.close(4000 + (r.error === 'room-full' ? 1 : 2), r.error); }
-      c.id = m.id; this.send(conn, { t: 'welcome', id: m.id, protocol: PROTOCOL, notice: this.notice });
-      if (this.sim) this.sendRaceStart(conn, c.id);
-      this.broadcastLobby(); this.save(); return;
-    }
+    if (m.t === 'hello') return this.hello(conn, c, m, now);
     if (!c.id) return this.reject(conn, 'no-hello');
+    if (m.t === 'in') return this.input(conn, c, m, now);
+    this.lastActivity = now;
     let r = { ok: true };
     switch (m.t) {
-      case 'input': {
-        if (m.seq <= c.lastSeq) return;   // out of order / duplicate
-        c.lastSeq = m.seq; const seat = this.room.seats.find(s => s.id === c.id); if (seat) seat.lastInputAt = now;
-        this.inputs.set(c.id, { k: m.k, seq: m.seq, at: now }); return;
-      }
       case 'addBot': r = Room.addBot(this.room, c.id); break;
       case 'removeBot': r = Room.removeBot(this.room, c.id, m.bot); break;
       case 'config': r = Room.configure(this.room, c.id, m); break;
-      case 'car': r = Room.setCar(this.room, c.id, m.car); break;
+      case 'car': r = Room.setCar(this.room, c.id, m.car, m.paint); break;
+      case 'name': r = Room.setName(this.room, c.id, m.name); break;
       case 'ready': r = Room.setReady(this.room, c.id, m.ready); break;
-      case 'start': r = Room.start(this.room, c.id, now, this.seedFn()); if (r.ok) this.beginCountdown(); break;
-      case 'leave': conn.close(1000, 'leave'); return;
+      case 'start': return this.requestStart(conn, c);
+      case 'lobby': if (this.room.phase !== 'results') r = { ok: false, error: 'not-in-results' }; else if (c.id !== this.room.hostId) r = { ok: false, error: 'not-host' }; else { this.backToLobby(); return; } break;
+      case 'leave': this.leaveSeat(c.id); try { conn.close(1000, 'leave'); } catch (e) { } this.conns.delete(conn); return;
     }
     if (!r.ok) return this.send(conn, { t: 'error', error: r.error });
     this.broadcastLobby(); this.save();
   }
-  // ---- race lifecycle ----
+  hello(conn, c, m, now) {
+    if (c.id) return this.reject(conn, 'dup-hello');
+    if (m.build !== this.room.build) return this.reject(conn, 'build-mismatch', true);
+    let id = m.token ? this.tokens.get(m.token) : null, token = m.token;
+    if (id) { const r = Room.reconnect(this.room, id, now); if (!r.ok) { this.tokens.delete(m.token); id = null; if (this.room.phase !== 'lobby') return this.reject(conn, r.error, true); } }
+    if (!id) {
+      const r = Room.join(this.room, { name: m.name, build: m.build }, now);
+      if (!r.ok) return this.reject(conn, r.error, true);
+      id = r.id; token = makeToken(this.random); this.tokens.set(token, id);
+    }
+    // one live socket per seat: an older socket for the same seat is replaced
+    for (const [k, o] of this.conns) if (k !== conn && o.id === id) { o.id = null; try { k.close(4009, 'replaced'); } catch (e) { } this.conns.delete(k); }
+    c.id = id; this.lastActivity = now;
+    this.send(conn, { t: 'welcome', p: PROTOCOL, id, token, code: this.code, notice: this.notice, serverNow: now });
+    if (this.sim) this.sendRace(conn, id);
+    if (this.room.phase === 'results' && this.results) this.send(conn, { t: 'results', ...this.results });
+    this.broadcastLobby(); this.save(); this.wakeLater();
+  }
+  input(conn, c, m, now) {
+    if (!c.frames(now, m.f.length)) return this.reject(conn, 'input-rate');
+    const q = this.inputs.get(c.id); if (!q || !this.sim) return;   // no race: ignored
+    const seat = this.room.seats.find(s => s.id === c.id); if (!seat || seat.left) return;
+    if (m.q + m.f.length - 1 > q.next + MAX_AHEAD_FRAMES) return this.reject(conn, 'time-ahead');   // client clock manipulation / runaway
+    for (let i = 0; i < m.f.length; i++) { const seq = m.q + i; if (seq >= q.next && !q.buf.has(seq)) q.buf.set(seq, m.f[i]); }
+    if (q.buf.size > q.maxQ) q.maxQ = q.buf.size;
+    seat.lastInputAt = now; q.lastAt = now;
+  }
+  leaveSeat(id) {
+    Room.leave(this.room, id); const r = this.sim && this.sim.racers.find(x => x.id === id); if (r && !r.finished) this.retire(r);
+    for (const [tok, sid] of this.tokens) if (sid === id) this.tokens.delete(tok);
+    this.broadcastLobby(); this.save(); this.wakeLater();
+  }
+  // a human who left / expired mid-race: car keeps racing slowly under server AI (no stuck throttle, not a
+  // ghost: it still collides), and is marked DNF in the results.
+  retire(r) { r.autopilot = true; r.pers = { ...DNF_PERS }; r.dnf = true; r.boost = false; Object.assign(r.input, { up: 0, down: 0, left: 0, right: 0, boost: 0, drift: 0 }); }
+  async requestStart(conn, c) {
+    if (c.id !== this.room.hostId) return this.send(conn, { t: 'error', error: 'not-host' });
+    const b = Room.startBlocker(this.room); if (b) return this.send(conn, { t: 'error', error: b });
+    if (this.budget) { const ok = await this.budget.canRace(this.code); if (!ok || !ok.ok) return this.send(conn, { t: 'error', error: (ok && ok.error) || 'daily-budget' }); }
+    const seed = new Uint32Array(1); this.random(seed);
+    const r = Room.start(this.room, c.id, this.t.now(), seed[0] || 1, this.cfg.countdownMs);
+    if (!r.ok) return this.send(conn, { t: 'error', error: r.error });
+    this.beginCountdown(); this.broadcastLobby(); this.save();
+  }
+  // ---------------- race lifecycle ----------------
   beginCountdown() {
     const R = this.room, sim = this.sim = createSim({ seed: R.seed });
-    sim.setMode(R.mode); sim.setTrack(R.map);
-    sim.addSeats(R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, carMods: CARS[s.car] ? CARS[s.car].mods : null })), null);
+    sim.setMode(R.mode); sim.setTrack(R.map); sim.diff = 'normal';
+    sim.addSeats(R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, pers: s.pers, carMods: CARS[s.car] ? CARS[s.car].mods : null })), null);
     for (const r of sim.racers) if (!r.isAI) r.wallLim = 1.2;
-    this.inputs.clear(); this.step = 0; this.clock = createClock(); this.lastTick = this.t.now(); this.firstFinishAt = 0;
-    for (const [conn, c] of this.conns) if (c.id) this.sendRaceStart(conn, c.id);
+    this.inputs.clear();
+    for (const s of R.seats) if (s.kind === 'human') this.inputs.set(s.id, { buf: new Map(), next: 0, last: ZERO_FRAME, lastAt: 0, starve: 0, skipped: 0, maxQ: 0 });
+    this.step = 0; this.clock = createClock(); this.lastTick = R.countdownAt; this.firstFinishAt = 0; this.results = null;
+    for (const [conn, c] of this.conns) if (c.id) this.sendRace(conn, c.id);
+    if (this.loop) this.t.clearInterval(this.loop);
     this.loop = this.t.setInterval(() => this.tick(), 1000 / NET_HZ);
   }
-  sendRaceStart(conn, id) { const R = this.room; this.send(conn, { t: 'race', map: R.map, mode: R.mode, seed: R.seed, countdownAt: R.countdownAt, serverNow: this.t.now(), seats: R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, car: s.car })), you: id, snap: this.sim.snapshot() }); }
+  sendRace(conn, id) {
+    const R = this.room;
+    this.send(conn, { t: 'race', p: PROTOCOL, build: R.build, map: R.map, mode: R.mode, seed: R.seed, countdownAt: R.countdownAt, serverNow: this.t.now(), step: this.step,
+      seats: R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, car: s.car, paint: s.paint || 0, pers: s.pers || null })), you: id, snap: this.sim.snapshot() });
+  }
+  consume(id, now) {
+    const q = this.inputs.get(id); if (!q) return ZERO_FRAME;
+    if (q.buf.size > QUEUE_DROP_FRAMES) {   // client far ahead / burst after a stall: keep latency bounded
+      while (q.buf.size > 12) { if (q.buf.has(q.next)) { q.buf.delete(q.next); q.skipped++; this.stats.skippedFrames++; } q.next++; }
+    }
+    if (q.buf.has(q.next)) { q.last = q.buf.get(q.next); q.buf.delete(q.next); q.next++; return q.last; }
+    q.starve++; this.stats.starved++;
+    return now - q.lastAt > Room.STALE_INPUT_MS ? ZERO_FRAME : q.last;   // brief gap: hold last input; stale: release everything
+  }
   tick() {
-    const t0 = performance.now(), now = this.t.now(), R = this.room, sim = this.sim;
-    const wall = Math.max(0, (now - this.lastTick) / 1000); this.lastTick = now;
+    if (this.closed) return;
+    const t0 = perfNow(), now = this.t.now(), R = this.room, sim = this.sim;
     const hk = Room.tick(R, now);
+    for (const [kind, id] of hk.changes) if (kind === 'expired') { const r = sim && sim.racers.find(x => x.id === id); if (r && !r.finished) this.retire(r); }
     if (hk.changes.length) this.broadcastLobby();
-    if (R.phase === 'countdown' && now >= R.countdownAt) { R.phase = 'race'; for (const r of sim.racers) if (!r.isAI) Object.assign(r.input, (this.inputs.get(r.id) || {}).k || ZERO); sim.startRace(); this.save(); }
+    if (R.phase === 'countdown' && now >= R.countdownAt) {
+      Room.toRace(R); this.lastTick = R.countdownAt;
+      for (const r of sim.racers) if (!r.isAI) { const q = this.inputs.get(r.id); decodeFrame(q && q.buf.has(0) ? q.buf.get(0) : ZERO_FRAME, r.input); }
+      sim.startRace(); this.save();
+    }
     if (R.phase === 'race') {
-      for (const r of sim.racers) {
-        if (r.isAI) continue;
-        const inp = this.inputs.get(r.id), seat = R.seats.find(s => s.id === r.id);
-        const stale = !inp || hk.stale.includes(r.id) || (seat && seat.left);
-        Object.assign(r.input, stale ? ZERO : inp.k);   // stale input released (~250 ms)
+      const wall = Math.max(0, (now - this.lastTick) / 1000); this.lastTick = now;
+      if (wall > 1.5 / NET_HZ) this.stats.lateTicks++;
+      const adv = this.clock.advance(wall); this.stats.droppedMs = this.clock.droppedMs;
+      for (let i = 0; i < adv.steps; i++) {
+        for (const r of sim.racers) { if (r.isAI || r.dnf) continue; decodeFrame(this.consume(r.id, now), r.input); }
+        sim.step(SIM_DT); this.step++;
       }
-      const adv = this.clock.advance(wall);
-      for (let i = 0; i < adv.steps; i++) { sim.step(SIM_DT); this.step++; }
-      const humans = sim.racers.filter(r => !r.isAI && !R.seats.find(s => s.id === r.id).left);
-      if (!this.firstFinishAt && humans.some(r => r.finished)) this.firstFinishAt = now;
-      if (humans.every(r => r.finished) || (this.firstFinishAt && now - this.firstFinishAt > this.finishGraceMs) || hk.empty) this.finish();
+      this.stats.steps += adv.steps;
+      const live = sim.racers.filter(r => !r.isAI && !r.dnf);
+      if (!this.firstFinishAt && live.some(r => r.finished)) this.firstFinishAt = now;
+      const raceMs = (now - R.countdownAt);
+      if (live.every(r => r.finished) || (this.firstFinishAt && now - this.firstFinishAt > this.cfg.finishGraceMs) || hk.empty || raceMs > this.cfg.maxRaceMs) this.finish(now);
     }
     if (this.sim && (R.phase === 'race' || R.phase === 'countdown')) this.broadcastSnap(now);
-    this.stats.ticks++; this.stats.tickMs.push(performance.now() - t0);
+    this.housekeep(now);
+    const ms = perfNow() - t0; this.stats.ticks++; if (this.stats.tickMs.length < 20000) this.stats.tickMs.push(ms); if (ms > 1000 / NET_HZ) this.stats.overruns++;
   }
-  finish() {
+  finish(now) {
     const R = this.room, sim = this.sim;
-    const order = sim.ranks().map((r, k) => ({ pos: k + 1, id: r.id, name: r.name, kind: r.isAI ? 'bot' : 'human', finished: r.finished, time: r.finished ? r.finishTime : null, laps: r.lapTimes.slice(), dnf: !r.finished }));
-    R.phase = 'results'; this.t.clearInterval(this.loop); this.loop = null;
-    this.broadcast({ t: 'results', order, map: R.map, mode: R.mode });
-    this.results = order; this.save();
-    this.t.setTimeout(() => { R.phase = 'lobby'; for (const s of R.seats) s.ready = s.kind === 'bot'; this.sim = null; this.broadcastLobby(); this.save(); }, this.resultsHoldMs);
+    const order = sim.ranks().map((r, k) => {
+      const seat = R.seats.find(s => s.id === r.id) || {};
+      const dnf = !!r.dnf || !r.finished;
+      return { pos: k + 1, id: r.id, name: r.name, kind: r.isAI ? 'bot' : 'human', car: seat.car, paint: seat.paint || 0, finished: !dnf, time: dnf ? null : +r.finishTime.toFixed(3), best: r.lapTimes.length ? +Math.min(...r.lapTimes).toFixed(3) : null, laps: r.lapTimes.map(x => +x.toFixed(3)), dnf };
+    });
+    this.results = { order, map: R.map, mode: R.mode, seed: R.seed, steps: this.step };
+    Room.toResults(R, null);
+    this.t.clearInterval(this.loop); this.loop = null;
+    this.broadcastSnap(now); this.broadcast({ t: 'results', ...this.results }); this.broadcastLobby(); this.save();
+    this.resultsTimer = this.t.setTimeout(() => this.backToLobby(), this.cfg.resultsHoldMs);
+  }
+  backToLobby() {
+    if (this.resultsTimer) { this.t.clearTimeout(this.resultsTimer); this.resultsTimer = null; }
+    if (this.room.phase !== 'results') return;
+    Room.toLobby(this.room); this.sim = null; this.inputs.clear(); this.lastActivity = this.t.now();
+    this.broadcastLobby(); this.save(); this.wakeLater();
   }
   broadcastSnap(now) {
-    const sim = this.sim, others = sim.racers.map(compactRacer);
+    const sim = this.sim, br = sim.track.BR, all = sim.racers.map(r => compactRacer(r, br));
+    const dr = sim.drones.map(d => [+d.s.toFixed(3), +d.h.toFixed(4), +d.vh.toFixed(4)]);
+    const fo = sim.finishOrder.map(r => r.id), rt = +sim.raceTime().toFixed(4);
     for (const [conn, c] of this.conns) {
       if (!c.id) continue;
       if (conn.bufferedAmount && conn.bufferedAmount() > BACKPRESSURE_BYTES) { this.stats.skippedBackpressure++; continue; }   // drop stale snapshots, never queue
-      const inp = this.inputs.get(c.id);
-      this.send(conn, { t: 'snap', step: this.step, phase: this.room.phase, rt: +sim.raceTime().toFixed(4), sn: now, ack: inp ? inp.seq : -1, me: sim.racerState(c.id), all: others });
+      const q = this.inputs.get(c.id);
+      this.send(conn, { t: 's', k: this.step, sn: now, ph: this.room.phase, rt, tm: sim.time, ack: q ? q.next - 1 : -1, q: q ? q.buf.size : 0, me: q ? sim.racerState(c.id) : null, a: all, dr, fo });
     }
   }
-  // ---- helpers ----
-  scheduleExpiry() { this.t.setTimeout(() => { const hk = Room.tick(this.room, this.t.now()); if (hk.changes.length) { this.broadcastLobby(); this.save(); } }, Room.RECONNECT_MS + 50); }
+  // ---------------- housekeeping / lifetime ----------------
+  housekeep(now = this.t.now()) {
+    if (this.closed) return;
+    const R = this.room;
+    if (!this.loop) { const hk = Room.tick(R, now); if (hk.changes.length) { this.broadcastLobby(); this.save(); } }
+    const anyConnected = R.seats.some(s => s.kind === 'human' && s.connected && !s.left);
+    if (anyConnected) this.emptySince = 0; else if (!this.emptySince) this.emptySince = now;
+    if (this.emptySince && now - this.emptySince >= this.cfg.emptyCloseMs) return this.closeRoom('empty');
+    if (R.phase === 'lobby' && now - this.lastActivity >= this.cfg.lobbyIdleMs) return this.closeRoom('idle');
+    if (this.budget && now - this.lastBeat >= this.cfg.beatMs) {
+      this.lastBeat = now;
+      Promise.resolve(this.budget.beat(this.code)).then(b => { if (b && b.close) this.closeRoom(b.close); }).catch(() => { });
+    }
+    this.wakeLater();
+  }
+  // ask the runtime to call housekeep() again (only when no race interval is running)
+  wakeLater() {
+    if (this.closed || this.loop || !this.t.wake) return;
+    const R = this.room, now = this.t.now();
+    let ms = this.cfg.beatMs;
+    for (const s of R.seats) if (s.kind === 'human' && !s.connected && !s.left) ms = Math.min(ms, Math.max(50, Room.RECONNECT_MS - (now - s.dcAt) + 50));
+    if (this.emptySince) ms = Math.min(ms, Math.max(50, this.cfg.emptyCloseMs - (now - this.emptySince) + 50));
+    ms = Math.min(ms, Math.max(50, this.cfg.lobbyIdleMs - (now - this.lastActivity) + 50));
+    this.t.wake(ms);
+  }
+  closeRoom(reason) {
+    if (this.closed) return; this.closed = true;
+    if (this.loop) this.t.clearInterval(this.loop); this.loop = null; if (this.resultsTimer) this.t.clearTimeout(this.resultsTimer);
+    this.broadcast({ t: 'closed', reason });
+    for (const conn of this.conns.keys()) { try { conn.close(4100, 'room-closed'); } catch (e) { } }
+    this.conns.clear(); this.sim = null;
+    if (this.budget) Promise.resolve(this.budget.release(this.code)).catch(() => { });
+    if (this.onClose) this.onClose(reason);
+  }
+  // ---------------- helpers ----------------
   broadcastLobby() { this.broadcast({ t: 'lobby', room: Room.publicState(this.room), notice: this.notice }); }
-  broadcast(m) { for (const conn of this.conns.keys()) if (this.conns.get(conn).id) this.send(conn, m); }
-  send(conn, m) { const txt = JSON.stringify(m); this.stats.sentBytes += txt.length; this.stats.sentMsgs++; try { conn.send(txt); } catch (e) { } }
-  reject(conn, why) { this.stats.rejected[why] = (this.stats.rejected[why] || 0) + 1; this.send(conn, { t: 'error', error: why }); }
-  save() { if (!this.persist) return; this.stats.persists++; const R = this.room; this.persist({ code: R.code, build: R.build, phase: R.phase, hostId: R.hostId, map: R.map, mode: R.mode, seed: R.seed, nextBot: R.nextBot, seats: R.seats.map(s => ({ ...s })) }); }
+  broadcast(m) { const txt = JSON.stringify(m); for (const [conn, c] of this.conns) if (c.id) this.sendText(conn, txt); }
+  send(conn, m) { this.sendText(conn, JSON.stringify(m)); }
+  sendText(conn, txt) { this.stats.sentBytes += txt.length; this.stats.sentMsgs++; try { conn.send(txt); } catch (e) { } }
+  reject(conn, why, fatal = false) {
+    this.stats.rejected[why] = (this.stats.rejected[why] || 0) + 1; this.send(conn, { t: 'error', error: why, fatal });
+    if (fatal) { try { conn.close(4000, why); } catch (e) { } this.conns.delete(conn); }
+  }
+  meta() { const R = this.room; return { code: R.code, build: R.build, phase: R.phase, hostId: R.hostId, map: R.map, mode: R.mode, nextBot: R.nextBot, nextHuman: R.nextHuman, version: R.version, seats: R.seats.map(s => ({ ...s })), tokens: [...this.tokens] }; }
+  save() { if (!this.persist || this.closed) return; this.stats.persists++; try { const p = this.persist(this.meta()); if (p && p.catch) p.catch(() => { }); } catch (e) { } }
   get ticking() { return !!this.loop; }
 }
+const perfNow = () => (globalThis.performance ? performance.now() : Date.now());
