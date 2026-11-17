@@ -166,3 +166,10 @@ test('a batch straddling the 3 s ahead bound keeps its valid frames; a batch ful
   msg(S, a, { t: 'in', q: lim - 4, f: Array(10).fill(UP) }); assert.equal(q.buf.has(lim), true); assert.equal(q.buf.has(lim + 1), false); assert.equal(S.stats.aheadDropped, 5);
   msg(S, a, { t: 'in', q: lim + 50, f: [UP] }); assert.equal(a.last('error').error, 'time-ahead');
 });
+test('budget hard stop mid-race: the room publishes the current order (DNF for unfinished) and closes', async () => {
+  const ctx = mk({ cfg: { beatMs: 1000 } }); let n = 0;
+  ctx.S.budget = { canRace: () => ({ ok: true }), beat: () => (++n >= 8 ? { ok: true, close: 'daily-budget' } : { ok: true }), release: () => { } };
+  const h = player(ctx.S, 'H'); msg(ctx.S, h, { t: 'addBot' }); msg(ctx.S, h, { t: 'ready', ready: true }); msg(ctx.S, h, { t: 'start' }); await new Promise(r => setImmediate(r));
+  for (let i = 0; i < 12; i++) { ctx.run(1000); await new Promise(r => setImmediate(r)); }
+  assert.deepEqual(ctx.closed, ['daily-budget']); assert.ok(h.last('results'), 'results published'); assert.equal(h.last('closed').reason, 'daily-budget');
+});

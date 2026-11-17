@@ -267,7 +267,9 @@ export class RoomServer {
     this.t.wake(ms);
   }
   closeRoom(reason) {
-    if (this.closed) return; this.closed = true;
+    if (this.closed) return;
+    if (this.sim && this.room.phase === 'race') this.finish(this.t.now());   // a forced stop still publishes the current order (unfinished = DNF)
+    this.closed = true;
     if (this.loop) this.t.clearInterval(this.loop); this.loop = null; if (this.resultsTimer) this.t.clearTimeout(this.resultsTimer);
     this.broadcast({ t: 'closed', reason });
     for (const conn of this.conns.keys()) { try { conn.close(4100, 'room-closed'); } catch (e) { } }

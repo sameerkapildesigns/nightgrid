@@ -37,11 +37,15 @@ export function createBudget(cfg = {}, state = null) {
       roll(now); const a = S.active[code]; if (!a) return { ok: false, close: 'unknown-room' };
       S.usedMs += Math.max(0, now - a.chargedTo); a.chargedTo = now; a.last = now; reap(now);
       if (now - a.since >= C.roomMaxLifetimeMs) return { ok: true, close: 'lifetime' };
+      // HARD stop: at 100 % of the daily budget every open room (racing or not) is told to close at its next
+      // heartbeat. Worst-case overshoot = maxActiveRooms x one heartbeat interval (see hardStopBoundMs).
+      if (S.usedMs >= C.dailyRoomMs) return { ok: true, close: 'daily-budget' };
       return { ok: true };
     },
     // may this room start a race now? (budget left for at least one reservation)
     canRace(code, now) { roll(now); reap(now); if (!S.active[code]) return { ok: false, error: 'unknown-room' }; return S.usedMs + outstanding() <= limit() ? { ok: true } : { ok: false, error: 'daily-budget' }; },
     release(code, now) { roll(now); const a = S.active[code]; if (!a) return; S.usedMs += Math.max(0, now - a.chargedTo); delete S.active[code]; },
+    hardStopBoundMs(beatMs) { return C.dailyRoomMs + C.maxActiveRooms * beatMs; },
     report(now) { roll(now); reap(now); return { day: S.day, usedMin: +(S.usedMs / 60e3).toFixed(1), budgetMin: C.dailyRoomMs / 60e3, limitMin: +(limit() / 60e3).toFixed(1), active: Object.keys(S.active).length, maxActive: C.maxActiveRooms, creates: S.creates }; }
   };
   return api;

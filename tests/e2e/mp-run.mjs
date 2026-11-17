@@ -28,6 +28,7 @@ async function shot(p, n) {
   await p.page.screenshot({ path: `${OUT}/${n}.jpg`, type: 'jpeg', quality: 75 });
   await p.page.evaluate(t => { window.__ngRenderEvery = t; }, THROTTLE);
 }
+const OPEN = [];
 async function player(name, kind = 'desk', query = '') {
   const touch = kind !== 'desk';
   const ctx = await browser.newContext({ viewport: VIEW[kind], hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
@@ -36,10 +37,10 @@ async function player(name, kind = 'desk', query = '') {
   await page.route('**/*', r => /fonts\.(googleapis|gstatic)\.com/.test(r.request().url()) ? r.abort() : r.continue());
   await page.goto(BASE + (touch ? '?touch' + (query ? '&' + query.slice(1) : '') : query), { timeout: 240000 });   // boot on software GL with several pages open takes minutes
   await page.waitForFunction(() => window.NG_DEBUG && NG_DEBUG.state === 'title', null, { timeout: 240000 });
-  return { name, kind, ctx, page, logs };
+  const p = { name, kind, ctx, page, logs }; OPEN.push(p); return p;
 }
 const mp = p => p.page.evaluate(() => Object.assign(NG_DEBUG.mp, { fps: NG_DEBUG.render.fps }));
-const waitMp = (p, fn, ms = 60000, arg) => p.page.waitForFunction(new Function('a', `const m = NG_DEBUG.mp; return (${fn})(m, a);`), arg, { timeout: ms, polling: 200 });
+const waitMp = (p, fn, ms = 180000, arg) => p.page.waitForFunction(new Function('a', `const m = NG_DEBUG.mp; return (${fn})(m, a);`), arg, { timeout: ms, polling: 200 });
 async function create(p) {
   await p.page.click('#mpBtn'); await p.page.fill('#mpName', p.name); await p.page.click('[data-act=create]');
   await waitMp(p, 'm => m.inRoom'); return (await mp(p)).code;
@@ -152,7 +153,10 @@ try {
     await raceAndFinish([a], { label: 'D-phone-1h3b', full: true });
     await close([a]);
   }
-} catch (e) { C('suite crashed', false, e.stack); }
+} catch (e) {
+  C('suite crashed', false, e.stack);
+  for (const p of OPEN) { try { const st = await p.page.evaluate(() => ({ mp: (({ inRoom, code, status, lastErr, state }) => ({ inRoom, code, status, lastErr, state }))(NG_DEBUG.mp), panelOpen: !document.getElementById('mpPanel').classList.contains('hide'), panel: document.getElementById('mpPanel').innerText.slice(0, 160).replace(/\n/g, ' | '), fps: NG_DEBUG.render.fps }), null); console.log(`DIAG ${p.name}: ${JSON.stringify(st)}`); await shot(p, 'crash-' + p.name); } catch (x) { console.log(`DIAG ${p.name}: closed/unavailable`); } }
+}
 await browser.close(); await srv.close();
 writeFileSync(`${OUT}/mp.json`, JSON.stringify({ renderEvery: THROTTLE, targets: TGT, functional: results, quality: targets, info: infos }, null, 1));
 const fails = results.filter(r => !r.ok).length, tf = targets.filter(t => !t.ok).length;

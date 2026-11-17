@@ -2524,7 +2524,7 @@ function mpOnEvent(type, m) {
     case 'race': mpBeginRace(m); break;
     case 'results': MP.results = m; if (MP.race && state !== 'finished') mpLocalFinish(true); break;
     case 'error': MP.lastErr = m.error; if (m.fatal) mpReset(m.error); else MP.ui.setError(m.error); break;
-    case 'roomClosed': MP.lastErr = 'room-closed'; mpReset('room-closed'); break;
+    case 'roomClosed': MP.lastErr = 'room-closed:' + m.reason; mpReset('room-closed:' + m.reason); break;
     case 'closed': if (MP.net) mpReset(m.reason === 'connection-lost' ? 'connection-lost' : m.reason); break;
     case 'reconnecting': MP.ui.render(); break;
   }

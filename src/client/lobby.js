@@ -7,7 +7,7 @@ import { SHORT, PAINTS, RIVAL_LIV } from '../core/roster.js';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const NAME_KEY = 'nightgrid_mp_name';
-export const errorText = code => ERROR_TEXT[code] || (String(code || '').startsWith('room-closed') ? ERROR_TEXT['room-closed'] : 'Something went wrong (' + esc(code) + ').');
+export const errorText = code => { const c = String(code || ''); if (ERROR_TEXT[c]) return ERROR_TEXT[c]; if (c.startsWith('room-closed')) { const why = c.split(':')[1]; return why === 'daily-budget' ? ERROR_TEXT['daily-budget'] : why === 'budget-unavailable' ? ERROR_TEXT['budget-unavailable'] : ERROR_TEXT['room-closed']; } return 'Something went wrong (' + c + ').'; };
 
 export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenChange }) {
   const ui = { open: false, busy: false, err: '', note: '', codeIn: '', copied: 0 };

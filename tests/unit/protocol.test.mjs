@@ -62,3 +62,12 @@ test('budget: a room that stops heart-beating is reaped and charged only to its 
   assert.ok(b.admit('B', t0 + 100e3).ok); assert.equal(b.state.usedMs, 30e3);
   assert.equal(b.canRace('B', t0 + 100e3).ok, true); assert.equal(b.canRace('nope', t0).ok, false);
 });
+test('budget HARD stop: at 100 % every open room is told to close at its next heartbeat; overshoot bounded by active rooms x beat', () => {
+  const t0 = Date.UTC(2026, 10, 17, 8); const beat = 60e3;
+  const b = createBudget({ dailyRoomMs: 30 * 60e3, safety: 1, reserveMs: 1, maxActiveRooms: 5, staleMs: 3600e3 });
+  for (const c of ['A', 'B', 'C', 'D', 'E']) assert.ok(b.admit(c, t0).ok);
+  let t = t0, closed = new Set();
+  while (closed.size < 5 && t < t0 + 3600e3) { t += beat; for (const c of ['A', 'B', 'C', 'D', 'E']) if (!closed.has(c)) { const r = b.beat(c, t); if (r.close) { assert.equal(r.close, 'daily-budget'); closed.add(c); b.release(c, t); } } }
+  assert.equal(closed.size, 5); assert.ok(b.state.usedMs <= b.hardStopBoundMs(beat), `used ${b.state.usedMs / 60e3} min <= bound ${b.hardStopBoundMs(beat) / 60e3} min`);
+  assert.equal(b.admit('F', t).error, 'daily-budget');
+});
