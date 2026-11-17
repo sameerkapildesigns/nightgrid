@@ -41,7 +41,7 @@ test('worker: health reports this build; static index served; unknown room 404; 
   assert.equal((await post('/api/rooms', { origin: 'https://evil.example' })).status, 403);
   const w = await open('/api/rooms/ZZZZZZ/ws'); await waitFor(() => w.msgs.length, 5000, 'no-room msg'); assert.equal(w.msgs[0].error, 'no-room'); w.ws.close();
 });
-test('worker: 2 humans + 1 bot race in a Room DO through the shipping NetClient; same results; Registry capacity refuses a 3rd room', async () => {
+test('worker: 2 humans + 1 bot race 14 s in a Room DO through the shipping NetClient (both cars move, host-only enforced; no finish/results in this test); Registry capacity refuses a 3rd room', async () => {
   const r = await post('/api/rooms'); assert.equal(r.status, 201);
   const ev = []; const a = client('A', (t, m) => ev.push(['a', t, m && m.error])), b = client('B', (t, m) => ev.push(['b', t, m && m.error]));
   a.connect(r.code); await waitFor(() => a.you, 10000, 'a welcome'); b.connect(r.code); await waitFor(() => b.you, 10000, 'b welcome');

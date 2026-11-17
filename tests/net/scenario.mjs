@@ -59,7 +59,7 @@ export async function scenario({ humans = 2, bots = 0, map = 'velocity', mode = 
   if (full) await waitFor(() => clients.every(c => c.results), 400000, 'results');
   else await sleep(2500 + raceSeconds * 1000);
   stop = true; await loop;
-  const roomSrv = [...srv.rooms.values()][0];
+  const roomSrv = srv.rooms.get(res.code);
   const st = roomSrv ? roomSrv.stats : null;
   const out = { humans, bots, map, mode, lagMs, jitterMs, elapsedS: +((pnow() - t0) / 1000).toFixed(1), clients: clients.map(c => clientStats(c)), server: st && serverStats(st), events: evs.filter(e => e[1] !== 'snap' && e[1] !== 'lobby') };
   out.results = clients.map(c => c.results ? c.results.order.map(o => `${o.pos}:${o.id}:${o.time}`).join(' ') : null);

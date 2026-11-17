@@ -59,12 +59,33 @@ for (const [h, b] of [[2, 0], [4, 0], [1, 3], [2, 2]]) test(`race ${h} human(s) 
   const ids = r.clientViews.map(v => v.map(x => x[0]).join()); assert.ok(ids.every(x => x === ids[0]));
   assert.equal(r.server.overruns, 0); assert.deepEqual(r.server.rejected, {});
 });
-test('race end -> every client gets the SAME result order from the server; host rematch returns to lobby and a 2nd race starts', async () => {
+test('same-room rematch: race 1 -> identical results -> host returns the SAME room to the lobby -> race 2 in that room -> identical results', async () => {
+  const s3 = await startLocalServer({ port: 0, netsim: true, lagMs: 60, log: false, room: { countdownMs: 2000, maxRaceMs: 10000, resultsHoldMs: 60000 } });
+  const WS = (await import('ws')).default; const { NetClient } = await import('../../src/net/client.js'); const { driver } = await import('./scenario.mjs');
+  const code = (await fetch(s3.url + '/api/rooms', { method: 'POST' }).then(r => r.json())).code;
+  const mkc = n => new NetClient({ wsUrl: s3.url.replace('http', 'ws'), WebSocketImpl: WS, now: () => performance.now(), build: s3.build, name: n });
+  const A = mkc('A'), B = mkc('B'); A.connect(code); await waitFor(() => A.you, 5000, 'A'); B.connect(code); await waitFor(() => B.you, 5000, 'B');
+  A.addBot(); await waitFor(() => A.room.seats.length === 3, 5000, 'bot');
+  const da = driver(0), db = driver(1); let stop = false;
+  const loop = (async () => { while (!stop) { for (const [c, d] of [[A, da], [B, db]]) if (c.race) { c.frame(d(c.race.pred)); c.race.pred.decay(0.016); } await new Promise(r => setTimeout(r, 16)); } })();
+  const order = c => c.results.order.map(o => `${o.pos}:${o.id}:${o.time}:${o.dnf}`).join(' ');
+  const seeds = [];
+  for (const round of [1, 2]) {
+    A.results = B.results = null; A.ready(true); B.ready(true); await waitFor(() => A.room.canStart, 5000, 'canStart ' + round);
+    A.start(); await waitFor(() => A.race && B.race, 5000, 'race ' + round); seeds.push(A.race.msg.seed);
+    await waitFor(() => A.results && B.results, 30000, 'results ' + round);
+    assert.equal(order(A), order(B), `round ${round}: identical results`); assert.equal(A.results.order.length, 3);
+    A.toLobby(); await waitFor(() => A.room.phase === 'lobby' && B.room.phase === 'lobby', 5000, 'back to lobby ' + round);
+    assert.equal(A.room.code, code); assert.deepEqual(A.room.seats.map(s => s.ready), [false, false, true], 'humans re-confirm, bot stays ready');
+  }
+  assert.notEqual(seeds[0], seeds[1], 'new seed per race'); assert.equal(s3.rooms.size, 1, 'one room throughout');
+  stop = true; await loop; A.leave(); B.leave(); await s3.close();
+});
+test('race end -> every client gets the SAME result order from the server (two separate rooms on one server)', async () => {
   const s3 = await startLocalServer({ port: 0, netsim: true, log: false, room: { countdownMs: 2000, maxRaceMs: 12000, resultsHoldMs: 60000 } });
   const r = await scenario({ server: s3, humans: 2, bots: 2, lagMs: 60, full: true });
   assert.ok(r.results[0] && r.results[0] === r.results[1], 'identical results: ' + r.results.join(' | '));
   assert.equal(r.results[0].split(' ').length, 4);
-  // rematch: a fresh pair of clients in the same server proves lobby -> race again (room reuse covered by unit tests)
   const r2 = await scenario({ server: s3, humans: 2, bots: 1, lagMs: 60, full: true });
   assert.ok(r2.results[0] === r2.results[1]);
   await s3.close();

@@ -31,10 +31,10 @@ async function shot(p, n) {
 async function player(name, kind = 'desk', query = '') {
   const touch = kind !== 'desk';
   const ctx = await browser.newContext({ viewport: VIEW[kind], hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
-  const page = await ctx.newPage(); const logs = [];
+  const page = await ctx.newPage(); const logs = []; page.setDefaultTimeout(180000);   // several software-GL pages saturate 2 cores: actions wait for a busy main thread
   page.on('console', m => { if (m.type() === 'error') logs.push(m.text()); }); page.on('pageerror', e => logs.push('PAGEERROR: ' + e.message));
   await page.route('**/*', r => /fonts\.(googleapis|gstatic)\.com/.test(r.request().url()) ? r.abort() : r.continue());
-  await page.goto(BASE + (touch ? '?touch' + (query ? '&' + query.slice(1) : '') : query));
+  await page.goto(BASE + (touch ? '?touch' + (query ? '&' + query.slice(1) : '') : query), { timeout: 240000 });   // boot on software GL with several pages open takes minutes
   await page.waitForFunction(() => window.NG_DEBUG && NG_DEBUG.state === 'title', null, { timeout: 240000 });
   return { name, kind, ctx, page, logs };
 }
@@ -45,7 +45,7 @@ async function create(p) {
   await waitMp(p, 'm => m.inRoom'); return (await mp(p)).code;
 }
 async function joinByLink(p, code) {   // the invite link opens the panel with the code filled in
-  await p.page.goto(BASE + (p.kind !== 'desk' ? '?touch&' : '?') + 'room=' + code);
+  await p.page.goto(BASE + (p.kind !== 'desk' ? '?touch&' : '?') + 'room=' + code, { timeout: 240000 });
   await p.page.waitForFunction(() => window.NG_DEBUG && NG_DEBUG.state === 'title', null, { timeout: 240000 });
   await p.page.fill('#mpName', p.name); await p.page.click('[data-act=join]');
   await waitMp(p, 'm => m.inRoom');

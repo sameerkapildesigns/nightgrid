@@ -1,0 +1,290 @@
+{
+ "when": "2026-11-17T19:07:49.436Z",
+ "rooms": 5,
+ "humansPerRoom": 4,
+ "raceSeconds": 60,
+ "rttMs": 100,
+ "wallS": 63.9,
+ "note": "ONE Node process hosts all rooms and the 20 headless clients (clients share the CPU). In production each room is its own Durable Object.",
+ "extraRoom": {
+  "status": 503,
+  "ok": false,
+  "error": "capacity"
+ },
+ "processCpu": {
+  "userS": 14.2,
+  "systemS": 0.7,
+  "utilisationOfOneCore": 0.234
+ },
+ "eventLoopLagMs": {
+  "p50": 10.14,
+  "p99": 11.5,
+  "max": 167.25
+ },
+ "rssMB": {
+  "start": 63,
+  "end": 264
+ },
+ "perRoomServer": [
+  {
+   "map": "technical",
+   "ticks": 1235,
+   "steps": 7150,
+   "tickMs": {
+    "n": 1235,
+    "median": 0.3058709999968414,
+    "p95": 0.4312170000048354,
+    "max": 1.9253439999993134
+   },
+   "overruns": 0,
+   "lateTicks": 0,
+   "droppedMs": 0,
+   "starvedFrames": 0,
+   "skippedFrames": 0,
+   "rejected": {},
+   "recvMsgs": 4100,
+   "sentMsgs": 5254
+  },
+  {
+   "map": "velocity",
+   "ticks": 1235,
+   "steps": 7184,
+   "tickMs": {
+    "n": 1235,
+    "median": 0.35214799999812385,
+    "p95": 0.5050469999987399,
+    "max": 1.2115869999997813
+   },
+   "overruns": 0,
+   "lateTicks": 0,
+   "droppedMs": 0,
+   "starvedFrames": 4,
+   "skippedFrames": 0,
+   "rejected": {},
+   "recvMsgs": 4112,
+   "sentMsgs": 5254
+  },
+  {
+   "map": "legacy",
+   "ticks": 1238,
+   "steps": 7168,
+   "tickMs": {
+    "n": 1238,
+    "median": 0.33697700000084296,
+    "p95": 0.4755720000002839,
+    "max": 3.543031000001065
+   },
+   "overruns": 0,
+   "lateTicks": 0,
+   "droppedMs": 0,
+   "starvedFrames": 0,
+   "skippedFrames": 0,
+   "rejected": {},
+   "recvMsgs": 4119,
+   "sentMsgs": 5266
+  },
+  {
+   "map": "technical",
+   "ticks": 1238,
+   "steps": 7164,
+   "tickMs": {
+    "n": 1238,
+    "median": 0.3083279999991646,
+    "p95": 0.4372770000009041,
+    "max": 2.758523000004061
+   },
+   "overruns": 0,
+   "lateTicks": 0,
+   "droppedMs": 0,
+   "starvedFrames": 0,
+   "skippedFrames": 0,
+   "rejected": {},
+   "recvMsgs": 4097,
+   "sentMsgs": 5266
+  },
+  {
+   "map": "velocity",
+   "ticks": 1235,
+   "steps": 7174,
+   "tickMs": {
+    "n": 1235,
+    "median": 0.3439049999942654,
+    "p95": 0.483023000000685,
+    "max": 5.7478659999997035
+   },
+   "overruns": 0,
+   "lateTicks": 1,
+   "droppedMs": 0,
+   "starvedFrames": 0,
+   "skippedFrames": 0,
+   "rejected": {},
+   "recvMsgs": 4091,
+   "sentMsgs": 5254
+  }
+ ],
+ "clientsAggregate": {
+  "n": 20,
+  "correctionP95Max": 0.33702497512265445,
+  "correctionP95Median": 0.18409924447896378,
+  "over1mTotal": 40,
+  "hardSnaps": 0,
+  "resyncs": 0,
+  "maxPending": 37,
+  "upMsgsPerSPerClient": {
+   "n": 20,
+   "median": 16.2,
+   "p95": 16.3,
+   "max": 16.3
+  },
+  "upBytesPerSPerClient": {
+   "n": 20,
+   "median": 967,
+   "p95": 979,
+   "max": 979
+  },
+  "downMsgsPerSPerClient": {
+   "n": 20,
+   "median": 20.7,
+   "p95": 20.7,
+   "max": 20.7
+  },
+  "downBytesPerSPerClient": {
+   "n": 20,
+   "median": 43384,
+   "p95": 43878,
+   "max": 43878
+  }
+ },
+ "views": [
+  [
+   {
+    "id": "p1",
+    "lap": 1,
+    "prog": 2546.2,
+    "finished": false
+   },
+   {
+    "id": "p2",
+    "lap": 1,
+    "prog": 2449.4,
+    "finished": false
+   },
+   {
+    "id": "p3",
+    "lap": 1,
+    "prog": 2540,
+    "finished": false
+   },
+   {
+    "id": "p4",
+    "lap": 1,
+    "prog": 2493.5,
+    "finished": false
+   }
+  ],
+  [
+   {
+    "id": "p1",
+    "lap": 0,
+    "prog": 3482,
+    "finished": false
+   },
+   {
+    "id": "p2",
+    "lap": 0,
+    "prog": 3492.3,
+    "finished": false
+   },
+   {
+    "id": "p3",
+    "lap": 0,
+    "prog": 3460.5,
+    "finished": false
+   },
+   {
+    "id": "p4",
+    "lap": 0,
+    "prog": 3486.8,
+    "finished": false
+   }
+  ],
+  [
+   {
+    "id": "p1",
+    "lap": 0,
+    "prog": 3226.5,
+    "finished": false
+   },
+   {
+    "id": "p2",
+    "lap": 0,
+    "prog": 3090.2,
+    "finished": false
+   },
+   {
+    "id": "p3",
+    "lap": 0,
+    "prog": 3231.1,
+    "finished": false
+   },
+   {
+    "id": "p4",
+    "lap": 0,
+    "prog": 3083.9,
+    "finished": false
+   }
+  ],
+  [
+   {
+    "id": "p1",
+    "lap": 1,
+    "prog": 2549.2,
+    "finished": false
+   },
+   {
+    "id": "p2",
+    "lap": 1,
+    "prog": 2461.9,
+    "finished": false
+   },
+   {
+    "id": "p3",
+    "lap": 1,
+    "prog": 2543,
+    "finished": false
+   },
+   {
+    "id": "p4",
+    "lap": 1,
+    "prog": 2471.2,
+    "finished": false
+   }
+  ],
+  [
+   {
+    "id": "p1",
+    "lap": 0,
+    "prog": 3476.1,
+    "finished": false
+   },
+   {
+    "id": "p2",
+    "lap": 0,
+    "prog": 3486.8,
+    "finished": false
+   },
+   {
+    "id": "p3",
+    "lap": 0,
+    "prog": 3454.9,
+    "finished": false
+   },
+   {
+    "id": "p4",
+    "lap": 0,
+    "prog": 3480.9,
+    "finished": false
+   }
+  ]
+ ]
+}

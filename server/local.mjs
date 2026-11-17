@@ -35,7 +35,8 @@ export async function startLocalServer(opts = {}) {
   function makeTimers() {
     let wakeT = null;
     return { now: () => Date.now(), setInterval, clearInterval, setTimeout, clearTimeout,
-      wake(ms, fn) { if (wakeT) clearTimeout(wakeT); wakeT = setTimeout(() => { wakeT = null; fn(); }, ms); } };
+      wake(ms, fn) { if (wakeT) clearTimeout(wakeT); wakeT = setTimeout(() => { wakeT = null; fn(); }, ms); },
+      stop() { if (wakeT) clearTimeout(wakeT); wakeT = null; } };
   }
   function createRoom() {
     let code; do code = makeRoomCode(random); while (rooms.has(code));
@@ -44,7 +45,7 @@ export async function startLocalServer(opts = {}) {
     const timers = { ...T, wake: ms => T.wake(ms, () => srv && srv.housekeep()) };
     srv = new RoomServer({ code, build, timers, random, cfg: o.room,
       budget: { beat: c => budget.beat(c, Date.now()), canRace: c => budget.canRace(c, Date.now()), release: c => budget.release(c, Date.now()) },
-      onClose: reason => { rooms.delete(code); log('room closed', code, reason, `(${rooms.size} open)`); } });
+      onClose: reason => { T.stop(); rooms.delete(code); log('room closed', code, reason, `(${rooms.size} open)`); } });
     rooms.set(code, srv); log('room created', code, `(${rooms.size} open)`); return { code };
   }
   // ---- netsim: ordered, delayed delivery per direction ----

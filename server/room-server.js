@@ -271,7 +271,7 @@ export class RoomServer {
     if (this.loop) this.t.clearInterval(this.loop); this.loop = null; if (this.resultsTimer) this.t.clearTimeout(this.resultsTimer);
     this.broadcast({ t: 'closed', reason });
     for (const conn of this.conns.keys()) { try { conn.close(4100, 'room-closed'); } catch (e) { } }
-    this.conns.clear(); this.sim = null;
+    this.conns.clear(); this.sim = null; if (this.t.wake) this.t.wake = null;
     if (this.budget) Promise.resolve(this.budget.release(this.code)).catch(() => { });
     if (this.onClose) this.onClose(reason);
   }
