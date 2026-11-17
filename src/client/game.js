@@ -2258,10 +2258,13 @@ async function setLoad(p, txt) { $('loadbar').firstElementChild.style.width = (p
 async function boot() {
   performance.mark('ng:boot');
   await setLoad(0.04, 'SPINNING UP RENDERER');
-  // Selected car first (gates the garage), then the rivals' cars (gate "Race"). Every other
-  // model is fetched only when selected; nothing waits for the full roster.
+  // Selected car requested first (gates the garage), rival cars requested concurrently right
+  // after (gate "Race"). Every other model is fetched only when selected.
+  // The selected car's request is issued first (fetch starts synchronously inside ensureAsset);
+  // the rival cars are requested immediately after, concurrently (no sequential waterfall).
   const selLoad = ensureAsset(GAR.sel);
-  selLoad.then(() => { performance.mark('ng:selected-car'); return ensureRaceAssets(GAR.sel); }).then(() => { performance.mark('ng:race-ready'); refreshRacerCars(); updateGarageUI(); });
+  selLoad.then(() => performance.mark('ng:selected-car'));
+  ensureRaceAssets(GAR.sel).then(() => { performance.mark('ng:race-ready'); refreshRacerCars(); updateGarageUI(); });
   try { await Promise.race([Promise.all([document.fonts.load('900 64px Orbitron'), document.fonts.load('700 30px Rajdhani')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
   buildEnv(); await setLoad(0.12, 'MAGNETISING CIRCUIT');
   scene.add(WORLD); planDecks(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');

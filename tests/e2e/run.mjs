@@ -32,6 +32,9 @@ try {
     page.on('pageerror', e => logs.push('PAGEERROR: ' + e.message));
     page.on('console', m => { if (m.type() === 'error') logs.push(m.text()); });
     page.on('request', r => reqOrder.push(r.url()));
+    const reqStart = {}, respEnd = {}; const tBase = Date.now();
+    page.on('request', r => { const n = glbName(r.url()); if (n && reqStart[n] == null) reqStart[n] = Date.now() - tBase; });
+    page.on('requestfinished', r => { const n = glbName(r.url()); if (n && respEnd[n] == null) respEnd[n] = Date.now() - tBase; });
     const glbResp = {};
     page.on('response', async r => { const n = glbName(r.url()); if (n) { try { glbResp[n] = { type: r.headers()['content-type'], len: (await r.body()).length }; } catch (e) { } } });
     await page.route('**/*', r => /fonts\.(googleapis|gstatic)\.com/.test(r.request().url()) ? r.abort() : r.continue());
@@ -44,6 +47,7 @@ try {
     const glbs = reqOrder.map(glbName).filter(Boolean);
     C('boot: title reached', true, `${tTitle} ms (SwiftShader, local preview)`);
     C('boot: selected car (hypercar) requested first', glbs[0] === 'hypercar', glbs.join(','));
+    C('boot: rival requests start before the selected car finishes (no waterfall)', reqStart.wedge != null && reqStart.endurance != null && reqStart.wedge < respEnd.hypercar && reqStart.endurance < respEnd.hypercar, JSON.stringify({ reqStart, respEnd }));
     C('boot: only selected + rival cars requested (no full roster)', glbs.length === 3 && ['hypercar', 'wedge', 'endurance'].every(k => glbs.includes(k)), glbs.join(','));
     C('boot: no base64 / CDN model transfer', !reqOrder.some(u => /b64|jsdelivr/.test(u)));
     const sizesOk = Object.entries(glbResp).every(([k, v]) => v.len === statSync(`assets/models/${k}.glb`).size);
