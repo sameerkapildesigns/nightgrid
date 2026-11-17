@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NIGHTGRID — Anti-Gravity Racing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./src/styles.css">
+</head>
+<body>
+<div id="app"></div>
+<canvas id="fx"></canvas>
+<div id="crashv"></div>
+
+<div id="hud">
+  <div id="tl" class="pnl">
+    <div class="lbl">LAP</div>
+    <div id="lapbig">1<span>/3</span></div>
+    <div class="row"><span class="lbl">RACE</span><span id="time">0:00.000</span></div>
+    <div class="row"><span class="lbl">LAP</span><span id="laptime">0:00.000</span></div>
+    <div class="row"><span class="lbl">BEST</span><span id="best">--:--.---</span></div>
+    <div id="sector">S1 · MONZA</div>
+    <div id="carTag"></div>
+  </div>
+  <div id="tr">
+    <div id="pos" class="pnl">P4<small>/4</small></div>
+    <div id="gaps" class="pnl"></div>
+    <div id="closing">▲ RIVAL CLOSING</div>
+    <canvas id="minimap" class="pnl"></canvas>
+  </div>
+  <div id="br">
+    <svg id="speedo" viewBox="0 0 270 210">
+      <defs>
+        <linearGradient id="sg" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#00f0ff"/><stop offset=".6" stop-color="#8a5cff"/><stop offset="1" stop-color="#ff2bd6"/></linearGradient>
+        <filter id="gl" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <path id="arcbg" fill="none" stroke="rgba(255,255,255,.09)" stroke-width="10" pathLength="100"/>
+      <g id="ticks"></g>
+      <path id="arcfg" fill="none" stroke="url(#sg)" stroke-width="10" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" filter="url(#gl)"/>
+      <text id="spdT" x="162" y="128" text-anchor="middle" font-family="Orbitron" font-weight="900" font-style="italic" font-size="58" fill="#fff" style="filter:drop-shadow(0 0 10px rgba(0,240,255,.6))">0</text>
+      <text x="162" y="150" text-anchor="middle" font-family="Orbitron" font-size="10" letter-spacing="4" fill="#00f0ff">KM/H</text>
+    </svg>
+    <div id="earn"></div>
+    <div id="dlbl">DRAFT</div>
+    <div id="draft"><i></i></div>
+    <div id="blbl">BOOST</div>
+    <div id="boost"><i></i></div>
+  </div>
+  <div id="bl">
+    <div>W/S thrust · A/D steer · Shift boost · R reset · P pause</div>
+  </div>
+  <div id="secflash"></div>
+  <div id="center"><div id="count"></div><div id="msg"></div><div id="cp"></div></div>
+  <div id="ww">WRONG WAY</div>
+  <div id="credits">Cars: Collect Cars by drcollect · Ship: Wipeout spaceship by colorsin · CC BY 4.0</div>
+</div>
+
+<div id="touch" aria-hidden="true"><button data-k="left" aria-label="Steer left">‹</button><button data-k="right" aria-label="Steer right">›</button><button data-k="down" class="tb" aria-label="Brake">Brake</button><button data-k="boost" class="tb boost" aria-label="Boost">Boost</button></div>
+<div id="cine" aria-hidden="true"><div class="lb t"></div><div class="lb b"></div>
+  <div id="cineCard"><small id="cineSub"></small><b id="cineName"></b><span id="cineMeta"></span></div>
+  <div id="cineTag">Finish camera</div><button id="cineSkip" class="chip">Skip · Enter</button></div>
+<div id="title" class="overlay">
+  <header id="gTop">
+    <div class="brand">NIGHTGRID<sup>v4</sup></div>
+    <nav class="gtools"><button id="setBtn" class="chip" aria-label="Settings">Settings</button><button id="ctrlBtn" class="chip" aria-label="Show controls">Controls</button><button id="credBtn" class="chip" aria-label="Show credits">Credits</button><button id="qaBtn" class="chip dev" aria-label="Developer QA panel">QA</button></nav>
+  </header>
+  <div id="fallbackTag" role="alert"></div>
+  <div id="gBar">
+    <section class="gcar">
+      <div id="carTitle" class="gclass">—</div>
+      <div class="gname"><button id="prevCar" class="nav" aria-label="Previous vehicle">‹</button><h1 id="carNick">—</h1><button id="nextCar" class="nav" aria-label="Next vehicle">›</button></div>
+      <div id="carDots" class="dots" role="tablist" aria-label="Vehicles"></div>
+    </section>
+    <section class="gspec"><div id="carStats"></div><div id="paints" role="radiogroup" aria-label="Livery"></div></section>
+    <section class="gmap"><div class="glbl">Circuit</div><div id="maps" class="seg" role="radiogroup" aria-label="Circuit"></div><div id="record"></div></section>
+    <section class="ggo"><button id="go" class="btn" disabled>Race</button><div id="load"><div id="loadbar"><i></i></div><div id="loadtxt">Booting…</div></div></section>
+  </div>
+  <div id="credPanel" class="sheet hide" role="dialog" aria-label="Credits"><div class="sh">Credits <button class="chip" data-close>Close</button></div><div id="gCredit"><p>Cars: Hypercar, Endurance, Wedge, Rally-Raid (Off-roader) and Streamliner from <a href="https://github.com/drcollect/collect-cars/tree/70f467ab86d6ae9e8eea17d542ccdfac30550075" target="_blank" rel="noopener">Collect Cars</a> by drcollect (pinned commit 70f467a), <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Modified: scaled, livery/material accents, wheel rigging, racing integration.</p><p>Ship: <a href="https://sketchfab.com/3d-models/wipeout-spaceship-7c2f6c2789c143cfb79aff05c29c2cb7" target="_blank" rel="noopener">“Wipeout spaceship”</a> by <a href="https://sketchfab.com/colorsin" target="_blank" rel="noopener">colorsin</a>, CC BY 4.0. Modified: packed to GLB, unused UV sets 1–9 removed (geometry and original 2k/4k textures unchanged), rotated 180°, scaled; race textures capped at 1024 px.</p><p>Archived, not loaded: <a href="https://sketchfab.com/3d-models/z-32s--hovercar-animated-8b0e262de4d5408ea0c271d9bd6202f9" target="_blank" rel="noopener">“Z-32S _Hovercar_animated”</a> by <a href="https://sketchfab.com/Animateria" target="_blank" rel="noopener">Animateria</a>, CC BY 4.0 (packed to GLB, unchanged).</p><p>City, tracks, FX and UI are procedural. Licence files ship with this artifact (models/*LICENSE.txt).</div></div>
+  <div id="setPanel" class="sheet hide" role="dialog" aria-label="Settings"><div class="sh">Settings <button class="chip" data-close>Close</button></div>
+    <div class="glbl">Motion blur</div><div id="setBlur" class="seg" role="radiogroup" aria-label="Motion blur"></div>
+    <div class="glbl" style="margin-top:12px">Cinematics (race intro &amp; finish camera)</div><div id="setCine" class="seg" role="radiogroup" aria-label="Cinematics"></div>
+    <div class="glbl" style="margin-top:12px">Rival difficulty</div><div id="setDiff" class="seg" role="radiogroup" aria-label="Rival difficulty"></div>
+    <div class="glbl" style="margin-top:12px">Camera shake</div><div id="setShake" class="seg" role="radiogroup" aria-label="Camera shake"></div>
+    <p id="setNote" style="margin-top:10px;color:rgba(232,246,255,.55);font-size:12px"></p></div>
+  <div id="ctrlPanel" class="sheet hide" role="dialog" aria-label="Controls"><div class="sh">Controls <button class="chip" data-close>Close</button></div>
+    <dl class="ctl"><dt>W / ↑</dt><dd>Thrust</dd><dt>S / ↓</dt><dd>Brake · hold + steer to drift</dd><dt>A D / ← →</dt><dd>Steer</dd><dt>Shift / Space</dt><dd>Boost (earn it: drift, near-miss, air, slipstream)</dd><dt>R</dt><dd>Reset to track</dd><dt>P / Esc</dt><dd>Pause</dd><dt>M</dt><dd>Music</dd><dt>Garage</dt><dd>← → vehicle · drag to rotate · Enter to race</dd></dl></div>
+</div>
+<div id="qa" class="hide">
+  <div class="lbl">VISUAL QA · DIAGNOSTICS</div>
+  <div id="carSrc">—</div><div id="assetList"></div><div id="rivalsLine"></div>
+  <button class="ghost" data-qa="garage">GARAGE · NEXT VARIANT</button>
+  <button class="ghost" data-qa="boost">SUSTAINED BOOST DEMO</button>
+  <button class="ghost" data-qa="inverted">INVERTED BOOST DEMO</button>
+  <button class="ghost" data-qa="exit">EXIT TO GARAGE</button>
+  <button class="ghost" data-qa="close">HIDE PANEL</button>
+  <div id="qaInfo"></div>
+</div>
+
+<div id="pause" class="overlay hide">
+  <div class="card">
+    <div class="kicker">SYSTEM HOLD</div>
+    <div class="logo" data-t="PAUSED" style="font-size:72px">PAUSED</div>
+    <div class="small">P TO RESUME · ENTER TO RESTART</div>
+    <div id="pauseNote" class="small" role="status"></div>
+  </div>
+</div>
+
+<div id="results" class="overlay hide">
+  <div class="card">
+    <div class="kicker">RACE COMPLETE</div>
+    <div id="resPos" class="logo" data-t="P1">P1</div>
+    <table id="resTable"></table>
+    <div id="resLaps"></div>
+    <button id="again" class="btn">RACE AGAIN</button>
+    <div><button id="toGarage" class="ghost" style="margin-top:10px">BACK TO GARAGE</button></div>
+    <div class="small">ENTER TO RESTART</div>
+  </div>
+</div>
+<div id="err"></div>
+<script>
+  window.addEventListener('error', e => { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent = 'Error: ' + (e.message || e); });
+  setTimeout(() => { if (!window.__NG_OK) { const t = document.getElementById('loadtxt'); if (t) t.textContent = 'STILL LOADING 3D ENGINE… (CHECK CONNECTION)'; } }, 9000);
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

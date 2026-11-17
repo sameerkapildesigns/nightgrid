@@ -1,0 +1,11 @@
+Model Information:
+* title:	Z-32S _Hovercar_animated
+* source:	https://sketchfab.com/3d-models/z-32s--hovercar-animated-8b0e262de4d5408ea0c271d9bd6202f9
+* author:	Animateria (https://sketchfab.com/Animateria)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Z-32S _Hovercar_animated" (https://sketchfab.com/3d-models/z-32s--hovercar-animated-8b0e262de4d5408ea0c271d9bd6202f9) by Animateria (https://sketchfab.com/Animateria) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
