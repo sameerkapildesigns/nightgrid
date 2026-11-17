@@ -223,6 +223,13 @@ body.narrow .hintsm{display:none}
   #gTop{padding:10px 14px} .brand{font-size:18px}
   #gBar .btn{padding:12px 0}
 }
+/* M1 fix: v5b's single-row desktop bar is ~1340 px wide, so between 901 and 1279 px the Race
+   button and circuit selector were pushed off-screen. Let the same bar wrap (as the narrow
+   layout already does); nothing is resized or removed. */
+@media (min-width:901px) and (max-width:1279px) and (min-aspect-ratio:23/20){
+  #gBar{flex-wrap:wrap;column-gap:24px;row-gap:12px;padding-left:20px;padding-right:20px}
+  .ggo{margin-left:auto}
+}
 
 /* v4 HUD type: Inter labels, Chakra Petch numerals, less letterspacing */
 .lbl{font:600 10px Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:rgba(160,236,255,.75)}
@@ -243,6 +250,10 @@ body.touchmode.racing #touch{display:block}
 #touch [data-k=left]{left:18px} #touch [data-k=right]{left:106px}
 #touch .tb{font-size:13px;width:84px;height:60px;border-radius:14px} #touch [data-k=down]{right:112px;bottom:26px} #touch [data-k=boost]{right:18px;bottom:96px;border-color:rgba(255,43,214,.6)}
 body.touchmode #bl{display:none}
+/* M1 fix: keep the speedometer cluster clear of the touch Brake/Boost pads (v5b drew them over it).
+   Landscape: shift it left of the pad column. Narrow portrait: lift it above the pads. */
+body.touchmode #br{right:204px}
+@media (max-width:600px){body.touchmode #br{right:22px;bottom:170px}}
 #cine{position:fixed;inset:0;z-index:6;pointer-events:none;opacity:0;transition:opacity .35s}
 #cine.on{opacity:1}
 body.cinematic #hud{opacity:0;transition:opacity .3s} body.cinematic #fx{opacity:0}

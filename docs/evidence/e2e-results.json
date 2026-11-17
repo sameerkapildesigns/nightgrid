@@ -1,0 +1,358 @@
+{
+  "when": "2026-11-17T09:41:45.318Z",
+  "env": "Chromium (Playwright 1.63) + SwiftShader software WebGL, headless, local vite preview",
+  "pass": 70,
+  "fail": 0,
+  "results": [
+    {
+      "name": "boot: title reached",
+      "ok": true,
+      "detail": "1020 ms (SwiftShader, local preview)"
+    },
+    {
+      "name": "boot: selected car (hypercar) requested first",
+      "ok": true,
+      "detail": "hypercar,wedge,endurance"
+    },
+    {
+      "name": "boot: only selected + rival cars requested (no full roster)",
+      "ok": true,
+      "detail": "hypercar,wedge,endurance"
+    },
+    {
+      "name": "boot: no base64 / CDN model transfer",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "assets: served GLBs are byte-identical in size to the originals",
+      "ok": true,
+      "detail": "{\"hypercar\":{\"type\":\"model/gltf-binary\",\"len\":3759144},\"wedge\":{\"type\":\"model/gltf-binary\",\"len\":1819188},\"endurance\":{\"type\":\"model/gltf-binary\",\"len\":5032148}}"
+    },
+    {
+      "name": "roster: six approved models in garage order",
+      "ok": true,
+      "detail": "hypercar,endurance,wedge,rally,streamliner,wipeout"
+    },
+    {
+      "name": "roster: Hypercar is the default selection",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "roster: no Z-32S anywhere in the shipped page",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "roster: every race body is a real glTF (no fallback)",
+      "ok": true,
+      "detail": "glTF:hypercar,glTF:hypercar,glTF:wedge,glTF:endurance"
+    },
+    {
+      "name": "on-demand: selecting Off-roader fetches rally.glb only",
+      "ok": true,
+      "detail": "hypercar,wedge,endurance,rally"
+    },
+    {
+      "name": "on-demand: re-selecting a loaded car does not refetch",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "on-demand: Wipeout loads when selected (original 2k/4k textures)",
+      "ok": true,
+      "detail": "29886 tris, 2 meshes"
+    },
+    {
+      "name": "boot: no page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "arrows: 44x44 and on-screen (desktop 1280x675)",
+      "ok": true,
+      "detail": "[[44,44,true],[44,44,true]]"
+    },
+    {
+      "name": "arrows: 44x44 and on-screen (landscape phone 844x390)",
+      "ok": true,
+      "detail": "[[44,44,true],[44,44,true]]"
+    },
+    {
+      "name": "arrows: 44x44 and on-screen (portrait phone 390x844)",
+      "ok": true,
+      "detail": "[[44,44,true],[44,44,true]]"
+    },
+    {
+      "name": "garage 960x540: Race, arrows and all circuits on-screen; arrows 44x44",
+      "ok": true,
+      "detail": "all visible"
+    },
+    {
+      "name": "garage 1024x576: Race, arrows and all circuits on-screen; arrows 44x44",
+      "ok": true,
+      "detail": "all visible"
+    },
+    {
+      "name": "garage 1024x768: Race, arrows and all circuits on-screen; arrows 44x44",
+      "ok": true,
+      "detail": "all visible"
+    },
+    {
+      "name": "garage 1152x648: Race, arrows and all circuits on-screen; arrows 44x44",
+      "ok": true,
+      "detail": "all visible"
+    },
+    {
+      "name": "garage 1280x675: Race, arrows and all circuits on-screen; arrows 44x44",
+      "ok": true,
+      "detail": "all visible"
+    },
+    {
+      "name": "garage 1366x768: Race, arrows and all circuits on-screen; arrows 44x44",
+      "ok": true,
+      "detail": "all visible"
+    },
+    {
+      "name": "garage 1920x1080: Race, arrows and all circuits on-screen; arrows 44x44",
+      "ok": true,
+      "detail": "all visible"
+    },
+    {
+      "name": "maps: technical builds (length/laps/name/world)",
+      "ok": true,
+      "detail": "2420 m, 3 laps, 60 meshes, switch 145 ms"
+    },
+    {
+      "name": "maps: technical shows no record in a clean session",
+      "ok": true,
+      "detail": "No record yet"
+    },
+    {
+      "name": "maps: legacy builds (length/laps/name/world)",
+      "ok": true,
+      "detail": "5055 m, 3 laps, 81 meshes, switch 181 ms"
+    },
+    {
+      "name": "maps: legacy shows no record in a clean session",
+      "ok": true,
+      "detail": "No record yet"
+    },
+    {
+      "name": "maps: velocity builds (length/laps/name/world)",
+      "ok": true,
+      "detail": "5870 m, 2 laps, 65 meshes, switch 159 ms"
+    },
+    {
+      "name": "maps: velocity shows no record in a clean session",
+      "ok": true,
+      "detail": "No record yet"
+    },
+    {
+      "name": "maps: no page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: Race -> cinematic intro",
+      "ok": true,
+      "detail": "precompile {\"ms\":27,\"programs\":65,\"textures\":40}"
+    },
+    {
+      "name": "flow: Enter skips intro -> countdown",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: countdown -> race",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: P pauses",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: Enter while paused restarts (countdown)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: throttle accelerates the player",
+      "ok": true,
+      "detail": "290 km/h after 3 s"
+    },
+    {
+      "name": "flow: crossing the line on the final lap finishes (finish camera)",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: Enter skips finish camera -> results",
+      "ok": true,
+      "detail": "P1, rows 5"
+    },
+    {
+      "name": "records: teleported test lap is rejected",
+      "ok": true,
+      "detail": "{\"time\":5.0499999999997245,\"map\":\"velocity\",\"saved\":false,\"reason\":\"faster-than-physics\"}"
+    },
+    {
+      "name": "records: test build never writes real records (localStorage untouched)",
+      "ok": true,
+      "detail": "[]"
+    },
+    {
+      "name": "flow: Race again -> countdown",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: back to garage",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "flow: no page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "timing: intro runs on the wall clock (not frame count)",
+      "ok": true,
+      "detail": "intro 7.11 s for len 6 s over 14 frames (max frame 1000 ms)"
+    },
+    {
+      "name": "timing: shader precompile happens before intro timing starts",
+      "ok": true,
+      "detail": "precompile {\"ms\":444,\"programs\":65,\"textures\":40}; click->intro-start includes it"
+    },
+    {
+      "name": "timing: 10 FPS frames advance race time 1:1 (3.0 s wall -> 3.0 s race)",
+      "ok": true,
+      "detail": "3.0000 s"
+    },
+    {
+      "name": "timing: 4 FPS frames still advance race time 1:1",
+      "ok": true,
+      "detail": "5.0000 s"
+    },
+    {
+      "name": "timing: a 600 ms hitch simulates the 250 ms cap and reports the drop",
+      "ok": true,
+      "detail": "+0.250 s, dropped 350 ms"
+    },
+    {
+      "name": "timing: a 5 s stall (tab suspension) is not simulated and auto-pauses the race",
+      "ok": true,
+      "detail": "Auto-paused: the game was suspended for 5.0 s"
+    },
+    {
+      "name": "timing: race clock frozen while paused",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "timing: resumes cleanly after the stall",
+      "ok": true,
+      "detail": "0.1000 s"
+    },
+    {
+      "name": "timing: hidden tab pauses the race",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "timing (real time): race time + reported drops == wall time seen by the loop",
+      "ok": true,
+      "detail": "loop wall 3.866 s = race 1.283 s + dropped 2.583 s; fps 1.4"
+    },
+    {
+      "name": "timing (real time): loop wall time matches performance.now within one frame",
+      "ok": true,
+      "detail": "loop 3.87 s vs now 5.01 s"
+    },
+    {
+      "name": "timing (real time): FPS meter reports real FPS (can be < 20)",
+      "ok": true,
+      "detail": "fps 1.4 (min 0.2)"
+    },
+    {
+      "name": "timing: no page errors",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "touch: tapping the cinematic skips the intro",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "touch (landscape 844x390): 4 controls visible, >=44 px, on-screen, non-overlapping",
+      "ok": true,
+      "detail": "left:76x76@18,292 right:76x76@106,292 down:84x60@648,304 boost:84x60@742,234"
+    },
+    {
+      "name": "touch (landscape): Brake/Boost and steer pads do not cover the speedometer cluster",
+      "ok": true,
+      "detail": "{\"x\":370,\"y\":158,\"w\":270,\"h\":210}"
+    },
+    {
+      "name": "touch (landscape): compact credits on-screen and clear of controls",
+      "ok": true,
+      "detail": "{\"h\":12,\"w\":381,\"visible\":true}"
+    },
+    {
+      "name": "touch (landscape): auto-throttle drives the car",
+      "ok": true,
+      "detail": "0 -> 242 km/h"
+    },
+    {
+      "name": "touch: tapping the cinematic skips the intro",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "touch (portrait 390x844): 4 controls visible, >=44 px, on-screen, non-overlapping",
+      "ok": true,
+      "detail": "left:76x76@18,746 right:76x76@106,746 down:84x60@194,758 boost:84x60@288,688"
+    },
+    {
+      "name": "touch (portrait): Brake/Boost and steer pads do not cover the speedometer cluster",
+      "ok": true,
+      "detail": "{\"x\":98,\"y\":464,\"w\":270,\"h\":210}"
+    },
+    {
+      "name": "touch (portrait): compact credits on-screen and clear of controls",
+      "ok": true,
+      "detail": "{\"h\":12,\"w\":381,\"visible\":true}"
+    },
+    {
+      "name": "touch (portrait): auto-throttle drives the car",
+      "ok": true,
+      "detail": "0 -> 242 km/h"
+    },
+    {
+      "name": "prod: no debug hooks (NG_DEBUG/__ng undefined), no QA button, QA panel hidden",
+      "ok": true,
+      "detail": "{\"dbg\":\"undefined\",\"ng\":\"undefined\",\"qa\":false,\"qaPanel\":false,\"marks\":[\"ng:boot\",\"ng:world-built\",\"ng:selected-car\",\"ng:title\",\"ng:race-ready\"]}"
+    },
+    {
+      "name": "prod: boots to an enabled Race button",
+      "ok": true,
+      "detail": "ng:boot,ng:world-built,ng:selected-car,ng:title,ng:race-ready"
+    },
+    {
+      "name": "prod: Race -> intro -> Enter skip -> countdown (no debug hooks used)",
+      "ok": true,
+      "detail": "count=3"
+    },
+    {
+      "name": "prod: no page errors",
+      "ok": true,
+      "detail": ""
+    }
+  ]
+}

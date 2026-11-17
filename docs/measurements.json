@@ -1,0 +1,201 @@
+{
+  "conditions": "headless Chromium 1.63 (Playwright), SwiftShader software WebGL, 1280x675, 4 vCPU container, local Node static server on 127.0.0.1 (no compression, no-cache+ETag), fonts aborted",
+  "settleMs": 20000,
+  "runs": 3,
+  "when": "2026-11-17T09:30:19.642Z",
+  "results": {
+    "before": {
+      "cold": {
+        "titleMsMedian": 958,
+        "readyMsMedian": 963,
+        "titleMsAll": [
+          958,
+          989,
+          936
+        ],
+        "readyMsAll": [
+          963,
+          992,
+          938
+        ],
+        "readyTransferMBMedian": 13.73,
+        "settledTransferMBMedian": 43.8,
+        "serverFirst": {
+          "s200": 7,
+          "s304": 0,
+          "MB200": 43.8
+        },
+        "readyModels": [
+          "hypercar.glb.b64.txt",
+          "endurance.glb.b64.txt",
+          "wedge.glb.b64.txt"
+        ],
+        "settledModels": [
+          "hypercar.glb.b64.txt",
+          "endurance.glb.b64.txt",
+          "wedge.glb.b64.txt",
+          "rally.glb.b64.txt",
+          "streamliner.glb.b64.txt",
+          "wipeout.glb.b64.txt"
+        ]
+      },
+      "warm": {
+        "titleMsMedian": 917,
+        "readyMsMedian": 921,
+        "titleMsAll": [
+          917,
+          979,
+          863
+        ],
+        "readyMsAll": [
+          921,
+          982,
+          865
+        ],
+        "readyTransferMBMedian": 13.73,
+        "settledTransferMBMedian": 43.8,
+        "serverFirst": {
+          "s200": 7,
+          "s304": 0,
+          "MB200": 43.8
+        },
+        "readyModels": [
+          "hypercar.glb.b64.txt",
+          "endurance.glb.b64.txt",
+          "wedge.glb.b64.txt"
+        ],
+        "settledModels": [
+          "hypercar.glb.b64.txt",
+          "endurance.glb.b64.txt",
+          "wedge.glb.b64.txt",
+          "rally.glb.b64.txt",
+          "streamliner.glb.b64.txt",
+          "wipeout.glb.b64.txt"
+        ]
+      },
+      "throttledCold_20Mbps_40msRTT": {
+        "titleMsMedian": 6249,
+        "readyMsMedian": 6934,
+        "titleMsAll": [
+          6249,
+          6247
+        ],
+        "readyMsAll": [
+          6258,
+          6934
+        ],
+        "readyTransferMBMedian": 13.73,
+        "settledTransferMBMedian": 19.39,
+        "serverFirst": {
+          "s200": 6,
+          "s304": 0,
+          "MB200": 30.83
+        },
+        "readyModels": [
+          "hypercar.glb.b64.txt",
+          "endurance.glb.b64.txt",
+          "wedge.glb.b64.txt"
+        ],
+        "settledModels": [
+          "hypercar.glb.b64.txt",
+          "endurance.glb.b64.txt",
+          "wedge.glb.b64.txt",
+          "rally.glb.b64.txt"
+        ]
+      }
+    },
+    "after": {
+      "cold": {
+        "titleMsMedian": 696,
+        "readyMsMedian": 1531,
+        "titleMsAll": [
+          890,
+          696,
+          660
+        ],
+        "readyMsAll": [
+          1531,
+          1339,
+          4475
+        ],
+        "readyTransferMBMedian": 10.87,
+        "settledTransferMBMedian": 10.87,
+        "serverFirst": {
+          "s200": 6,
+          "s304": 0,
+          "MB200": 10.87
+        },
+        "readyModels": [
+          "hypercar.glb",
+          "wedge.glb",
+          "endurance.glb"
+        ],
+        "settledModels": [
+          "hypercar.glb",
+          "wedge.glb",
+          "endurance.glb"
+        ]
+      },
+      "warm": {
+        "titleMsMedian": 746,
+        "readyMsMedian": 1349,
+        "titleMsAll": [
+          631,
+          899,
+          746
+        ],
+        "readyMsAll": [
+          4279,
+          904,
+          1349
+        ],
+        "readyTransferMBMedian": 10.87,
+        "settledTransferMBMedian": 10.87,
+        "serverFirst": {
+          "s200": 6,
+          "s304": 0,
+          "MB200": 10.87
+        },
+        "readyModels": [
+          "hypercar.glb",
+          "wedge.glb",
+          "endurance.glb"
+        ],
+        "settledModels": [
+          "hypercar.glb",
+          "wedge.glb",
+          "endurance.glb"
+        ]
+      },
+      "throttledCold_20Mbps_40msRTT": {
+        "titleMsMedian": 3888,
+        "readyMsMedian": 10166,
+        "titleMsAll": [
+          3041,
+          3888
+        ],
+        "readyMsAll": [
+          10166,
+          9535
+        ],
+        "readyTransferMBMedian": 10.87,
+        "settledTransferMBMedian": 10.87,
+        "serverFirst": {
+          "s200": 6,
+          "s304": 0,
+          "MB200": 10.87
+        },
+        "readyModels": [
+          "hypercar.glb",
+          "wedge.glb",
+          "endurance.glb"
+        ],
+        "settledModels": [
+          "hypercar.glb",
+          "wedge.glb",
+          "endurance.glb"
+        ]
+      }
+    }
+  }
+}

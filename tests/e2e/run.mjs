@@ -78,17 +78,21 @@ try {
     await ctx.close();
   }
 
-  // ---------------- B2. INFO: v5b garage-bar overflow (layout unchanged in M1, reported only) ----------------
+  // ---------------- B2. garage bar: Race + circuit controls reachable at every width (regression for v5b overflow) ----------------
   if (run('B')) {
     const { ctx, page } = await openGame(browser, { width: 1280, height: 675 });
-    const rows = [];
-    for (const [w, h] of [[1024, 576], [1024, 768], [1152, 648], [1280, 675], [1280, 800], [1366, 768], [1440, 900], [1920, 1080]]) {
-      await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(150);
-      const r = await page.evaluate(() => { const b = document.getElementById('go').getBoundingClientRect(); return b.right <= innerWidth && b.bottom <= innerHeight && b.left >= 0; });
-      rows.push(`${w}x${h}:${r ? 'on-screen' : 'OFF-SCREEN'}`);
+    for (const [w, h] of [[960, 540], [1024, 576], [1024, 768], [1152, 648], [1280, 675], [1366, 768], [1920, 1080]]) {
+      await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(200);
+      const r = await page.evaluate(() => {
+        const inV = el => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= 0 && b.top >= 0 && b.right <= innerWidth + 0.5 && b.bottom <= innerHeight + 0.5; };
+        const ids = ['go', 'prevCar', 'nextCar'].map(id => [id, inV(document.getElementById(id))]);
+        const maps = [...document.querySelectorAll('#maps [data-map]')].map(b => [b.dataset.map, inV(b)]);
+        const nav = document.getElementById('prevCar').getBoundingClientRect();
+        return { all: [...ids, ...maps], arrows44: Math.round(nav.width) === 44 && Math.round(nav.height) === 44, hscroll: document.documentElement.scrollWidth > innerWidth };
+      });
+      C(`garage ${w}x${h}: Race, arrows and all circuits on-screen; arrows 44x44`, r.all.every(x => x[1]) && r.arrows44 && !r.hscroll, r.all.filter(x => !x[1]).map(x => x[0]).join(',') || 'all visible');
+      if ([960, 1024, 1152].includes(w) && h < 700) { await page.evaluate(() => __ng.render()); await shot(page, `garage-${w}x${h}`); }
     }
-    console.log('INFO  layout (v5b CSS, unchanged): Race button ' + rows.join(' '));
-    results.push({ name: 'INFO layout: Race button visibility by viewport (baseline CSS)', ok: true, info: true, detail: rows.join(' ') });
     await ctx.close();
   }
 
@@ -223,6 +227,9 @@ try {
     let overlap = false; for (let i = 0; i < L.bs.length; i++) for (let j = i + 1; j < L.bs.length; j++) if (ov(L.bs[i], L.bs[j])) overlap = true;
     C(`touch (${label} ${w}x${h}): 4 controls visible, >=44 px, on-screen, non-overlapping`, L.bs.length === 4 && L.bs.every(b => b.vis) && big && inside && !overlap, L.bs.map(b => `${b.k}:${Math.round(b.w)}x${Math.round(b.h)}@${Math.round(b.x)},${Math.round(b.y)}`).join(' '));
     const credOver = L.bs.some(b => ov(b, { x: L.cred.x, y: L.cred.y, w: L.cred.w, h: L.cred.h }));
+    const spd = await page.evaluate(() => { const r = document.getElementById('br').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+    const spdOn = spd.x >= 0 && spd.y >= 0 && spd.x + spd.w <= L.vw + 0.5 && spd.y + spd.h <= L.vh + 0.5;
+    C(`touch (${label}): Brake/Boost and steer pads do not cover the speedometer cluster`, spdOn && !L.bs.some(b => ov(b, spd)), JSON.stringify(spd, (k, v) => typeof v === 'number' ? Math.round(v) : v));
     C(`touch (${label}): compact credits on-screen and clear of controls`, !L.cred.vis || (L.cred.h <= 40 && L.cred.r <= L.vw + 0.5 && !credOver), JSON.stringify({ h: Math.round(L.cred.h), w: Math.round(L.cred.w), visible: L.cred.vis }));
     await page.evaluate(() => __ng.render()); await shot(page, `touch-${label}`);
     const before = await page.evaluate(() => NG_DEBUG.speedFx.kmh);

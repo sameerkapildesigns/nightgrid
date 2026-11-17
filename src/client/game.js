@@ -15,7 +15,7 @@ import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
 import { createRecordStore, memoryStorage } from '../core/records.js';
-import { CARS, CAR_KEYS, DEFAULT_CAR, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, CC_COMMIT, raceCarKeys, bootLoadOrder, isRaceReady } from '../core/roster.js';
+import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
 
 // DEBUG is a build-time constant: true for `vite` dev and `vite build --mode test`,
@@ -1820,7 +1820,6 @@ function updateVisual(r, dt) {
   if (r.h < 0.5 && sp > 30 && Math.random() < 0.5) { _tp.set(R(-1, 1), gy, R(-1.5, 1.5)); sh.root.localToWorld(_tp); spark(_tp.x, _tp.y, _tp.z, R(-3, 3), R(0, 3), R(-3, 3), SPARK_HOT, R(0.2, 0.4)); }
 }
 const EX_SPARK_A = new THREE.Color(0.55, 1.4, 1.8), EX_SPARK_B = new THREE.Color(0.9, 0.45, 1.8);
-const _qd = new THREE.Quaternion();
 function updateDrones() {   // drone motion is simulated in core; this only places the meshes
   for (const d of drones) {
     if (!d.root) continue;
@@ -2311,7 +2310,7 @@ if (DEBUG) {
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
     qa: { open: qaOpen, garageNext: qaGarageNext, boostDemo: () => { touch(); qaBoostDemo(false); }, invertedDemo: () => { touch(); qaBoostDemo(true); }, exit: toGarage, select: (k, p) => { if (p != null) GAR.paint = p; selectCar(k); } }
   };
-  window.__ng = { GAR, sim, records, get state() { return state; }, get player() { touch(); return player; }, racers, drones, camera, scene, renderer, get fps() { return lastFps; }, keys, get MAIN() { return MAIN; }, get BR() { return BR; }, get SAm() { return SAm; }, get SBm() { return SBm; }, get map() { return MAPKEY; }, switchMap, get lastDispose() { return lastDispose; }, get worldChildren() { return WORLD.children.length; },
+  window.__ng = { GAR, simCore: sim, records, get state() { return state; }, get player() { touch(); return player; }, racers, drones, camera, scene, renderer, get fps() { return lastFps; }, keys, get MAIN() { return MAIN; }, get BR() { return BR; }, get SAm() { return SAm; }, get SBm() { return SBm; }, get map() { return MAPKEY; }, switchMap, get lastDispose() { return lastDispose; }, get worldChildren() { return WORLD.children.length; },
     // deterministic stepping for tests: n frames of 1/60 s (2 fixed steps each)
     sim(sec) { touch(); RDT = 0; const n = Math.round(sec * 60); for (let i = 0; i < n; i++) { sim.step(SIM_DT); sim.step(SIM_DT); gameTime = sim.time; update(1 / 60, 1 / 60); } },
     // manual wall clock: drive the real frame path with synthetic frame gaps (low FPS / stalls)

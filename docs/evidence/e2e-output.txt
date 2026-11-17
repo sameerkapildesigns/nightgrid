@@ -1,0 +1,72 @@
+PASS  boot: title reached  — 1020 ms (SwiftShader, local preview)
+PASS  boot: selected car (hypercar) requested first  — hypercar,wedge,endurance
+PASS  boot: only selected + rival cars requested (no full roster)  — hypercar,wedge,endurance
+PASS  boot: no base64 / CDN model transfer
+PASS  assets: served GLBs are byte-identical in size to the originals  — {"hypercar":{"type":"model/gltf-binary","len":3759144},"wedge":{"type":"model/gltf-binary","len":1819188},"endurance":{"type":"model/gltf-binary","len":5032148}}
+PASS  roster: six approved models in garage order  — hypercar,endurance,wedge,rally,streamliner,wipeout
+PASS  roster: Hypercar is the default selection
+PASS  roster: no Z-32S anywhere in the shipped page
+PASS  roster: every race body is a real glTF (no fallback)  — glTF:hypercar,glTF:hypercar,glTF:wedge,glTF:endurance
+PASS  on-demand: selecting Off-roader fetches rally.glb only  — hypercar,wedge,endurance,rally
+PASS  on-demand: re-selecting a loaded car does not refetch
+PASS  on-demand: Wipeout loads when selected (original 2k/4k textures)  — 29886 tris, 2 meshes
+PASS  boot: no page errors
+PASS  arrows: 44x44 and on-screen (desktop 1280x675)  — [[44,44,true],[44,44,true]]
+PASS  arrows: 44x44 and on-screen (landscape phone 844x390)  — [[44,44,true],[44,44,true]]
+PASS  arrows: 44x44 and on-screen (portrait phone 390x844)  — [[44,44,true],[44,44,true]]
+PASS  garage 960x540: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1024x576: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1024x768: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1152x648: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1280x675: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1366x768: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  garage 1920x1080: Race, arrows and all circuits on-screen; arrows 44x44  — all visible
+PASS  maps: technical builds (length/laps/name/world)  — 2420 m, 3 laps, 60 meshes, switch 145 ms
+PASS  maps: technical shows no record in a clean session  — No record yet
+PASS  maps: legacy builds (length/laps/name/world)  — 5055 m, 3 laps, 81 meshes, switch 181 ms
+PASS  maps: legacy shows no record in a clean session  — No record yet
+PASS  maps: velocity builds (length/laps/name/world)  — 5870 m, 2 laps, 65 meshes, switch 159 ms
+PASS  maps: velocity shows no record in a clean session  — No record yet
+PASS  maps: no page errors
+PASS  flow: Race -> cinematic intro  — precompile {"ms":27,"programs":65,"textures":40}
+PASS  flow: Enter skips intro -> countdown
+PASS  flow: countdown -> race
+PASS  flow: P pauses
+PASS  flow: Enter while paused restarts (countdown)
+PASS  flow: throttle accelerates the player  — 290 km/h after 3 s
+PASS  flow: crossing the line on the final lap finishes (finish camera)
+PASS  flow: Enter skips finish camera -> results  — P1, rows 5
+PASS  records: teleported test lap is rejected  — {"time":5.0499999999997245,"map":"velocity","saved":false,"reason":"faster-than-physics"}
+PASS  records: test build never writes real records (localStorage untouched)  — []
+PASS  flow: Race again -> countdown
+PASS  flow: back to garage
+PASS  flow: no page errors
+PASS  timing: intro runs on the wall clock (not frame count)  — intro 7.11 s for len 6 s over 14 frames (max frame 1000 ms)
+PASS  timing: shader precompile happens before intro timing starts  — precompile {"ms":444,"programs":65,"textures":40}; click->intro-start includes it
+PASS  timing: 10 FPS frames advance race time 1:1 (3.0 s wall -> 3.0 s race)  — 3.0000 s
+PASS  timing: 4 FPS frames still advance race time 1:1  — 5.0000 s
+PASS  timing: a 600 ms hitch simulates the 250 ms cap and reports the drop  — +0.250 s, dropped 350 ms
+PASS  timing: a 5 s stall (tab suspension) is not simulated and auto-pauses the race  — Auto-paused: the game was suspended for 5.0 s
+PASS  timing: race clock frozen while paused
+PASS  timing: resumes cleanly after the stall  — 0.1000 s
+PASS  timing: hidden tab pauses the race
+PASS  timing (real time): race time + reported drops == wall time seen by the loop  — loop wall 3.866 s = race 1.283 s + dropped 2.583 s; fps 1.4
+PASS  timing (real time): loop wall time matches performance.now within one frame  — loop 3.87 s vs now 5.01 s
+PASS  timing (real time): FPS meter reports real FPS (can be < 20)  — fps 1.4 (min 0.2)
+PASS  timing: no page errors
+PASS  touch: tapping the cinematic skips the intro
+PASS  touch (landscape 844x390): 4 controls visible, >=44 px, on-screen, non-overlapping  — left:76x76@18,292 right:76x76@106,292 down:84x60@648,304 boost:84x60@742,234
+PASS  touch (landscape): Brake/Boost and steer pads do not cover the speedometer cluster  — {"x":370,"y":158,"w":270,"h":210}
+PASS  touch (landscape): compact credits on-screen and clear of controls  — {"h":12,"w":381,"visible":true}
+PASS  touch (landscape): auto-throttle drives the car  — 0 -> 242 km/h
+PASS  touch: tapping the cinematic skips the intro
+PASS  touch (portrait 390x844): 4 controls visible, >=44 px, on-screen, non-overlapping  — left:76x76@18,746 right:76x76@106,746 down:84x60@194,758 boost:84x60@288,688
+PASS  touch (portrait): Brake/Boost and steer pads do not cover the speedometer cluster  — {"x":98,"y":464,"w":270,"h":210}
+PASS  touch (portrait): compact credits on-screen and clear of controls  — {"h":12,"w":381,"visible":true}
+PASS  touch (portrait): auto-throttle drives the car  — 0 -> 242 km/h
+PASS  prod: no debug hooks (NG_DEBUG/__ng undefined), no QA button, QA panel hidden  — {"dbg":"undefined","ng":"undefined","qa":false,"qaPanel":false,"marks":["ng:boot","ng:world-built","ng:selected-car","ng:title","ng:race-ready"]}
+PASS  prod: boots to an enabled Race button  — ng:boot,ng:world-built,ng:selected-car,ng:title,ng:race-ready
+PASS  prod: Race -> intro -> Enter skip -> countdown (no debug hooks used)  — count=3
+PASS  prod: no page errors
+
+70/70 passed

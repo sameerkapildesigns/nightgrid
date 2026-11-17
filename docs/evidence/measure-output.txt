@@ -1,0 +1,205 @@
+after run 1 {"cold":{"titleMs":890,"readyMs":1531,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]},"warm":{"titleMs":631,"readyMs":4279,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]}}
+before run 1 {"cold":{"titleMs":958,"readyMs":963,"server":{"s200":7,"s304":0,"MB200":43.8},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":43.8,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt","streamliner.glb.b64.txt","wipeout.glb.b64.txt"]},"warm":{"titleMs":917,"readyMs":921,"server":{"s200":7,"s304":0,"MB200":43.8},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":43.8,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt","streamliner.glb.b64.txt","wipeout.glb.b64.txt"]}}
+before run 2 {"cold":{"titleMs":989,"readyMs":992,"server":{"s200":7,"s304":0,"MB200":43.8},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":43.8,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt","streamliner.glb.b64.txt","wipeout.glb.b64.txt"]},"warm":{"titleMs":979,"readyMs":982,"server":{"s200":7,"s304":0,"MB200":43.8},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":43.8,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt","streamliner.glb.b64.txt","wipeout.glb.b64.txt"]}}
+after run 2 {"cold":{"titleMs":696,"readyMs":1339,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]},"warm":{"titleMs":899,"readyMs":904,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]}}
+after run 3 {"cold":{"titleMs":660,"readyMs":4475,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]},"warm":{"titleMs":746,"readyMs":1349,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]}}
+before run 3 {"cold":{"titleMs":936,"readyMs":938,"server":{"s200":7,"s304":0,"MB200":43.8},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":43.8,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt","streamliner.glb.b64.txt","wipeout.glb.b64.txt"]},"warm":{"titleMs":863,"readyMs":865,"server":{"s200":7,"s304":0,"MB200":43.8},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":43.8,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt","streamliner.glb.b64.txt","wipeout.glb.b64.txt"]}}
+after throttled run 1 {"titleMs":3041,"readyMs":10166,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]}
+before throttled run 1 {"titleMs":6249,"readyMs":6258,"server":{"s200":6,"s304":0,"MB200":30.83},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":19.39,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt"]}
+before throttled run 2 {"titleMs":6247,"readyMs":6934,"server":{"s200":6,"s304":0,"MB200":30.83},"readyTransferMB":13.73,"readyGlbMB":13.49,"readyModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt"],"settledTransferMB":19.39,"settledModels":["hypercar.glb.b64.txt","endurance.glb.b64.txt","wedge.glb.b64.txt","rally.glb.b64.txt"]}
+after throttled run 2 {"titleMs":3888,"readyMs":9535,"server":{"s200":6,"s304":0,"MB200":10.87},"readyTransferMB":10.87,"readyGlbMB":10.12,"readyModels":["hypercar.glb","wedge.glb","endurance.glb"],"settledTransferMB":10.87,"settledModels":["hypercar.glb","wedge.glb","endurance.glb"]}
+{
+  "before": {
+    "cold": {
+      "titleMsMedian": 958,
+      "readyMsMedian": 963,
+      "titleMsAll": [
+        958,
+        989,
+        936
+      ],
+      "readyMsAll": [
+        963,
+        992,
+        938
+      ],
+      "readyTransferMBMedian": 13.73,
+      "settledTransferMBMedian": 43.8,
+      "serverFirst": {
+        "s200": 7,
+        "s304": 0,
+        "MB200": 43.8
+      },
+      "readyModels": [
+        "hypercar.glb.b64.txt",
+        "endurance.glb.b64.txt",
+        "wedge.glb.b64.txt"
+      ],
+      "settledModels": [
+        "hypercar.glb.b64.txt",
+        "endurance.glb.b64.txt",
+        "wedge.glb.b64.txt",
+        "rally.glb.b64.txt",
+        "streamliner.glb.b64.txt",
+        "wipeout.glb.b64.txt"
+      ]
+    },
+    "warm": {
+      "titleMsMedian": 917,
+      "readyMsMedian": 921,
+      "titleMsAll": [
+        917,
+        979,
+        863
+      ],
+      "readyMsAll": [
+        921,
+        982,
+        865
+      ],
+      "readyTransferMBMedian": 13.73,
+      "settledTransferMBMedian": 43.8,
+      "serverFirst": {
+        "s200": 7,
+        "s304": 0,
+        "MB200": 43.8
+      },
+      "readyModels": [
+        "hypercar.glb.b64.txt",
+        "endurance.glb.b64.txt",
+        "wedge.glb.b64.txt"
+      ],
+      "settledModels": [
+        "hypercar.glb.b64.txt",
+        "endurance.glb.b64.txt",
+        "wedge.glb.b64.txt",
+        "rally.glb.b64.txt",
+        "streamliner.glb.b64.txt",
+        "wipeout.glb.b64.txt"
+      ]
+    },
+    "throttledCold_20Mbps_40msRTT": {
+      "titleMsMedian": 6249,
+      "readyMsMedian": 6934,
+      "titleMsAll": [
+        6249,
+        6247
+      ],
+      "readyMsAll": [
+        6258,
+        6934
+      ],
+      "readyTransferMBMedian": 13.73,
+      "settledTransferMBMedian": 19.39,
+      "serverFirst": {
+        "s200": 6,
+        "s304": 0,
+        "MB200": 30.83
+      },
+      "readyModels": [
+        "hypercar.glb.b64.txt",
+        "endurance.glb.b64.txt",
+        "wedge.glb.b64.txt"
+      ],
+      "settledModels": [
+        "hypercar.glb.b64.txt",
+        "endurance.glb.b64.txt",
+        "wedge.glb.b64.txt",
+        "rally.glb.b64.txt"
+      ]
+    }
+  },
+  "after": {
+    "cold": {
+      "titleMsMedian": 696,
+      "readyMsMedian": 1531,
+      "titleMsAll": [
+        890,
+        696,
+        660
+      ],
+      "readyMsAll": [
+        1531,
+        1339,
+        4475
+      ],
+      "readyTransferMBMedian": 10.87,
+      "settledTransferMBMedian": 10.87,
+      "serverFirst": {
+        "s200": 6,
+        "s304": 0,
+        "MB200": 10.87
+      },
+      "readyModels": [
+        "hypercar.glb",
+        "wedge.glb",
+        "endurance.glb"
+      ],
+      "settledModels": [
+        "hypercar.glb",
+        "wedge.glb",
+        "endurance.glb"
+      ]
+    },
+    "warm": {
+      "titleMsMedian": 746,
+      "readyMsMedian": 1349,
+      "titleMsAll": [
+        631,
+        899,
+        746
+      ],
+      "readyMsAll": [
+        4279,
+        904,
+        1349
+      ],
+      "readyTransferMBMedian": 10.87,
+      "settledTransferMBMedian": 10.87,
+      "serverFirst": {
+        "s200": 6,
+        "s304": 0,
+        "MB200": 10.87
+      },
+      "readyModels": [
+        "hypercar.glb",
+        "wedge.glb",
+        "endurance.glb"
+      ],
+      "settledModels": [
+        "hypercar.glb",
+        "wedge.glb",
+        "endurance.glb"
+      ]
+    },
+    "throttledCold_20Mbps_40msRTT": {
+      "titleMsMedian": 3888,
+      "readyMsMedian": 10166,
+      "titleMsAll": [
+        3041,
+        3888
+      ],
+      "readyMsAll": [
+        10166,
+        9535
+      ],
+      "readyTransferMBMedian": 10.87,
+      "settledTransferMBMedian": 10.87,
+      "serverFirst": {
+        "s200": 6,
+        "s304": 0,
+        "MB200": 10.87
+      },
+      "readyModels": [
+        "hypercar.glb",
+        "wedge.glb",
+        "endurance.glb"
+      ],
+      "settledModels": [
+        "hypercar.glb",
+        "wedge.glb",
+        "endurance.glb"
+      ]
+    }
+  }
+}
