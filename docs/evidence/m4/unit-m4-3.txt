@@ -1,0 +1,583 @@
+TAP version 13
+# Subtest: sim time tracks wall time at 60, 20, 10, 5 and 4 FPS (no slow motion)
+ok 1 - sim time tracks wall time at 60, 20, 10, 5 and 4 FPS (no slow motion)
+  ---
+  duration_ms: 2.931017
+  type: 'test'
+  ...
+# Subtest: v5b behaviour for contrast: capping dt at 50 ms halves race time at 10 FPS
+ok 2 - v5b behaviour for contrast: capping dt at 50 ms halves race time at 10 FPS
+  ---
+  duration_ms: 0.203167
+  type: 'test'
+  ...
+# Subtest: fixed step size and bounded catch-up per frame
+ok 3 - fixed step size and bounded catch-up per frame
+  ---
+  duration_ms: 0.157777
+  type: 'test'
+  ...
+# Subtest: a long gap is a stall: nothing simulated, gap reported
+ok 4 - a long gap is a stall: nothing simulated, gap reported
+  ---
+  duration_ms: 0.186407
+  type: 'test'
+  ...
+# Subtest: time scale (finish slow motion) scales simulated time only
+ok 5 - time scale (finish slow motion) scales simulated time only
+  ---
+  duration_ms: 0.197664
+  type: 'test'
+  ...
+# Subtest: zero / negative / NaN frame times are ignored
+ok 6 - zero / negative / NaN frame times are ignored
+  ---
+  duration_ms: 0.304147
+  type: 'test'
+  ...
+# Subtest: FPS meter reports real low frame rates (v5b could not report below 20)
+ok 7 - FPS meter reports real low frame rates (v5b could not report below 20)
+  ---
+  duration_ms: 0.221416
+  type: 'test'
+  ...
+# Subtest: steering response: total 90% (steer filter -> yaw filter) inside the target bands; v5b was 0.64/0.48 s
+ok 8 - steering response: total 90% (steer filter -> yaw filter) inside the target bands; v5b was 0.64/0.48 s
+  ---
+  duration_ms: 1.149182
+  type: 'test'
+  ...
+# Subtest: in-sim steering step reaches 90% of steady yaw rate within the band (Assisted, 30 m/s)
+ok 9 - in-sim steering step reaches 90% of steady yaw rate within the band (Assisted, 30 m/s)
+  ---
+  duration_ms: 33.33711
+  type: 'test'
+  ...
+# Subtest: Assisted braking: initial ~20 m/s^2 ramping to full; brake+steer is still braking (no hidden airbrake)
+ok 10 - Assisted braking: initial ~20 m/s^2 ramping to full; brake+steer is still braking (no hidden airbrake)
+  ---
+  duration_ms: 97.247963
+  type: 'test'
+  ...
+# Subtest: Expert: full 46 m/s^2 braking; drift is explicit (drift key + steer) and is the only airbrake
+ok 11 - Expert: full 46 m/s^2 braking; drift is explicit (drift key + steer) and is the only airbrake
+  ---
+  duration_ms: 55.245461
+  type: 'test'
+  ...
+# Subtest: Assisted edge correction is capped at 15% and disabled while the player steers
+ok 12 - Assisted edge correction is capped at 15% and disabled while the player steers
+  ---
+  duration_ms: 24.973621
+  type: 'test'
+  ...
+# Subtest: pace caps: Assisted top speed == cap (fastest car, no boost), never exceeded incl. AI, gravity, drafting
+ok 13 - pace caps: Assisted top speed == cap (fastest car, no boost), never exceeded incl. AI, gravity, drafting
+  ---
+  duration_ms: 843.921402
+  type: 'test'
+  ...
+# Subtest: Expert reaches its higher normal cap; other cars scale by modifier/1.035
+ok 14 - Expert reaches its higher normal cap; other cars scale by modifier/1.035
+  ---
+  duration_ms: 0.240486
+  type: 'test'
+  ...
+# Subtest: tight-corner speeds (curvature-based): AI medians in range for both modes; Assisted player in range
+ok 15 - tight-corner speeds (curvature-based): AI medians in range for both modes; Assisted player in range
+  ---
+  duration_ms: 0.15204
+  type: 'test'
+  ...
+# Subtest: loops / barrel rolls / inversions hold at the lower speeds: no crashes, valid laps, AI and player comparable
+ok 16 - loops / barrel rolls / inversions hold at the lower speeds: no crashes, valid laps, AI and player comparable
+  ---
+  duration_ms: 0.539187
+  type: 'test'
+  ...
+# Subtest: records are separate per mode; pre-M3 records are not migrated (and not deleted)
+ok 17 - records are separate per mode; pre-M3 records are not migrated (and not deleted)
+  ---
+  duration_ms: 0.502244
+  type: 'test'
+  ...
+# Subtest: determinism: snapshot -> JSON -> import continues identically for 12 s with collisions, boost and a respawn, on all 3 maps; PRNG continues
+ok 18 - determinism: snapshot -> JSON -> import continues identically for 12 s with collisions, boost and a respawn, on all 3 maps; PRNG continues
+  ---
+  duration_ms: 683.423103
+  type: 'test'
+  ...
+# Subtest: predictor parity: the client predictor fed the same frames matches the server racer exactly (solo seat, all maps)
+ok 19 - predictor parity: the client predictor fed the same frames matches the server racer exactly (solo seat, all maps)
+  ---
+  duration_ms: 337.719381
+  type: 'test'
+  ...
+# Subtest: reconcile: reset to the server state at the ack + replay of pending frames == uninterrupted prediction; corrections ~0; replay is silent
+ok 20 - reconcile: reset to the server state at the ack + replay of pending frames == uninterrupted prediction; corrections ~0; replay is silent
+  ---
+  duration_ms: 162.579388
+  type: 'test'
+  ...
+# Subtest: reconcile: a server-side push (contact) is corrected; small error blended, large error snapped
+ok 21 - reconcile: a server-side push (contact) is corrected; small error blended, large error snapped
+  ---
+  duration_ms: 61.510296
+  type: 'test'
+  ...
+# Subtest: predictor stops at 360 un-acked frames (bounded pending queue)
+ok 22 - predictor stops at 360 un-acked frames (bounded pending queue)
+  ---
+  duration_ms: 63.004709
+  type: 'test'
+  ...
+# Subtest: interpolator: renders 120 ms in the past, wraps the lap seam, bounded extrapolation, snaps on path change
+ok 23 - interpolator: renders 120 ms in the past, wraps the lap seam, bounded extrapolation, snaps on path change
+  ---
+  duration_ms: 20.795496
+  type: 'test'
+  ...
+# Subtest: clock sync: estimates server offset from the lowest-RTT samples despite queueing delay
+ok 24 - clock sync: estimates server offset from the lowest-RTT samples despite queueing delay
+  ---
+  duration_ms: 0.289108
+  type: 'test'
+  ...
+# Subtest: input frame encode/decode round-trips every key and analogue steer in hundredths
+ok 25 - input frame encode/decode round-trips every key and analogue steer in hundredths
+  ---
+  duration_ms: 1.706514
+  type: 'test'
+  ...
+# Subtest: parseClient: schema validation, size cap, protocol version, bounded batches
+ok 26 - parseClient: schema validation, size cap, protocol version, bounded batches
+  ---
+  duration_ms: 0.480935
+  type: 'test'
+  ...
+# Subtest: token bucket limits rate and refills over time
+ok 27 - token bucket limits rate and refills over time
+  ---
+  duration_ms: 0.140269
+  type: 'test'
+  ...
+# Subtest: room codes: 6 chars from the readable alphabet, unguessable (CSPRNG), unique in a large sample
+ok 28 - room codes: 6 chars from the readable alphabet, unguessable (CSPRNG), unique in a large sample
+  ---
+  duration_ms: 88.884034
+  type: 'test'
+  ...
+# Subtest: budget: shared across rooms - capacity cap, daily budget with safety margin, heartbeats charge, lifetime close, UTC day roll
+ok 29 - budget: shared across rooms - capacity cap, daily budget with safety margin, heartbeats charge, lifetime close, UTC day roll
+  ---
+  duration_ms: 1.201769
+  type: 'test'
+  ...
+# Subtest: budget: a room that stops heart-beating is reaped and charged only to its last beat
+ok 30 - budget: a room that stops heart-beating is reaped and charged only to its last beat
+  ---
+  duration_ms: 0.226109
+  type: 'test'
+  ...
+# Subtest: core modules import nothing outside src/core
+ok 31 - core modules import nothing outside src/core
+  ---
+  duration_ms: 3.501226
+  type: 'test'
+  ...
+# Subtest: every core module loads in plain Node
+ok 32 - every core module loads in plain Node
+  ---
+  duration_ms: 8.137049
+  type: 'test'
+  ...
+# Subtest: physics bound: laps faster than 140 m/s average are impossible
+ok 33 - physics bound: laps faster than 140 m/s average are impossible
+  ---
+  duration_ms: 1.250809
+  type: 'test'
+  ...
+# Subtest: integrity flags reject teleported, autopilot and debug laps
+ok 34 - integrity flags reject teleported, autopilot and debug laps
+  ---
+  duration_ms: 0.228796
+  type: 'test'
+  ...
+# Subtest: garbage values are rejected
+ok 35 - garbage values are rejected
+  ---
+  duration_ms: 0.185903
+  type: 'test'
+  ...
+# Subtest: store: keeps only faster valid laps, ignores polluted stored values, never throws
+ok 36 - store: keeps only faster valid laps, ignores polluted stored values, never throws
+  ---
+  duration_ms: 1.385214
+  type: 'test'
+  ...
+# Subtest: legacy key from v3 is still honoured when plausible
+ok 37 - legacy key from v3 is still honoured when plausible
+  ---
+  duration_ms: 0.221696
+  type: 'test'
+  ...
+# Subtest: join: server-issued ids + session tokens; build/protocol mismatch rejected with a fatal error; 5th human rejected without breaking the room
+ok 38 - join: server-issued ids + session tokens; build/protocol mismatch rejected with a fatal error; 5th human rejected without breaking the room
+  ---
+  duration_ms: 3.418669
+  type: 'test'
+  ...
+# Subtest: messages before hello, malformed and oversized payloads are rejected and counted
+ok 39 - messages before hello, malformed and oversized payloads are rejected and counted
+  ---
+  duration_ms: 0.68132
+  type: 'test'
+  ...
+# Subtest: host-only actions are enforced server-side; non-host cannot add bots, configure, start or return to lobby
+ok 40 - host-only actions are enforced server-side; non-host cannot add bots, configure, start or return to lobby
+  ---
+  duration_ms: 0.637396
+  type: 'test'
+  ...
+# Subtest: ready/start gate, shared countdown, race message carries build/map/mode/seed/seats/snapshot
+ok 41 - ready/start gate, shared countdown, race message carries build/map/mode/seed/seats/snapshot
+  ---
+  duration_ms: 52.968556
+  type: 'test'
+  ...
+# Subtest: per-seat input: two humans in one room control only their own cars
+ok 42 - per-seat input: two humans in one room control only their own cars
+  ---
+  duration_ms: 87.764964
+  type: 'test'
+  ...
+# Subtest: input integrity: out-of-order / duplicate frames ignored, far-future frames rejected, frame-rate limit, no queue growth beyond the drop bound
+ok 43 - input integrity: out-of-order / duplicate frames ignored, far-future frames rejected, frame-rate limit, no queue growth beyond the drop bound
+  ---
+  duration_ms: 44.098057
+  type: 'test'
+  ...
+# Subtest: stale input: a human who stops sending has every input released after 250 ms (no stuck accelerator)
+ok 44 - stale input: a human who stops sending has every input released after 250 ms (no stuck accelerator)
+  ---
+  duration_ms: 55.791104
+  type: 'test'
+  ...
+# Subtest: disconnect/reconnect mid-race: token restores the same seat + full race snapshot; expiry after 15 s retires the car (DNF, server AI)
+ok 45 - disconnect/reconnect mid-race: token restores the same seat + full race snapshot; expiry after 15 s retires the car (DNF, server AI)
+  ---
+  duration_ms: 100.110505
+  type: 'test'
+  ...
+# Subtest: full 1 human + 3 bots race -> one shared result order -> results -> back to lobby
+ok 46 - full 1 human + 3 bots race -> one shared result order -> results -> back to lobby
+  ---
+  duration_ms: 634.575827
+  type: 'test'
+  ...
+# Subtest: two rooms are isolated: traffic in one never reaches the other
+ok 47 - two rooms are isolated: traffic in one never reaches the other
+  ---
+  duration_ms: 0.578492
+  type: 'test'
+  ...
+# Subtest: teardown: everyone leaves -> room closes after the empty timeout, budget released; idle lobby closes; no timers left
+ok 48 - teardown: everyone leaves -> room closes after the empty timeout, budget released; idle lobby closes; no timers left
+  ---
+  duration_ms: 0.40803
+  type: 'test'
+  ...
+# \# tick cost velocity: p50 0.245 ms p95 0.434 ms per 50 ms tick (6 steps, 4 cars)
+# \# tick cost technical: p50 0.213 ms p95 1.285 ms per 50 ms tick (6 steps, 4 cars)
+# \# tick cost legacy: p50 0.206 ms p95 0.389 ms per 50 ms tick (6 steps, 4 cars)
+# Subtest: budget: race refused when the shared daily budget is spent
+ok 49 - budget: race refused when the shared daily budget is spent
+  ---
+  duration_ms: 4.674276
+  type: 'test'
+  ...
+# Subtest: server tick cost: 4 cars on each map, measured (informational, asserts only a generous ceiling)
+ok 50 - server tick cost: 4 cars on each map, measured (informational, asserts only a generous ceiling)
+  ---
+  duration_ms: 325.958609
+  type: 'test'
+  ...
+# Subtest: server-issued ids; first human is host; names are cleaned and bounded
+ok 51 - server-issued ids; first human is host; names are cleaned and bounded
+  ---
+  duration_ms: 1.501907
+  type: 'test'
+  ...
+# Subtest: 1 human + 3 bots: bots auto-ready with matching personality/car, 5th seat rejected, start needs the human ready
+ok 52 - 1 human + 3 bots: bots auto-ready with matching personality/car, 5th seat rejected, start needs the human ready
+  ---
+  duration_ms: 1.68824
+  type: 'test'
+  ...
+# Subtest: minimum 2 racers: a lone ready human cannot start; a bot makes it startable
+ok 53 - minimum 2 racers: a lone ready human cannot start; a bot makes it startable
+  ---
+  duration_ms: 0.209011
+  type: 'test'
+  ...
+# Subtest: 2 humans + 2 bots; 4 humans; a 5th human or bot is rejected without breaking the room
+ok 54 - 2 humans + 2 bots; 4 humans; a 5th human or bot is rejected without breaking the room
+  ---
+  duration_ms: 0.197301
+  type: 'test'
+  ...
+# Subtest: host-only controls; settings change un-readies humans only when something changed; car change un-readies that seat
+ok 55 - host-only controls; settings change un-readies humans only when something changed; car change un-readies that seat
+  ---
+  duration_ms: 0.39657
+  type: 'test'
+  ...
+# Subtest: build mismatch and joining a running race are rejected
+ok 56 - build mismatch and joining a running race are rejected
+  ---
+  duration_ms: 0.182527
+  type: 'test'
+  ...
+# Subtest: reconnect within 15 s keeps the seat; after 15 s it expires (lobby: removed, race: left/DNF); host migrates deterministically
+ok 57 - reconnect within 15 s keeps the seat; after 15 s it expires (lobby: removed, race: left/DNF); host migrates deterministically
+  ---
+  duration_ms: 0.302124
+  type: 'test'
+  ...
+# Subtest: stale input release after 250 ms (race only); explicit leave in lobby frees the seat, in race marks DNF
+ok 58 - stale input release after 250 ms (race only); explicit leave in lobby frees the seat, in race marks DNF
+  ---
+  duration_ms: 0.192602
+  type: 'test'
+  ...
+# Subtest: results -> lobby: departed seats dropped, humans must re-ready, bots stay ready
+ok 59 - results -> lobby: departed seats dropped, humans must re-ready, bots stay ready
+  ---
+  duration_ms: 0.328572
+  type: 'test'
+  ...
+# Subtest: publicState exposes no tokens / private fields
+ok 60 - publicState exposes no tokens / private fields
+  ---
+  duration_ms: 0.593355
+  type: 'test'
+  ...
+# Subtest: six approved models, Hypercar default, no Z-32S
+ok 61 - six approved models, Hypercar default, no Z-32S
+  ---
+  duration_ms: 2.084793
+  type: 'test'
+  ...
+# Subtest: load order: selected car first, then rival cars; nothing else at boot
+ok 62 - load order: selected car first, then rival cars; nothing else at boot
+  ---
+  duration_ms: 0.459974
+  type: 'test'
+  ...
+# Subtest: race readiness needs every race car settled (ok or failed->labelled fallback)
+ok 63 - race readiness needs every race car settled (ok or failed->labelled fallback)
+  ---
+  duration_ms: 0.333448
+  type: 'test'
+  ...
+# Subtest: UPSIDE DOWN: every point between an inverted deck and its occupants (car-side of the deck) is sheltered
+ok 64 - UPSIDE DOWN: every point between an inverted deck and its occupants (car-side of the deck) is sheltered
+  ---
+  duration_ms: 2.733382
+  type: 'test'
+  ...
+# Subtest: tunnels are sheltered inside; open upright road is NOT sheltered above the surface
+ok 65 - tunnels are sheltered inside; open upright road is NOT sheltered above the surface
+  ---
+  duration_ms: 1.790225
+  type: 'test'
+  ...
+# Subtest: elevated crossings: the lower road is sheltered where an upper deck passes over it
+ok 66 - elevated crossings: the lower road is sheltered where an upper deck passes over it
+  ---
+  duration_ms: 0.892631
+  type: 'test'
+  ...
+# Subtest: shelter bake is cheap
+ok 67 - shelter bake is cheap
+  ---
+  duration_ms: 43.274579
+  type: 'test'
+  ...
+# Subtest: headless race finishes on every map; laps add up; results ordered
+ok 68 - headless race finishes on every map; laps add up; results ordered
+  ---
+  duration_ms: 1433.217899
+  type: 'test'
+  ...
+# Subtest: deterministic for a given seed
+ok 69 - deterministic for a given seed
+  ---
+  duration_ms: 501.94488
+  type: 'test'
+  ...
+# Subtest: Hard rivals are faster than Normal rivals
+ok 70 - Hard rivals are faster than Normal rivals
+  ---
+  duration_ms: 499.350872
+  type: 'test'
+  ...
+# Subtest: autopilot player laps are flagged and never record-eligible
+ok 71 - autopilot player laps are flagged and never record-eligible
+  ---
+  duration_ms: 352.274447
+  type: 'test'
+  ...
+# Subtest: a teleport (forward position jump) taints the lap
+ok 72 - a teleport (forward position jump) taints the lap
+  ---
+  duration_ms: 273.186842
+  type: 'test'
+  ...
+# Subtest: a human-driven player (input-only bot) completes a lap that validates
+ok 73 - a human-driven player (input-only bot) completes a lap that validates
+  ---
+  duration_ms: 294.082791
+  type: 'test'
+  ...
+# Subtest: countdown launch: throttle held at lights-out gives the perfect launch
+ok 74 - countdown launch: throttle held at lights-out gives the perfect launch
+  ---
+  duration_ms: 35.649852
+  type: 'test'
+  ...
+# Subtest: restart (gridUp) resets race state
+ok 75 - restart (gridUp) resets race state
+  ---
+  duration_ms: 248.815563
+  type: 'test'
+  ...
+# Subtest: snapshot -> JSON -> import into a sim from a DIFFERENT seed continues bit-identically (all maps, SP + MP, both modes)
+ok 76 - snapshot -> JSON -> import into a sim from a DIFFERENT seed continues bit-identically (all maps, SP + MP, both modes)
+  ---
+  duration_ms: 1268.088671
+  type: 'test'
+  ...
+# Subtest: PRNG state is part of the snapshot (AI decisions after import match)
+ok 77 - PRNG state is part of the snapshot (AI decisions after import match)
+  ---
+  duration_ms: 56.815268
+  type: 'test'
+  ...
+# Subtest: same seed + same per-racer inputs => identical races (server/browser shared core)
+ok 78 - same seed + same per-racer inputs => identical races (server/browser shared core)
+  ---
+  duration_ms: 171.930129
+  type: 'test'
+  ...
+# Subtest: per-racer inputs: two humans with different inputs move differently; inputs are not shared
+ok 79 - per-racer inputs: two humans with different inputs move differently; inputs are not shared
+  ---
+  duration_ms: 26.549258
+  type: 'test'
+  ...
+# Subtest: MP race 1h3b: every racer finishes, per-human lap/finish events, server has no presentation events
+ok 80 - MP race 1h3b: every racer finishes, per-human lap/finish events, server has no presentation events
+  ---
+  duration_ms: 381.313487
+  type: 'test'
+  ...
+# Subtest: MP race 2h2b: every racer finishes, per-human lap/finish events, server has no presentation events
+ok 81 - MP race 2h2b: every racer finishes, per-human lap/finish events, server has no presentation events
+  ---
+  duration_ms: 318.711284
+  type: 'test'
+  ...
+# Subtest: MP race 4h: every racer finishes, per-human lap/finish events, server has no presentation events
+ok 82 - MP race 4h: every racer finishes, per-human lap/finish events, server has no presentation events
+  ---
+  duration_ms: 369.431632
+  type: 'test'
+  ...
+# Subtest: seat cap: 0 or 5+ seats rejected
+ok 83 - seat cap: 0 or 5+ seats rejected
+  ---
+  duration_ms: 51.732092
+  type: 'test'
+  ...
+# Subtest: per-racer crash/respawn: a non-focus human who leaves the edgeless branch respawns
+ok 84 - per-racer crash/respawn: a non-focus human who leaves the edgeless branch respawns
+  ---
+  duration_ms: 40.439796
+  type: 'test'
+  ...
+# Subtest: BEFORE (v5b flat ground at -0.06): the full-width road solid intersects the ground on every map
+ok 85 - BEFORE (v5b flat ground at -0.06): the full-width road solid intersects the ground on every map
+  ---
+  duration_ms: 122.269322
+  type: 'test'
+  ...
+# Subtest: AFTER: every swept point (full width + rails, surface..+envelope, main + branch) clears the ground by its required margin
+ok 86 - AFTER: every swept point (full width + rails, surface..+envelope, main + branch) clears the ground by its required margin
+  ---
+  duration_ms: 159.570649
+  type: 'test'
+  ...
+# Subtest: dense proof on the RENDERED triangles: 0.25 m longitudinal x 0.25 m lateral, interpolated frames
+ok 87 - dense proof on the RENDERED triangles: 0.25 m longitudinal x 0.25 m lateral, interpolated frames
+  ---
+  duration_ms: 1056.909696
+  type: 'test'
+  ...
+# Subtest: groundHeightAt reproduces the mesh triangulation (a,c,b)+(b,c,d), not bilinear
+ok 88 - groundHeightAt reproduces the mesh triangulation (a,c,b)+(b,c,d), not bilinear
+  ---
+  duration_ms: 0.405077
+  type: 'test'
+  ...
+# Subtest: ground is untouched (exactly GROUND_Y) away from low road; pits are local
+ok 89 - ground is untouched (exactly GROUND_Y) away from low road; pits are local
+  ---
+  duration_ms: 33.580204
+  type: 'test'
+  ...
+# Subtest: pits sit inside the city's existing building exclusion zone (buildings keep >= W+9+hd from track samples below 16 m)
+ok 90 - pits sit inside the city's existing building exclusion zone (buildings keep >= W+9+hd from track samples below 16 m)
+  ---
+  duration_ms: 2422.997763
+  type: 'test'
+  ...
+# Subtest: axis/sign mirror between the two landscape orientations; portrait inactive
+ok 91 - axis/sign mirror between the two landscape orientations; portrait inactive
+  ---
+  duration_ms: 0.661969
+  type: 'test'
+  ...
+# Subtest: relative to recentred neutral, deadzone, full lock, clamped
+ok 92 - relative to recentred neutral, deadzone, full lock, clamped
+  ---
+  duration_ms: 0.224963
+  type: 'test'
+  ...
+# Subtest: smoothing approaches target; reset zeroes steering
+ok 93 - smoothing approaches target; reset zeroes steering
+  ---
+  duration_ms: 0.131126
+  type: 'test'
+  ...
+# Subtest: core track generator is byte-for-byte the v5b generator on every map
+ok 94 - core track generator is byte-for-byte the v5b generator on every map
+  ---
+  duration_ms: 478.355295
+  type: 'test'
+  ...
+# Subtest: map catalogue matches v5b (names, laps, widths, sector count, lengths)
+ok 95 - map catalogue matches v5b (names, laps, widths, sector count, lengths)
+  ---
+  duration_ms: 96.15601
+  type: 'test'
+  ...
+1..95
+# tests 95
+# suites 0
+# pass 95
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 18040.576602

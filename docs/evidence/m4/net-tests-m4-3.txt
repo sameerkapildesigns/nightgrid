@@ -1,0 +1,64 @@
+TAP version 13
+# Subtest: HTTP: create returns a valid code; unknown/invalid code 404; foreign Origin refused on POST and WS
+ok 1 - HTTP: create returns a valid code; unknown/invalid code 404; foreign Origin refused on POST and WS
+  ---
+  duration_ms: 152.805105
+  type: 'test'
+  ...
+# Subtest: capacity: the shared budget refuses a 4th concurrent room with a readable error
+ok 2 - capacity: the shared budget refuses a 4th concurrent room with a readable error
+  ---
+  duration_ms: 8.934333
+  type: 'test'
+  ...
+# Subtest: two rooms are isolated over real sockets
+ok 3 - two rooms are isolated over real sockets
+  ---
+  duration_ms: 225.932011
+  type: 'test'
+  ...
+# Subtest: per-IP room creation rate limit (10/min default)
+ok 4 - per-IP room creation rate limit (10/min default)
+  ---
+  duration_ms: 20.614261
+  type: 'test'
+  ...
+# Subtest: race 2 human(s) + 0 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 5 - race 2 human(s) + 0 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+  ---
+  duration_ms: 11155.161951
+  type: 'test'
+  ...
+# Subtest: race 4 human(s) + 0 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 6 - race 4 human(s) + 0 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+  ---
+  duration_ms: 11388.841868
+  type: 'test'
+  ...
+# Subtest: race 1 human(s) + 3 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 7 - race 1 human(s) + 3 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+  ---
+  duration_ms: 11032.116764
+  type: 'test'
+  ...
+# Subtest: race 2 human(s) + 2 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 8 - race 2 human(s) + 2 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+  ---
+  duration_ms: 11160.662305
+  type: 'test'
+  ...
+# Subtest: race end -> every client gets the SAME result order from the server; host rematch returns to lobby and a 2nd race starts
+ok 9 - race end -> every client gets the SAME result order from the server; host rematch returns to lobby and a 2nd race starts
+  ---
+  duration_ms: 28840.391085
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 134047.711685

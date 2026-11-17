@@ -1,8 +1,8 @@
 {
   "name": "nightgrid",
   "private": true,
-  "version": "0.5.0-m1",
-  "description": "NIGHTGRID anti-gravity racer: portable single-player baseline (M1)",
+  "version": "0.6.0-m4",
+  "description": "NIGHTGRID anti-gravity racer: single-player + private-room multiplayer (M4, local test build)",
   "type": "module",
   "license": "SEE LICENSE IN NOTICE.md",
   "scripts": {
@@ -13,7 +13,12 @@
     "test": "node --test \"tests/unit/*.test.mjs\"",
     "test:e2e": "npm run build:test && node tests/e2e/run.mjs && node tests/e2e/rain-check.mjs",
     "measure": "node scripts/measure.mjs",
-    "scan": "node scripts/secret-scan.mjs"
+    "scan": "node scripts/secret-scan.mjs",
+    "test:net": "node --test \"tests/net/*.test.mjs\"",
+    "test:matrix": "node tests/net/matrix.mjs",
+    "mp:server": "node server/local.mjs",
+    "mp": "vite build && node server/local.mjs",
+    "build-id": "node scripts/build-id.mjs"
   },
   "dependencies": {
     "three": "0.170.0"
