@@ -135,7 +135,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const f = frameAt(r.path, r.s, _fp); const pth = f.path, i = f.i;
     const kg = pth.KG[i], kn = pth.KN[i];
     const inverted = f.U.y < -0.2, steep = f.U.y < 0.5;
-    const thr = keys.up ? 1 : 0, brk = keys.down ? 1 : 0, st = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    const thr = keys.up ? 1 : 0, brk = keys.down ? 1 : 0, st = clamp((+keys.right || 0) - (+keys.left || 0), -1, 1);   // analogue-capable (tilt); keys send 0/1
     r.thr = lerp(r.thr, thr, Math.min(1, dt * 8));
     r.steer += (st - r.steer) * Math.min(1, dt * (st === 0 ? 7 : 4.5));
     const wantB = keys.boost && r.meter > 0.01;

@@ -298,3 +298,5 @@ body.cinematic #hud{opacity:0;transition:opacity .3s} body.cinematic #fx{opacity
 #cine.fin #cineTag{display:block}
 #cine.on{pointer-events:auto;cursor:pointer}
 #cineSkip{position:absolute;right:20px;bottom:calc(11vh + 14px);pointer-events:auto}
+
+.tiltOnly{display:none} body.touchmode .tiltOnly{display:block}

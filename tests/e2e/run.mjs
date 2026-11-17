@@ -311,6 +311,48 @@ try {
     }
   }
 
+  // ---------------- T. optional tilt steering (simulated sensor + permission; physical calibration unverified) ----------------
+  if (run('T')) {
+    const mock = mode => `(() => { window.__permCalls = 0; const D = window.DeviceOrientationEvent || function () {};
+      ${mode === 'nomethod' ? 'try { delete D.requestPermission; } catch (e) {} ' : `D.requestPermission = async () => { window.__permCalls++; return '${mode}'; };`}
+      window.DeviceOrientationEvent = D; window.__tiltBeta = 0;
+      window.__emit = ${mode === 'silent' || mode === 'nomethod' ? 'false' : 'true'};
+      setInterval(() => { if (window.__emit) { const e = new Event('deviceorientation'); e.beta = window.__tiltBeta; e.gamma = 2; e.alpha = null; dispatchEvent(e); } }, 50); })()`;
+    for (const mode of ['denied', 'nomethod', 'granted']) {
+      const ctx = await browser.newContext({ viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true });
+      await ctx.addInitScript(mock(mode));
+      const page = await ctx.newPage(); const logs = []; page.on('pageerror', e => logs.push(e.message));
+      await page.route('**/*', r => /fonts\.(googleapis|gstatic)\.com/.test(r.request().url()) ? r.abort() : r.continue());
+      await page.goto(TEST + '?touch'); await waitRaceBtn(page);
+      const calls0 = await page.evaluate(() => window.__permCalls);
+      C(`tilt (${mode}): no permission prompt on page load; Touch is default`, calls0 === 0 && (await page.evaluate(() => NG_DEBUG.tilt.pref)) === 'touch');
+      await page.tap('#setBtn'); await page.tap('[data-steer="tilt"]'); await page.waitForTimeout(1900);
+      const t = await page.evaluate(() => ({ ...NG_DEBUG.tilt, calls: window.__permCalls }));
+      if (mode === 'denied') C('tilt (denied): clear message, Touch fallback', t.pref === 'touch' && /not granted/.test(t.msg) && t.calls === 1, t.msg);
+      if (mode === 'nomethod') C('tilt (no permission API, no events): clear message, Touch fallback', t.pref === 'touch' && /No tilt sensor events/.test(t.msg), t.msg);
+      if (mode === 'granted') {
+        C('tilt (granted + live events): enabled after explicit tap, recentred', t.pref === 'tilt' && t.live && t.calls === 1 && t.neutral === 0, JSON.stringify(t));
+        await page.tap('#setPanel [data-close]');
+        await page.evaluate(() => __ng.manualClock(true)); await page.tap('#go');
+        await page.waitForFunction(() => NG_DEBUG.state === 'intro', null, { timeout: 60000 });
+        await page.keyboard.press('Enter'); await page.evaluate(() => __ng.sim(3.4));
+        await page.evaluate(() => { window.__tiltBeta = 30; }); await page.waitForTimeout(200);
+        for (let i = 0; i < 10; i++) await page.evaluate(() => __ng.advance(16));
+        const k1 = await page.evaluate(() => NG_DEBUG.mobile.keys);
+        await page.evaluate(() => { window.__tiltBeta = -30; }); await page.waitForTimeout(200);
+        for (let i = 0; i < 10; i++) await page.evaluate(() => __ng.advance(16));
+        const k2 = await page.evaluate(() => NG_DEBUG.mobile.keys);
+        C('tilt: right tilt steers right, left tilt steers left (analogue, landscape-primary)', k1.right > 0.5 && !k1.left && k2.left > 0.5 && !k2.right, JSON.stringify({ k1, k2 }));
+        await page.keyboard.press('KeyP');
+        const k3 = await page.evaluate(() => ({ keys: NG_DEBUG.mobile.keys, steer: NG_DEBUG.tilt.steer }));
+        C('tilt: pause resets steering (no stuck input)', !k3.keys.left && !k3.keys.right && k3.steer === 0, JSON.stringify(k3));
+        C('tilt: Boost/Brake still touch, preference stored (no sensor data stored)', (await page.evaluate(() => JSON.parse(localStorage.getItem('nightgrid_v4_settings')).steer)) === 'tilt' && !(await page.evaluate(() => Object.values(localStorage).some(v => /beta|gamma/.test(v)))));
+      }
+      C(`tilt (${mode}): no page errors`, logs.length === 0, logs.slice(0, 2).join(' | '));
+      await ctx.close();
+    }
+  }
+
   // ---------------- G. production build: debug gated off ----------------
   if (run('G')) {
     const ctx = await browser.newContext({ viewport: { width: 640, height: 360 } }); const page = await ctx.newPage();

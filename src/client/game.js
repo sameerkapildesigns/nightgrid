@@ -15,6 +15,7 @@ import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
 import { createRecordStore, memoryStorage } from '../core/records.js';
+import { createTilt } from '../core/tilt.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
 
@@ -2045,6 +2046,7 @@ function advanceFrame(now, render = true) {
   if (paused) { composer.render(); return; }
   // brief slow motion right after the player crosses the line (finish camera)
   const ts = state === 'finished' && FIN.on && FIN.t < 2.2 ? 0.3 : 1;
+  applyTilt();
   const adv = clock.advance(wall, ts);
   if (adv.stalled) onStall(wall);
   for (let i = 0; i < adv.steps; i++) sim.step(adv.h);
@@ -2153,7 +2155,7 @@ function update(dt, dt0) {
 
 /* ---------- settings: motion blur / camera shake (reduced-motion aware) ---------- */
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true };
+const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch' };
 try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
 const BLUR_K = [0, 1, 1.8];
 function renderSettings() {
@@ -2161,6 +2163,7 @@ function renderSettings() {
   $('setShake').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+SETTINGS.shake === i ? 'on' : ''}" data-shake="${i}" role="radio" aria-checked="${+SETTINGS.shake === i}">${n}</button>`).join('');
   $('setDiff').innerHTML = [['normal', 'Normal'], ['hard', 'Hard']].map(([k, n]) => `<button class="${SETTINGS.diff === k ? 'on' : ''}" data-diff="${k}" role="radio" aria-checked="${SETTINGS.diff === k}">${n}</button>`).join('');
   $('setCine').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+(SETTINGS.cine !== false) === i ? 'on' : ''}" data-cine="${i}" role="radio" aria-checked="${+(SETTINGS.cine !== false) === i}">${n}</button>`).join('');
+  $('setSteer').innerHTML = [['touch', 'Touch'], ['tilt', 'Enable Tilt']].map(([k, n]) => `<button class="${(SETTINGS.steer || 'touch') === k ? 'on' : ''}" data-steer="${k}" role="radio" aria-checked="${(SETTINGS.steer || 'touch') === k}" style="min-height:44px">${n}</button>`).join('');
   $('setNote').textContent = REDUCED ? 'Reduced motion is on: blur and shake start off, cinematics are short and static.' : '';
 }
 function saveSettings() { try { localStorage.setItem('nightgrid_v4_settings', JSON.stringify(SETTINGS)); } catch (e) { } renderSettings(); }
@@ -2229,6 +2232,45 @@ $('resumeBtn').addEventListener('click', e => { e.preventDefault(); if (paused &
 addEventListener('resize', checkOrientation);
 if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', checkOrientation);
 
+/* ---------- M2 optional tilt steering (touch devices; Touch is the default) ---------- */
+// Enabled only by an explicit tap (iOS DeviceOrientationEvent.requestPermission() is called from
+// that tap; never on page load). Without that method we listen and require real non-null
+// events within 1.5 s. Denied / unavailable / no events -> message + Touch steering. Relative
+// tilt only (beta/gamma; no compass, no absolute orientation). Only the preference is stored;
+// sensor data never leaves the device. Boost/Brake stay touch, auto-throttle unchanged.
+const tilt = createTilt();
+let tiltSample = null, tiltLive = false, tiltListening = false;
+const onOrient = e => { if (e.beta != null && e.gamma != null) { tiltSample = { beta: e.beta, gamma: e.gamma }; tiltLive = true; } };
+const screenAngle = () => (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+function tiltMsg(t) { $('tiltMsg').textContent = t; }
+function useTouchSteering(msg) { SETTINGS.steer = 'touch'; if (tiltListening) { removeEventListener('deviceorientation', onOrient); tiltListening = false; } tiltLive = false; tilt.reset(); releaseAllInputs(); saveSettings(); if (msg) tiltMsg(msg); }
+async function enableTilt() {   // must be called from a user tap
+  const DOE = window.DeviceOrientationEvent;
+  if (!DOE) return useTouchSteering('Tilt is not available on this device; using Touch steering.');
+  if (typeof DOE.requestPermission === 'function') {
+    let r = 'denied'; try { r = await DOE.requestPermission(); } catch (e) { r = 'error'; }
+    if (r !== 'granted') return useTouchSteering('Motion access was not granted; using Touch steering.');
+  }
+  tiltLive = false; tiltSample = null;
+  if (!tiltListening) { addEventListener('deviceorientation', onOrient); tiltListening = true; }
+  tiltMsg('Checking tilt sensor…');
+  await new Promise(r => setTimeout(r, 1500));
+  if (!tiltLive) return useTouchSteering('No tilt sensor events were received; using Touch steering.');
+  SETTINGS.steer = 'tilt'; tilt.recenter(tiltSample, screenAngle()); saveSettings();
+  tiltMsg('Tilt on. Hold the phone level in landscape and tap Recenter if needed.');
+}
+function applyTilt() {   // called every frame
+  if (SETTINGS.steer !== 'tilt' || !TOUCH) return;
+  const racing = (state === 'race' || state === 'countdown') && !paused && !isPortrait();
+  if (!racing || !tiltLive) { if (tilt.steer !== 0) { tilt.reset(); keys.left = keys.right = 0; } return; }
+  if (touchHeld.left || touchHeld.right) return;   // touch steer pads still win
+  const v = tilt.update(tiltSample, screenAngle());
+  keys.right = v > 0 ? v : 0; keys.left = v < 0 ? -v : 0;
+}
+let touchHeld = {};
+$('tiltRecenter').addEventListener('click', () => { if (tiltSample) { tilt.recenter(tiltSample, screenAngle()); tiltMsg('Recentred.'); } else tiltMsg('Enable Tilt first.'); });
+$('setSteer').addEventListener('click', e => { const b = e.target.closest('[data-steer]'); if (!b) return; if (b.dataset.steer === 'tilt') enableTilt(); else useTouchSteering('Touch steering.'); });
+
 /* ---------- touch driving (coarse pointers only): auto-throttle, hold Brake to slow/drift, steer pads, Boost ---------- */
 const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) || new URLSearchParams(location.search).has('touch');
 document.body.classList.toggle('touchmode', TOUCH);
@@ -2238,7 +2280,8 @@ if (TOUCH) {
     const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } }, off = e => { held[k] = 0; keys[k] = 0; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   }
-  touchRelease = () => { for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
+  touchHeld = held;
+  touchRelease = () => { tilt.reset(); for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
   setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused) keys.up = held.down ? 0 : 1; }, 50);
   $('cine').addEventListener('pointerdown', () => { if (state === 'intro') endIntro(true); else skipFinishCine(); });
   $('cine').style.pointerEvents = 'auto';
@@ -2313,6 +2356,7 @@ async function boot() {
   state = 'title'; last = performance.now(); updateGarageUI(); $('go').focus({ preventScroll: true });
   performance.mark('ng:title');
   checkOrientation();
+  if (SETTINGS.steer === 'tilt') { SETTINGS.steer = 'touch'; renderSettings(); tiltMsg('Tap Enable Tilt to turn tilt steering back on.'); }
 }
 resize();
 // ---------- debug / QA hooks: compiled into dev and `--mode test` builds only ----------
@@ -2338,6 +2382,7 @@ if (DEBUG) {
     get precompile() { return lastPrecompile; },
     get records() { return { storage: 'memory (debug/test build)', current: isFinite(recordLap) ? recordLap : null, lastOffer: lastRecordOffer, rejected: records.rejected.slice() }; },
     get results() { return { lapTimes: player ? player.lapTimes.slice() : [], lapValid: player ? player.lapValid.slice() : [], finishTime: player ? player.finishTime : 0, order: sim.finishOrder.map(r => r.name), visible: !$('results').classList.contains('hide') }; },
+    get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
     qa: { open: qaOpen, garageNext: qaGarageNext, boostDemo: () => { touch(); qaBoostDemo(false); }, invertedDemo: () => { touch(); qaBoostDemo(true); }, exit: toGarage, select: (k, p) => { if (p != null) GAR.paint = p; selectCar(k); } }
