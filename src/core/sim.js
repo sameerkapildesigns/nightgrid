@@ -595,7 +595,10 @@ export function createSim({ seed = 4242, events = null } = {}) {
     sim.drones.length = sn.drones.length;
   }
 
-  Object.assign(sim, { snapshot, importSnapshot, addSeats, setTrack, setMode, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
+  // one racer's full physics state (own-car prediction / server reconciliation)
+  function racerState(id) { const r = sim.racers.find(x => x.id === id); return r ? encObj(r) : null; }
+  function setRacerState(id, o) { const r = sim.racers.find(x => x.id === id); if (!r) return false; const inp = r.input; for (const k in r) if (!SKIP.has(k)) delete r[k]; Object.assign(r, dec(o)); if (inp) { Object.assign(inp, r.input); r.input = inp; } pose(r); return true; }
+  Object.assign(sim, { racerState, setRacerState, snapshot, importSnapshot, addSeats, setTrack, setMode, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
     frameAt, kgAt, raceS, rdist });
   return sim;
 }
