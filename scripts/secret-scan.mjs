@@ -20,6 +20,8 @@ const RULES = [
 const SKIP = /\.(glb|png|jpe?g|webp|ico|woff2?)$|^package-lock\.json$/;
 const ALLOW = [/three@0\.170\.0/];   // e.g. npm-style version tags that look like emails
 let n = 0;
+// local runtime state / env files must never be tracked (workerd state holds local session data)
+for (const f of files) if (/^\.wrangler\/|(^|\/)\.dev\.vars$|(^|\/)\.env(\.(?!example$)[^/]*)?$/.test(f)) { n++; console.log(`${f}: forbidden path (local state / env file)`); }
 for (const f of files) {
   if (SKIP.test(f)) continue;
   let txt; try { if (statSync(f).size > 2e6) continue; txt = readFileSync(f, 'utf8'); } catch (e) { continue; }
