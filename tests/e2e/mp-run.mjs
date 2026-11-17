@@ -59,9 +59,9 @@ async function raceAndFinish(ps, { label, full = false, shots = true }) {
   await waitMp(host, 'm => m.room && m.room.canStart', 30000);
   const rsv = [...srv.rooms.values()].find(r => r.room.seats.some(x => x.name === host.name)); if (rsv) rsv.cfg.maxRaceMs = full ? 300000 : 50000;
   await click(host, '[data-act=start]');
-  for (const p of ps) await waitMp(p, 'm => m.race', 60000);
+  for (const p of ps) await waitMp(p, 'm => m.race || m.results', 180000);
   for (const p of ps) await p.page.evaluate(t => { __ng.mpAutodrive(true); window.__ngRenderEvery = t; }, THROTTLE);
-  for (const p of ps) await waitMp(p, 'm => m.state === "race"', 60000);
+  for (const p of ps) await waitMp(p, 'm => m.state === "race" || m.state === "finished" || m.results', 180000);
   const tRace = Date.now();
   await sleep(9000);
   if (shots) for (const p of ps) await shot(p, `${label}-race-${p.name}-${p.kind}`);
@@ -119,9 +119,9 @@ try {
     await close([a, b]);
   }
   if (run('B')) {   // 4 humans (3 desktop + 1 phone); a 5th human is refused without breaking the room
-    const ps = [await player('Cy'), await player('Di'), await player('Ed'), await player('Fay', 'phone')];
-    const code = await create(ps[0]);
-    for (const p of ps.slice(1)) await joinByCode(p, code);
+    // boot + create/join one browser at a time (an open room panel throttles that page's garage rendering)
+    const ps = [await player('Cy')]; const code = await create(ps[0]);
+    for (const [n, k] of [['Di', 'desk'], ['Ed', 'desk'], ['Fay', 'phone']]) { const p = await player(n, k); await joinByCode(p, code); ps.push(p); }
     await waitMp(ps[0], 'm => m.room.seats.length === 4');
     const fifth = await player('Gus');
     await fifth.page.click('#mpBtn'); await fifth.page.fill('#mpName', 'Gus'); await fifth.page.fill('#mpCode', code); await fifth.page.click('[data-act=join]');

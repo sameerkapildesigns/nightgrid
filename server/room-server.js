@@ -115,11 +115,11 @@ export class RoomServer {
   }
   input(conn, c, m, now) {
     if (!c.frames(now, m.f.length)) return this.reject(conn, 'input-rate');
-    const q = this.inputs.get(c.id); if (!q || !this.sim) return;   // no race: ignored
+    const q = this.inputs.get(c.id); if (!q || !this.sim || (this.room.phase !== 'race' && this.room.phase !== 'countdown')) return;   // no race running (e.g. results): ignored
     const seat = this.room.seats.find(s => s.id === c.id); if (!seat || seat.left) return;
     // frames > 3 s ahead of the server's step cannot be legitimate lead: the excess is dropped and counted
     // (a batch straddling the bound keeps its valid part); a batch entirely beyond it is rejected
-    if (m.q > q.next + MAX_AHEAD_FRAMES) return this.reject(conn, 'time-ahead');
+    if (m.q > q.next + MAX_AHEAD_FRAMES) { this.stats.aheadLog = (this.stats.aheadLog || []).concat([[c.id, m.q - q.next, this.room.phase]]).slice(-20); return this.send(conn, { t: 'error', error: 'time-ahead', ahead: m.q - q.next, phase: this.room.phase, rejected: (this.stats.rejected['time-ahead'] = (this.stats.rejected['time-ahead'] || 0) + 1) }); }
     const lim = q.next + MAX_AHEAD_FRAMES; if (m.q + m.f.length - 1 > lim) { this.stats.aheadDropped = (this.stats.aheadDropped || 0) + (m.q + m.f.length - 1 - lim); m.f = m.f.slice(0, lim - m.q + 1); }
     // arrival margin of this batch's oldest frame (steps before it is needed; negative = late). The
     // lowest recent margin is reported back so the client can set its lead from what actually arrived.

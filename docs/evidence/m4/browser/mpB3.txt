@@ -1,0 +1,8 @@
+FAIL  suite crashed  — page.click: Timeout 180000ms exceeded.
+DIAG Cy: {"mp":{"inRoom":true,"code":"Z7QJWV","status":"open","lastErr":null,"state":"title"},"panelOpen":true,"panel":"Race friends | Close | Room code | Z7QJWV | Copy invite link | Copy code | Racers 4/4 | Cy | HOST | YOU | Hypercar | Not ready | Di | Hypercar | Not ready | Ed | Hypercar | Not ready | Fay | Hyperca","fps":0.7}
+DIAG Di: {"mp":{"inRoom":true,"code":"Z7QJWV","status":"open","lastErr":null,"state":"title"},"panelOpen":true,"panel":"Race friends | Close | Room code | Z7QJWV | Copy invite link | Copy code | Racers 4/4 | Cy | HOST | Hypercar | Not ready | Di | YOU | Hypercar | Not ready | Ed | Hypercar | Not ready | Fay | Hyperca","fps":0.2}
+DIAG Ed: {"mp":{"inRoom":true,"code":"Z7QJWV","status":"open","lastErr":null,"state":"title"},"panelOpen":true,"panel":"Race friends | Close | Room code | Z7QJWV | Copy invite link | Copy code | Racers 4/4 | Cy | HOST | Hypercar | Not ready | Di | Hypercar | Not ready | Ed | YOU | Hypercar | Not ready | Fay | Hyperca","fps":0.1}
+DIAG Fay: {"mp":{"inRoom":true,"code":"Z7QJWV","status":"open","lastErr":null,"state":"title"},"panelOpen":true,"panel":"Race friends | Close | Room code | Z7QJWV | Copy invite link | Copy code | Racers 4/4 | Cy | HOST | Hypercar | Not ready | Di | Hypercar | Not ready | Ed | Hypercar | Not ready | Fay | YOU | Hyperca","fps":0}
+DIAG Gus: {"mp":{"inRoom":false,"code":null,"status":null,"lastErr":null,"state":"title"},"panelOpen":false,"panel":"","fps":0}
+0/1 functional checks passed; 0/0 quality targets met (render every 1 frame(s))
+EXIT 1

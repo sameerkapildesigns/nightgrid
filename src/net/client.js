@@ -64,8 +64,9 @@ export class NetClient {
       case 'lobby': this.room = m.room; if (m.room.phase === 'lobby' && this.race) { this.race = null; } this.onEvent('lobby', m); break;
       case 'race': this.beginRace(m); break;
       case 's': this.onSnap(m); break;
-      case 'results': this.results = m; this.onEvent('results', m); break;
-      case 'error': if (m.fatal) { this.fatal = true; this.fatalReason = m.error; } this.onEvent('error', m); break;
+      case 'results': this.results = m; if (this.race) this.race.ended = true; this.onEvent('results', m); break;   // stop sending input once the server has finished the race
+      case 'error': if (m.error === 'time-ahead') { (this.stats.ahead = this.stats.ahead || []).push({ ahead: m.ahead, phase: m.phase, lead: this.lead, rtt: Math.round(this.clock.rtt), off: Math.round(this.clock.offset), frameMs: Math.round(this.frameMs) }); if (this.stats.ahead.length > 20) this.stats.ahead.shift(); }
+        if (m.fatal) { this.fatal = true; this.fatalReason = m.error; } this.onEvent('error', m); break;
       case 'closed': this.fatal = true; this.fatalReason = 'room-closed:' + m.reason; this.onEvent('roomClosed', m); break;
     }
   }

@@ -1,0 +1,10 @@
+PASS  B: 5th human sees a readable "room is full" error  — That room is full (4 seats).
+PASS  B: room still has 4 seats after the refusal
+FAIL  suite crashed  — page.waitForFunction: Timeout 60000ms exceeded.
+DIAG Cy: {"mp":{"inRoom":true,"code":"PG43KS","status":"open","lastErr":"time-ahead","state":"finished"},"panelOpen":false,"panel":"Race friendsCloseRoom codePG43KS |         Copy invite linkCopy code |         Racers 4/4 |         CyHOSTYOUHypercarReadyDiHypercarReadyEdHypercarReadyFayHypercarRea","fps":0.7}
+DIAG Di: {"mp":{"inRoom":true,"code":"PG43KS","status":"open","lastErr":"time-ahead","state":"finished"},"panelOpen":false,"panel":"Race friendsCloseRoom codePG43KS |         Copy invite linkCopy code |         Racers 4/4 |         CyHOSTHypercarReadyDiYOUHypercarReadyEdHypercarReadyFayHypercarRea","fps":0.7}
+DIAG Ed: {"mp":{"inRoom":true,"code":"PG43KS","status":"open","lastErr":"time-ahead","state":"finished"},"panelOpen":false,"panel":"Race friendsCloseRoom codePG43KS |         Copy invite linkCopy code |         Racers 4/4 |         CyHOSTHypercarReadyDiHypercarReadyEdYOUHypercarReadyFayHypercarRea","fps":0.1}
+DIAG Fay: {"mp":{"inRoom":true,"code":"PG43KS","status":"open","lastErr":"time-ahead","state":"finished"},"panelOpen":false,"panel":"Race friendsCloseRoom codePG43KS |         Copy invite linkCopy code |         Racers 4/4 |         CyHOSTHypercarReadyDiHypercarReadyEdHypercarReadyFayYOUHypercarRea","fps":0.6}
+DIAG Gus: closed/unavailable
+2/3 functional checks passed; 0/0 quality targets met (render every 1 frame(s))
+EXIT 1

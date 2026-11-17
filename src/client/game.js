@@ -2128,8 +2128,12 @@ function onStall(wall) {
   if (!MP.race && wall >= AUTO_PAUSE_AFTER && (state === 'race' || state === 'countdown') && !paused) {
     lastStall.paused = true; togglePause(); $('pauseNote').textContent = `Auto-paused: the game was suspended for ${wall.toFixed(1)} s`; }
 }
+let garageLastRender = 0;
 function renderNow() {
   const g = state === 'title';
+  // M4: while the room panel is open over the garage, the showroom renders at ~4 FPS (phones keep CPU and
+  // battery for the lobby and the coming race). Race rendering is never throttled.
+  if (g && document.body.classList.contains('mpopen')) { const t = performance.now(); if (t - garageLastRender < 250) return; garageLastRender = t; }
   renderPass.scene = g ? GAR.scene : scene; renderPass.camera = g ? GAR.cam : camera;
   renderer.info.reset();
   if (g) { fxPass.uniforms.uAmt.value = 0; fxPass.uniforms.uBlur.value = 0; }
@@ -2678,7 +2682,7 @@ if (DEBUG) {
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
     get mp() { const n = MP.net, R = n && n.race; return { inRoom: !!(n && n.room), code: n && n.code, you: n && n.you, status: n && n.status, room: n && n.room, race: !!MP.race, state, lastErr: MP.lastErr, results: MP.results && MP.results.order.map(o => [o.pos, o.id, o.time, o.dnf]),
-      net: n ? (q => ({ recvDelayP50: q(n.stats.recvDelay, .5), recvDelayP95: q(n.stats.recvDelay, .95), frameGapP50: q(n.stats.frameGaps, .5), frameGapP95: q(n.stats.frameGaps, .95), behindMax: n.stats.behindMax, resyncSteps: n.stats.resyncSteps, stallsOver250ms: n.stats.frameGaps.filter(g => g > 250).length, stallsOver1s: n.stats.frameGaps.filter(g => g > 1000).length, frames: n.stats.frameGaps.length }))((a, p) => { if (!a.length) return null; const b = a.slice(-3000).sort((x, y) => x - y); return Math.round(b[Math.floor(b.length * p)]); }) : null,
+      net: n ? (q => ({ recvDelayP50: q(n.stats.recvDelay, .5), recvDelayP95: q(n.stats.recvDelay, .95), frameGapP50: q(n.stats.frameGaps, .5), frameGapP95: q(n.stats.frameGaps, .95), behindMax: n.stats.behindMax, resyncSteps: n.stats.resyncSteps, stallsOver250ms: n.stats.frameGaps.filter(g => g > 250).length, stallsOver1s: n.stats.frameGaps.filter(g => g > 1000).length, aheadRejections: (n.stats.ahead || []).slice(-3), frames: n.stats.frameGaps.length }))((a, p) => { if (!a.length) return null; const b = a.slice(-3000).sort((x, y) => x - y); return Math.round(b[Math.floor(b.length * p)]); }) : null,
       rtt: n ? +n.clock.rtt.toFixed(1) : null, lead: n && n.lead, pending: R ? R.pred.pending : null, corrections: R ? R.pred.stats.corrections.length : 0, mispredictP95: R ? (a => a.length ? a[Math.floor(a.length * 0.95)] : 0)(R.pred.stats.corrections.slice(10).sort((x, y) => x - y)) : null, hard: R ? R.pred.stats.hard : 0,
       me: player ? { lap: player.lap, prog: +player.prog.toFixed(1), finished: player.finished, speed: +player.speed.toFixed(1) } : null, racers: racers.map(r => ({ id: r.id, name: r.name, lap: r.lap, prog: +r.prog.toFixed(1), body: r.ship ? (r.ship.fallback ? 'FALLBACK' : 'glTF:' + r.ship.key) : null })), recordsOffered: records.rejected.length + (lastRecordOffer ? 1 : 0) }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },

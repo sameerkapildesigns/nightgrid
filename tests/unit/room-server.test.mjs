@@ -173,3 +173,9 @@ test('budget hard stop mid-race: the room publishes the current order (DNF for u
   for (let i = 0; i < 12; i++) { ctx.run(1000); await new Promise(r => setImmediate(r)); }
   assert.deepEqual(ctx.closed, ['daily-budget']); assert.ok(h.last('results'), 'results published'); assert.equal(h.last('closed').reason, 'daily-budget');
 });
+test('input after the race has finished is ignored silently (no time-ahead errors while results show)', () => {
+  const { S, run, cs: [h] } = startRace(S => { const c = player(S, 'H'); msg(S, c, { t: 'addBot' }); return [c]; }, { cfg: { maxRaceMs: 6000 } });
+  run(4500); run(6600); assert.equal(S.room.phase, 'results');
+  const n0 = h.all('error').length; for (let i = 0; i < 10; i++) msg(S, h, { t: 'in', q: 100000 + i * 24, f: Array(24).fill(UP) });
+  assert.equal(h.all('error').length, n0); assert.equal(S.stats.rejected['time-ahead'] || 0, 0);
+});

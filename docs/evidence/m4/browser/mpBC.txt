@@ -1,0 +1,3 @@
+FAIL  suite crashed  — page.waitForFunction: Timeout 180000ms exceeded.
+0/1 functional checks passed; 0/0 quality targets met (render every 1 frame(s))
+EXIT 1
