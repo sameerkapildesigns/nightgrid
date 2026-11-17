@@ -1,0 +1,314 @@
+
+> nightgrid@0.5.0-m1 test
+> node --test "tests/unit/*.test.mjs"
+
+TAP version 13
+# Subtest: sim time tracks wall time at 60, 20, 10, 5 and 4 FPS (no slow motion)
+ok 1 - sim time tracks wall time at 60, 20, 10, 5 and 4 FPS (no slow motion)
+  ---
+  duration_ms: 6.16281
+  type: 'test'
+  ...
+# Subtest: v5b behaviour for contrast: capping dt at 50 ms halves race time at 10 FPS
+ok 2 - v5b behaviour for contrast: capping dt at 50 ms halves race time at 10 FPS
+  ---
+  duration_ms: 0.464622
+  type: 'test'
+  ...
+# Subtest: fixed step size and bounded catch-up per frame
+ok 3 - fixed step size and bounded catch-up per frame
+  ---
+  duration_ms: 1.268666
+  type: 'test'
+  ...
+# Subtest: a long gap is a stall: nothing simulated, gap reported
+ok 4 - a long gap is a stall: nothing simulated, gap reported
+  ---
+  duration_ms: 0.531998
+  type: 'test'
+  ...
+# Subtest: time scale (finish slow motion) scales simulated time only
+ok 5 - time scale (finish slow motion) scales simulated time only
+  ---
+  duration_ms: 0.362564
+  type: 'test'
+  ...
+# Subtest: zero / negative / NaN frame times are ignored
+ok 6 - zero / negative / NaN frame times are ignored
+  ---
+  duration_ms: 0.597307
+  type: 'test'
+  ...
+# Subtest: FPS meter reports real low frame rates (v5b could not report below 20)
+ok 7 - FPS meter reports real low frame rates (v5b could not report below 20)
+  ---
+  duration_ms: 0.344936
+  type: 'test'
+  ...
+# Subtest: steering response: total 90% (steer filter -> yaw filter) inside the target bands; v5b was 0.64/0.48 s
+ok 8 - steering response: total 90% (steer filter -> yaw filter) inside the target bands; v5b was 0.64/0.48 s
+  ---
+  duration_ms: 0.795799
+  type: 'test'
+  ...
+# Subtest: in-sim steering step reaches 90% of steady yaw rate within the band (Assisted, 30 m/s)
+ok 9 - in-sim steering step reaches 90% of steady yaw rate within the band (Assisted, 30 m/s)
+  ---
+  duration_ms: 28.528674
+  type: 'test'
+  ...
+# Subtest: Assisted braking: initial ~20 m/s^2 ramping to full; brake+steer is still braking (no hidden airbrake)
+ok 10 - Assisted braking: initial ~20 m/s^2 ramping to full; brake+steer is still braking (no hidden airbrake)
+  ---
+  duration_ms: 126.829092
+  type: 'test'
+  ...
+# Subtest: Expert: full 46 m/s^2 braking; drift is explicit (drift key + steer) and is the only airbrake
+ok 11 - Expert: full 46 m/s^2 braking; drift is explicit (drift key + steer) and is the only airbrake
+  ---
+  duration_ms: 67.5747
+  type: 'test'
+  ...
+# Subtest: Assisted edge correction is capped at 15% and disabled while the player steers
+ok 12 - Assisted edge correction is capped at 15% and disabled while the player steers
+  ---
+  duration_ms: 25.057147
+  type: 'test'
+  ...
+# Subtest: pace caps: Assisted top speed == cap (fastest car, no boost), never exceeded incl. AI, gravity, drafting
+ok 13 - pace caps: Assisted top speed == cap (fastest car, no boost), never exceeded incl. AI, gravity, drafting
+  ---
+  duration_ms: 966.889608
+  type: 'test'
+  ...
+# Subtest: Expert reaches its higher normal cap; other cars scale by modifier/1.035
+ok 14 - Expert reaches its higher normal cap; other cars scale by modifier/1.035
+  ---
+  duration_ms: 0.24831
+  type: 'test'
+  ...
+# Subtest: tight-corner speeds (curvature-based): AI medians in range for both modes; Assisted player in range
+ok 15 - tight-corner speeds (curvature-based): AI medians in range for both modes; Assisted player in range
+  ---
+  duration_ms: 0.138231
+  type: 'test'
+  ...
+# Subtest: loops / barrel rolls / inversions hold at the lower speeds: no crashes, valid laps, AI and player comparable
+ok 16 - loops / barrel rolls / inversions hold at the lower speeds: no crashes, valid laps, AI and player comparable
+  ---
+  duration_ms: 0.478998
+  type: 'test'
+  ...
+# Subtest: records are separate per mode; pre-M3 records are not migrated (and not deleted)
+ok 17 - records are separate per mode; pre-M3 records are not migrated (and not deleted)
+  ---
+  duration_ms: 0.486606
+  type: 'test'
+  ...
+# Subtest: core modules import nothing outside src/core
+ok 18 - core modules import nothing outside src/core
+  ---
+  duration_ms: 3.441295
+  type: 'test'
+  ...
+# Subtest: every core module loads in plain Node
+ok 19 - every core module loads in plain Node
+  ---
+  duration_ms: 13.097817
+  type: 'test'
+  ...
+# Subtest: physics bound: laps faster than 140 m/s average are impossible
+ok 20 - physics bound: laps faster than 140 m/s average are impossible
+  ---
+  duration_ms: 0.857894
+  type: 'test'
+  ...
+# Subtest: integrity flags reject teleported, autopilot and debug laps
+ok 21 - integrity flags reject teleported, autopilot and debug laps
+  ---
+  duration_ms: 0.205605
+  type: 'test'
+  ...
+# Subtest: garbage values are rejected
+ok 22 - garbage values are rejected
+  ---
+  duration_ms: 0.19298
+  type: 'test'
+  ...
+# Subtest: store: keeps only faster valid laps, ignores polluted stored values, never throws
+ok 23 - store: keeps only faster valid laps, ignores polluted stored values, never throws
+  ---
+  duration_ms: 1.054982
+  type: 'test'
+  ...
+# Subtest: legacy key from v3 is still honoured when plausible
+ok 24 - legacy key from v3 is still honoured when plausible
+  ---
+  duration_ms: 0.147035
+  type: 'test'
+  ...
+# Subtest: six approved models, Hypercar default, no Z-32S
+ok 25 - six approved models, Hypercar default, no Z-32S
+  ---
+  duration_ms: 1.792887
+  type: 'test'
+  ...
+# Subtest: load order: selected car first, then rival cars; nothing else at boot
+ok 26 - load order: selected car first, then rival cars; nothing else at boot
+  ---
+  duration_ms: 0.410493
+  type: 'test'
+  ...
+# Subtest: race readiness needs every race car settled (ok or failed->labelled fallback)
+ok 27 - race readiness needs every race car settled (ok or failed->labelled fallback)
+  ---
+  duration_ms: 0.395248
+  type: 'test'
+  ...
+# Subtest: UPSIDE DOWN: every point between an inverted deck and its occupants (car-side of the deck) is sheltered
+ok 28 - UPSIDE DOWN: every point between an inverted deck and its occupants (car-side of the deck) is sheltered
+  ---
+  duration_ms: 8.473686
+  type: 'test'
+  ...
+# Subtest: tunnels are sheltered inside; open upright road is NOT sheltered above the surface
+ok 29 - tunnels are sheltered inside; open upright road is NOT sheltered above the surface
+  ---
+  duration_ms: 0.755937
+  type: 'test'
+  ...
+# Subtest: elevated crossings: the lower road is sheltered where an upper deck passes over it
+ok 30 - elevated crossings: the lower road is sheltered where an upper deck passes over it
+  ---
+  duration_ms: 1.039359
+  type: 'test'
+  ...
+# Subtest: shelter bake is cheap
+ok 31 - shelter bake is cheap
+  ---
+  duration_ms: 50.628367
+  type: 'test'
+  ...
+# Subtest: headless race finishes on every map; laps add up; results ordered
+ok 32 - headless race finishes on every map; laps add up; results ordered
+  ---
+  duration_ms: 2018.913858
+  type: 'test'
+  ...
+# Subtest: deterministic for a given seed
+ok 33 - deterministic for a given seed
+  ---
+  duration_ms: 515.480437
+  type: 'test'
+  ...
+# Subtest: Hard rivals are faster than Normal rivals
+ok 34 - Hard rivals are faster than Normal rivals
+  ---
+  duration_ms: 579.183297
+  type: 'test'
+  ...
+# Subtest: autopilot player laps are flagged and never record-eligible
+ok 35 - autopilot player laps are flagged and never record-eligible
+  ---
+  duration_ms: 362.490407
+  type: 'test'
+  ...
+# Subtest: a teleport (forward position jump) taints the lap
+ok 36 - a teleport (forward position jump) taints the lap
+  ---
+  duration_ms: 232.147646
+  type: 'test'
+  ...
+# Subtest: a human-driven player (input-only bot) completes a lap that validates
+ok 37 - a human-driven player (input-only bot) completes a lap that validates
+  ---
+  duration_ms: 430.9936
+  type: 'test'
+  ...
+# Subtest: countdown launch: throttle held at lights-out gives the perfect launch
+ok 38 - countdown launch: throttle held at lights-out gives the perfect launch
+  ---
+  duration_ms: 61.717283
+  type: 'test'
+  ...
+# Subtest: restart (gridUp) resets race state
+ok 39 - restart (gridUp) resets race state
+  ---
+  duration_ms: 353.610332
+  type: 'test'
+  ...
+# Subtest: BEFORE (v5b flat ground at -0.06): the full-width road solid intersects the ground on every map
+ok 40 - BEFORE (v5b flat ground at -0.06): the full-width road solid intersects the ground on every map
+  ---
+  duration_ms: 199.439311
+  type: 'test'
+  ...
+# Subtest: AFTER: every swept point (full width + rails, surface..+envelope, main + branch) clears the ground by its required margin
+ok 41 - AFTER: every swept point (full width + rails, surface..+envelope, main + branch) clears the ground by its required margin
+  ---
+  duration_ms: 273.402188
+  type: 'test'
+  ...
+# Subtest: dense proof on the RENDERED triangles: 0.25 m longitudinal x 0.25 m lateral, interpolated frames
+ok 42 - dense proof on the RENDERED triangles: 0.25 m longitudinal x 0.25 m lateral, interpolated frames
+  ---
+  duration_ms: 1115.526356
+  type: 'test'
+  ...
+# Subtest: groundHeightAt reproduces the mesh triangulation (a,c,b)+(b,c,d), not bilinear
+ok 43 - groundHeightAt reproduces the mesh triangulation (a,c,b)+(b,c,d), not bilinear
+  ---
+  duration_ms: 0.272577
+  type: 'test'
+  ...
+# Subtest: ground is untouched (exactly GROUND_Y) away from low road; pits are local
+ok 44 - ground is untouched (exactly GROUND_Y) away from low road; pits are local
+  ---
+  duration_ms: 28.589785
+  type: 'test'
+  ...
+# Subtest: pits sit inside the city's existing building exclusion zone (buildings keep >= W+9+hd from track samples below 16 m)
+ok 45 - pits sit inside the city's existing building exclusion zone (buildings keep >= W+9+hd from track samples below 16 m)
+  ---
+  duration_ms: 2720.082667
+  type: 'test'
+  ...
+# Subtest: axis/sign mirror between the two landscape orientations; portrait inactive
+ok 46 - axis/sign mirror between the two landscape orientations; portrait inactive
+  ---
+  duration_ms: 0.799521
+  type: 'test'
+  ...
+# Subtest: relative to recentred neutral, deadzone, full lock, clamped
+ok 47 - relative to recentred neutral, deadzone, full lock, clamped
+  ---
+  duration_ms: 0.269461
+  type: 'test'
+  ...
+# Subtest: smoothing approaches target; reset zeroes steering
+ok 48 - smoothing approaches target; reset zeroes steering
+  ---
+  duration_ms: 0.233317
+  type: 'test'
+  ...
+# Subtest: core track generator is byte-for-byte the v5b generator on every map
+ok 49 - core track generator is byte-for-byte the v5b generator on every map
+  ---
+  duration_ms: 812.248961
+  type: 'test'
+  ...
+# Subtest: map catalogue matches v5b (names, laps, widths, sector count, lengths)
+ok 50 - map catalogue matches v5b (names, laps, widths, sector count, lengths)
+  ---
+  duration_ms: 130.64157
+  type: 'test'
+  ...
+1..50
+# tests 50
+# suites 0
+# pass 50
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5514.372351

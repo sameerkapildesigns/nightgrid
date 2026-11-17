@@ -17,6 +17,7 @@ import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
 import { createRecordStore, memoryStorage, recordKey } from '../core/records.js';
 import { DRIVE_MODES } from '../core/pace.js';
 import { createTilt } from '../core/tilt.js';
+import { buildShelter, shelterTop } from '../core/shelter.js';
 import { buildClearance, groundHeightAt, worstClearance, GROUND_Y } from '../core/terrain.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
@@ -1069,23 +1070,41 @@ const rainGeo = new THREE.BufferGeometry();
   rainGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3)); rainGeo.setAttribute('seed', new THREE.BufferAttribute(seed, 3)); rainGeo.setAttribute('endp', new THREE.BufferAttribute(endp, 1));
 }
 const rainMat = new THREE.ShaderMaterial({
-  uniforms: { uTime: { value: 0 }, uCam: { value: new V3() }, uVel: { value: new V3() }, uBox: { value: new V3(110, 60, 110) } },
-  vertexShader: `attribute vec3 seed; attribute float endp; uniform float uTime; uniform vec3 uCam, uVel, uBox; varying float vA;
+  // M3: uShelter = baked topmost-covering-surface height per 4 m cell (core/shelter.js); a streak whose
+  // HEAD is below it (under a deck / inverted road / tunnel roof) is hidden entirely. uShelterOn: 0/1.
+  uniforms: { uTime: { value: 0 }, uCam: { value: new V3() }, uVel: { value: new V3() }, uBox: { value: new V3(110, 60, 110) }, uShelter: { value: null }, uShelterO: { value: new THREE.Vector2() }, uShelterS: { value: new THREE.Vector2(1, 1) }, uShelterOn: { value: 0 } },
+  vertexShader: `attribute vec3 seed; attribute float endp; uniform float uTime; uniform vec3 uCam, uVel, uBox; uniform sampler2D uShelter; uniform vec2 uShelterO, uShelterS; uniform float uShelterOn; varying float vA;
     void main(){
       float fall = 30.0 + seed.x * 14.0;
       vec3 base = seed * uBox; base.y -= uTime * fall;
       vec3 p = mod(base - uCam + uBox * 0.5, uBox) - uBox * 0.5 + uCam;
+      float shel = 1.0;
+      if (uShelterOn > 0.5) {
+        vec2 uv = (p.xz - uShelterO) / uShelterS;
+        if (uv.x >= 0.0 && uv.y >= 0.0 && uv.x <= 1.0 && uv.y <= 1.0 && p.y < texture2D(uShelter, uv).r - 0.15) shel = 0.0;
+      }
       vec3 rel = vec3(0.0, -fall, 0.0) - uVel;
       p -= rel * 0.024 * endp;
       vec4 mv = modelViewMatrix * vec4(p, 1.0);
       float dist = length(mv.xyz);
-      vA = mix(0.32, 0.0, endp) * smoothstep(1.2, 5.0, dist) * (1.0 - smoothstep(32.0, 55.0, dist));
+      vA = shel * mix(0.32, 0.0, endp) * smoothstep(1.2, 5.0, dist) * (1.0 - smoothstep(32.0, 55.0, dist));
       gl_Position = projectionMatrix * mv;
     }`,
   fragmentShader: `varying float vA; void main(){ gl_FragColor = vec4(vec3(0.55, 0.68, 1.0) * vA, 1.0); }`,
   blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
 });
 const rain = new THREE.LineSegments(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
+let SHELTER_MAP = null;
+function buildRainShelter() {   // per map, after planDecks(); texel centres = cell centres (NearestFilter)
+  const sh = SHELTER_MAP = buildShelter(TD, DECKS);
+  const old = rainMat.uniforms.uShelter.value; if (old) old.dispose();
+  const tex = new THREE.DataTexture(sh.top, sh.nx, sh.nz, THREE.RedFormat, THREE.FloatType);
+  tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.flipY = false; tex.needsUpdate = true;
+  rainMat.uniforms.uShelter.value = tex;
+  rainMat.uniforms.uShelterO.value.set(sh.x0 - sh.cell / 2, sh.z0 - sh.cell / 2);
+  rainMat.uniforms.uShelterS.value.set(sh.nx * sh.cell, sh.nz * sh.cell);
+  rainMat.uniforms.uShelterOn.value = 1;
+}
 const fxc = $('fx'), fxg = fxc.getContext('2d');
 const lines = []; for (let i = 0; i < 80; i++) lines.push({ a: Math.random() * Math.PI * 2, r: Math.random(), l: 0.1 + Math.random() * 0.25, s: 0.6 + Math.random() });
 function drawSpeedLines(intensity, draft, dt) {
@@ -2351,7 +2370,7 @@ async function switchMap(key) {
   const t0 = performance.now();
   lastDispose = disposeWorld();
   loadTrackData(key);
-  planDecks(); buildTrack(); planBillboards(); BOUNDS = buildCity(); buildProps();
+  planDecks(); buildRainShelter(); buildTrack(); planBillboards(); BOUNDS = buildCity(); buildProps();
   for (const r of racers) { r.path = MAIN; r.emPrev = null; r.prevS = undefined; for (const t of r.trails) t.n = 0; }
   gridUp(); initHUD(); loadRecord(); hudCache = {};
   flyS = mod(SECSTART[Math.min(1, SECSTART.length - 1)] + 280, MAIN.L);
@@ -2381,7 +2400,7 @@ async function boot() {
   ensureRaceAssets(GAR.sel).then(() => { performance.mark('ng:race-ready'); refreshRacerCars(); updateGarageUI(); });
   try { await Promise.race([Promise.all([document.fonts.load('900 64px Orbitron'), document.fonts.load('700 30px Rajdhani')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
   buildEnv(); await setLoad(0.12, 'MAGNETISING CIRCUIT');
-  scene.add(WORLD); planDecks(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');
+  scene.add(WORLD); planDecks(); buildRainShelter(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');
   BOUNDS = buildCity(); await setLoad(0.55, 'WIRING NEON');
   buildProps(); buildGarage(); performance.mark('ng:world-built'); await setLoad(0.7, `DOWNLOADING ${CARS[GAR.sel].title} (REAL GLB)…`);
   await Promise.race([selLoad, new Promise(r => setTimeout(r, 60000))]);
@@ -2428,12 +2447,13 @@ if (DEBUG) {
     get results() { return { lapTimes: player ? player.lapTimes.slice() : [], lapValid: player ? player.lapValid.slice() : [], finishTime: player ? player.finishTime : 0, order: sim.finishOrder.map(r => r.name), visible: !$('results').classList.contains('hide') }; },
     get ground() { const cl = CLEARANCE; if (!cl) return null; const w = worstClearance(TD, (x, z) => groundHeightAt(cl, x, z)); const fp = []; for (const b of bList) if (b.y0 === 0) { let hit = false; for (let u = -0.5; u <= 0.5 && !hit; u += 0.125) for (let v = -0.5; v <= 0.5 && !hit; v += 0.125) if (groundHeightAt(cl, b.x + u * b.w, b.z + v * b.d) < GROUND_Y - 1e-4) hit = true; if (hit) fp.push([Math.round(b.x), Math.round(b.z)]); } return { worst: w, pitBlocks: cl.blocks.length, buildingsOverPits: fp.length, buildingsChecked: bList.filter(b => b.y0 === 0).length }; },
     get drive() { return { mode: driveMode, simMode: sim.mode, pace: sim.pace && { normalKmh: +(sim.pace.normal * 3.6).toFixed(1), boostKmh: +(sim.pace.boost * 3.6).toFixed(1) }, recordKey: recordKey(driveMode, MAPKEY), recordLabel: $('record').textContent }; },
+    get rain() { return { shelterOn: rainMat.uniforms.uShelterOn.value, cells: SHELTER_MAP ? SHELTER_MAP.nx * SHELTER_MAP.nz : 0, camSheltered: SHELTER_MAP ? camera.position.y < shelterTop(SHELTER_MAP, camera.position.x, camera.position.z) - 0.15 : null }; },
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
     qa: { open: qaOpen, garageNext: qaGarageNext, boostDemo: () => { touch(); qaBoostDemo(false); }, invertedDemo: () => { touch(); qaBoostDemo(true); }, exit: toGarage, select: (k, p) => { if (p != null) GAR.paint = p; selectCar(k); } }
   };
-  window.__ng = { GAR, simCore: sim, records, get state() { return state; }, get player() { touch(); return player; }, racers, drones, camera, scene, renderer, get fps() { return lastFps; }, keys, get MAIN() { return MAIN; }, get BR() { return BR; }, get SAm() { return SAm; }, get SBm() { return SBm; }, get map() { return MAPKEY; }, switchMap, get lastDispose() { return lastDispose; }, get worldChildren() { return WORLD.children.length; },
+  window.__ng = { GAR, simCore: sim, records, rain, rainMat, shelterAt: (x, z) => (SHELTER_MAP ? shelterTop(SHELTER_MAP, x, z) : null), get state() { return state; }, get player() { touch(); return player; }, racers, drones, camera, scene, renderer, get fps() { return lastFps; }, keys, get MAIN() { return MAIN; }, get BR() { return BR; }, get SAm() { return SAm; }, get SBm() { return SBm; }, get map() { return MAPKEY; }, switchMap, get lastDispose() { return lastDispose; }, get worldChildren() { return WORLD.children.length; },
     // deterministic stepping for tests: n frames of 1/60 s (2 fixed steps each)
     sim(sec) { touch(); RDT = 0; const n = Math.round(sec * 60); for (let i = 0; i < n; i++) { sim.step(SIM_DT); sim.step(SIM_DT); gameTime = sim.time; update(1 / 60, 1 / 60); } },
     // manual wall clock: drive the real frame path with synthetic frame gaps (low FPS / stalls)
