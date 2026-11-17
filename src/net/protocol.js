@@ -10,7 +10,8 @@ export const MAX_FRAMES_PER_MSG = 24;       // 200 ms of input per message at mo
 export const FRAME_RATE_MAX = 150, FRAME_BURST = 60;   // per-connection input frames/s (sim is 120/s)
 export const MSG_RATE_MAX = 40, MSG_BURST = 40;        // all messages per connection per second
 export const MAX_AHEAD_FRAMES = 240;        // frames more than 2 s ahead of the server are a time-manipulation attempt
-export const QUEUE_DROP_FRAMES = 36;        // >300 ms queued: the server skips ahead (bounded latency)
+export const QUEUE_DROP_FRAMES = 72;        // >600 ms queued: the server skips ahead (bounded latency)
+export const MAX_LEAD_FRAMES = 60;          // client never runs more than 500 ms ahead of the server
 export const BACKPRESSURE_BYTES = 64 * 1024;
 export const INTERP_DELAY_MS = 120;         // remote cars render ~120 ms in the past
 export const EXTRAP_MAX_MS = 100;           // bounded extrapolation when snapshots are late
@@ -89,5 +90,5 @@ export const ERROR_TEXT = {
   'capacity': 'All race servers are busy right now. Try again in a few minutes.', 'daily-budget': "Today's free race time is used up. Try again tomorrow.",
   'not-host': 'Only the host can do that.', 'need-2-racers': 'Add a bot or wait for a friend: a race needs at least 2 racers.', 'not-all-ready': 'Waiting for everyone to be ready.',
   'player-reconnecting': 'Waiting for a player to reconnect.', 'seat-expired': 'Your seat expired after disconnecting. Join again from the lobby.',
-  'origin': 'This page is not allowed to join rooms.', 'rate': 'Too many requests. Slow down.', 'room-closed': 'The room was closed.'
+  'origin': 'This page is not allowed to join rooms.', 'server-unreachable': 'Multiplayer server not reachable. Check your connection, or this site may be single-player only.', 'connection-lost': 'Connection to the room was lost.', 'time-ahead': 'Your clock jumped; reconnecting may help.', 'rate': 'Too many requests. Slow down.', 'room-closed': 'The room was closed.'
 };

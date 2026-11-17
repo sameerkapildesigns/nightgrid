@@ -8,7 +8,7 @@
 // therefore applied to the local car immediately, never delayed by the round trip.
 import { Predictor, Interpolator, ClockSync, MAX_CATCHUP } from './netcode.js';
 import { SIM_DT } from '../core/clock.js';
-import { PROTOCOL, NET_HZ, encodeFrame, MAX_FRAMES_PER_MSG, normalizeCode, validCode } from './protocol.js';
+import { PROTOCOL, NET_HZ, encodeFrame, MAX_FRAMES_PER_MSG, MAX_LEAD_FRAMES, normalizeCode, validCode } from './protocol.js';
 
 const RECONNECT_DELAYS = [500, 1000, 2000, 3000, 4000, 4000];
 export class NetClient {
@@ -16,10 +16,10 @@ export class NetClient {
     this.wsUrl = wsUrl; this.WS = WebSocketImpl; this.now = now; this.build = build; this.name = name;
     this.simEvents = events; this.onEvent = onEvent;
     this.ws = null; this.code = null; this.token = null; this.you = null; this.room = null; this.results = null;
-    this.race = null; this.clock = new ClockSync(); this.lead = 8; this.qe = 4; this.snapN = 0;
+    this.race = null; this.clock = new ClockSync(); this.lead = 8; this.qe = 4; this.snapN = 0; this.frameMs = 16; this.lastFrameAt = 0;
     this.outbox = []; this.outSeq = 0; this.lastSend = 0; this.lastPing = -1e9; this.pingN = 0;
-    this.closedByUser = false; this.retry = 0; this.status = 'idle';
-    this.stats = { sentMsgs: 0, sentBytes: 0, recvMsgs: 0, recvBytes: 0, snapAges: [], t0: now(), snaps: 0 };
+    this.closedByUser = false; this.retry = 0; this.status = 'idle'; this.useEventTime = typeof window !== 'undefined';
+    this.stats = { sentMsgs: 0, sentBytes: 0, recvMsgs: 0, recvBytes: 0, snapAges: [], recvDelay: [], frameGaps: [], t0: now(), snaps: 0, behindMax: 0, resyncSteps: 0 };
   }
   connect(code, token = null) {
     code = normalizeCode(code); if (!validCode(code)) { this.onEvent('error', { error: 'bad-code', fatal: true }); return false; }
@@ -29,7 +29,9 @@ export class NetClient {
     this.status = this.retry ? 'reconnecting' : 'connecting';
     const ws = this.ws = new this.WS(`${this.wsUrl}/api/rooms/${this.code}/ws`);
     ws.onopen = () => { this.status = 'open'; this.retry = 0; this.sendRaw({ t: 'hello', p: PROTOCOL, build: this.build, name: this.name, token: this.token || undefined }); this.ping(true); };
-    ws.onmessage = e => this.recv(typeof e.data === 'string' ? e.data : String(e.data));
+    // e.timeStamp = when the browser received the message (same clock as performance.now()), so a slow
+    // render frame that delays this handler does not inflate the measured round trip
+    ws.onmessage = e => this.recv(typeof e.data === 'string' ? e.data : String(e.data), e.timeStamp > 0 && this.useEventTime ? e.timeStamp : this.now());
     ws.onclose = e => {
       if (this.ws !== ws) return; this.ws = null;
       const fatal = this.closedByUser || this.fatal || (e && (e.code === 4100 || e.code === 4004 || e.code === 4009));
@@ -52,11 +54,12 @@ export class NetClient {
   ping(force) { const n = this.now(); const iv = this.pingN < 8 ? 250 : 1000; if (!force && n - this.lastPing < iv) return; this.lastPing = n; this.pingN++; this.sendRaw({ t: 'ping', c: n }); }
   serverNow() { return this.clock.serverNow(this.now()); }
 
-  recv(text) {
+  recv(text, at = this.now()) {
+    const lag = this.now() - at; if (this.stats.recvDelay.length < 50000) this.stats.recvDelay.push(lag);   // main-thread delay between socket receipt and our handler
     this.stats.recvMsgs++; this.stats.recvBytes += text.length;
     let m; try { m = JSON.parse(text); } catch (e) { return; }
     switch (m.t) {
-      case 'pong': this.clock.sample(m.c, m.s, this.now()); break;
+      case 'pong': this.clock.sample(m.c, m.s, Math.min(at, this.now())); break;
       case 'welcome': this.you = m.id; this.token = m.token; this.onEvent('welcome', m); break;
       case 'lobby': this.room = m.room; if (m.room.phase === 'lobby' && this.race) { this.race = null; } this.onEvent('lobby', m); break;
       case 'race': this.beginRace(m); break;
@@ -72,7 +75,7 @@ export class NetClient {
     this.race = { msg: m, pred, interp: new Interpolator(pred.sim.track), startAt: m.countdownAt, ended: false };
     this.results = null; this.outbox = []; this.outSeq = pred.seq; this.qe = 4; this.snapN = 0;
     // initial lead: half the round trip + jitter allowance + 2 steps
-    this.lead = Math.min(90, Math.ceil(((this.clock.rtt || 100) / 2 + 30) / (SIM_DT * 1000)) + 2);
+    this.lead = Math.min(MAX_LEAD_FRAMES, Math.ceil(((this.clock.rtt || 100) / 2 + 30) / (SIM_DT * 1000)) + 2);
     this.onEvent('race', m);
   }
   onSnap(s) {
@@ -82,16 +85,22 @@ export class NetClient {
     if (s.ph === 'race') R.pred.reconcile(s);
     // adaptive lead: keep ~2-8 frames queued at the server
     this.qe += (s.q - this.qe) * 0.15;
-    if (++this.snapN % 10 === 0 && s.ph === 'race') { if (this.qe < 2) this.lead = Math.min(90, this.lead + 2); else if (this.qe > 8) this.lead = Math.max(1, this.lead - 1); }
+    // floor: our own frame interval (inputs leave in per-frame bursts) + half the round trip + 2 steps
+    const floor = Math.ceil((this.frameMs + this.clock.rtt / 2) / (SIM_DT * 1000)) + 2;
+    if (++this.snapN % 10 === 0 && s.ph === 'race') { if (this.qe < 2) this.lead += 2; else if (this.qe > 8 + this.frameMs / 8.33) this.lead -= 1; }
+    this.lead = Math.max(floor, Math.min(MAX_LEAD_FRAMES, this.lead));
     this.onEvent('snap', s);
   }
   // Called every rendered frame with the current local input keys. Returns steps simulated.
   frame(keys) {
     const n = this.now(); this.ping(false);
+    if (this.lastFrameAt && this.stats.frameGaps.length < 50000) this.stats.frameGaps.push(n - this.lastFrameAt);
+    if (this.lastFrameAt) this.frameMs += (Math.min(500, n - this.lastFrameAt) - this.frameMs) * 0.1; this.lastFrameAt = n;
     const R = this.race; if (!R || !this.clock.ready || R.ended) return 0;
     const target = Math.floor((this.serverNow() - R.startAt) / 1000 / SIM_DT) + this.lead;
     let behind = target - R.pred.seq, steps = 0;
-    if (behind > MAX_CATCHUP * 4) { R.pred.resync(target); this.outbox = []; this.outSeq = target; behind = 0; }
+    if (behind > this.stats.behindMax) this.stats.behindMax = behind;
+    if (behind > MAX_CATCHUP * 4) { this.stats.resyncSteps += behind; R.pred.resync(target); this.outbox = []; this.outSeq = target; behind = 0; }
     behind = Math.min(behind, MAX_CATCHUP);
     const f = encodeFrame(keys);
     for (let i = 0; i < behind; i++) {

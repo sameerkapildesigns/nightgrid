@@ -18,7 +18,8 @@
     "test:matrix": "node tests/net/matrix.mjs",
     "mp:server": "node server/local.mjs",
     "mp": "vite build && node server/local.mjs",
-    "build-id": "node scripts/build-id.mjs"
+    "build-id": "node scripts/build-id.mjs",
+    "test:mp": "vite build --mode test --outDir dist-test && node tests/e2e/mp-run.mjs"
   },
   "dependencies": {
     "three": "0.170.0"

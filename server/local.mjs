@@ -106,5 +106,5 @@ export async function startLocalServer(opts = {}) {
 if (process.argv[1] && import.meta.url === 'file://' + resolve(process.argv[1])) {
   const a = process.argv.slice(2), arg = (k, d) => { const i = a.indexOf('--' + k); return i >= 0 ? a[i + 1] : d; };
   startLocalServer({ port: +arg('port', process.env.PORT || 8787), host: arg('host', '127.0.0.1'), dist: arg('dist', 'dist'), netsim: a.includes('--netsim'),
-    lagMs: +arg('lag', 0), jitterMs: +arg('jitter', 0), origins: arg('origins', null) ? arg('origins').split(',') : null });
+    lagMs: +arg('lag', 0), jitterMs: +arg('jitter', 0), room: { ...(arg('max-race-ms') ? { maxRaceMs: +arg('max-race-ms') } : {}), ...(arg('countdown-ms') ? { countdownMs: +arg('countdown-ms') } : {}) }, budget: arg('max-rooms') ? { maxActiveRooms: +arg('max-rooms') } : {}, origins: arg('origins', null) ? arg('origins').split(',') : null });
 }

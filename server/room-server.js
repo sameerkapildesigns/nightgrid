@@ -155,7 +155,7 @@ export class RoomServer {
   consume(id, now) {
     const q = this.inputs.get(id); if (!q) return ZERO_FRAME;
     if (q.buf.size > QUEUE_DROP_FRAMES) {   // client far ahead / burst after a stall: keep latency bounded
-      while (q.buf.size > 12) { if (q.buf.has(q.next)) { q.buf.delete(q.next); q.skipped++; this.stats.skippedFrames++; } q.next++; }
+      while (q.buf.size > 24) { if (q.buf.has(q.next)) { q.buf.delete(q.next); q.skipped++; this.stats.skippedFrames++; } q.next++; }
     }
     if (q.buf.has(q.next)) { q.last = q.buf.get(q.next); q.buf.delete(q.next); q.next++; return q.last; }
     q.starve++; this.stats.starved++;

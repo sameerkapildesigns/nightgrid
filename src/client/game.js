@@ -13,6 +13,8 @@ import { TRK } from '../core/track.js';
 import { clamp, lerp, mod, wrapA, damp, smooth, sstep, mulberry32, fmtTime as fmt } from '../core/math.js';
 import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
+import { NetClient } from '../net/client.js';
+import { createLobbyUI, errorText } from './lobby.js';
 import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
 import { createRecordStore, memoryStorage, recordKey } from '../core/records.js';
 import { DRIVE_MODES } from '../core/pace.js';
@@ -1484,9 +1486,9 @@ function ensureGarageCar(k) {
   GAR.turn.add(inst.root); GAR.cars[k] = inst; return inst;
 }
 function garageShow() { for (const key of CAR_KEYS) { const c = ensureGarageCar(key); c.root.visible = key === GAR.sel; } updateGarageUI(); }
-function selectCar(k) { GAR.sel = k; ensureAsset(k); GAR.lastInteract = gameTime; garageShow(); }
+function selectCar(k) { GAR.sel = k; ensureAsset(k); GAR.lastInteract = gameTime; garageShow(); mpCarChanged(); }
 function cycleCar(d) { const i = CAR_KEYS.indexOf(GAR.sel); selectCar(CAR_KEYS[mod(i + d, CAR_KEYS.length)]); }
-function setPaint(i) { GAR.paint = i; garageShow(); }
+function setPaint(i) { GAR.paint = i; garageShow(); mpCarChanged(); }
 function updateGarageUI() {
   const C = CARS[GAR.sel], A = ASSETS[GAR.sel], SN = SHORT[GAR.sel] || [C.nick, C.title];
   $('carNick').textContent = SN[0]; $('carTitle').textContent = SN[1];
@@ -1697,7 +1699,7 @@ function setRivalCar(r) {
   const tag = nameTag(L.name, PERS[r.name].css); tag.position.y = 1.5; r.ship.root.add(tag);
   makeTrailsFor(r);
 }
-function refreshRacerCars() { if (!player) return; setPlayerCar(); for (const r of racers) if (r !== player) setRivalCar(r); }
+function refreshRacerCars() { if (!player) return; if (MP.race) return mpRefreshCars(); setPlayerCar(); for (const r of racers) if (r !== player) setRivalCar(r); }
 function buildRacers() {
   sim.addRacers(RIVAL_ORDER.map(name => ({ name })));
   player = sim.player;
@@ -1958,6 +1960,7 @@ function updateHUD(dt) {
   }
 }
 function showResults() {
+  if (MP.race) return mpShowResults();
   const ranks = sim.ranks();
   const p = ranks.indexOf(player) + 1;
   const el = $('resPos'); el.textContent = `P${p}`; el.dataset.t = `P${p}`;
@@ -1979,7 +1982,7 @@ function initSceneTextures(root) {
   return seen.size;
 }
 async function startRace() {
-  if (state !== 'title' || raceStarting || mapBusy || isPortrait()) return;
+  if (state !== 'title' || raceStarting || mapBusy || isPortrait() || (MP.net && MP.net.room)) return;
   if (!isRaceReady(GAR.sel, assetStatus)) { ensureRaceAssets(GAR.sel); return; }
   raceStarting = true;
   try {
@@ -2033,12 +2036,13 @@ function restart() {
   $('hud').classList.add('on'); $('sector').textContent = `S1 · ${SECTORS[0].name}`; $('sector').style.color = SECTORS[0].css;
 }
 function togglePause() {
+  if (MP.race) return;   // multiplayer races cannot be paused (the server keeps racing); use Leave race
   if (!(state === 'race' || state === 'countdown')) return;
   paused = !paused; releaseAllInputs(); $('pause').classList.toggle('hide', !paused); AU.pause(paused); $('pauseNote').textContent = '';
 }
 $('go').addEventListener('click', () => { if (isPortrait()) return; if (TOUCH) requestLandscape(); startRace(); });
 $('again').addEventListener('click', () => { $('again').blur(); restart(); });
-$('toGarage').addEventListener('click', () => { $('toGarage').blur(); toGarage(); });
+$('toGarage').addEventListener('click', () => { $('toGarage').blur(); if (MP.race) mpEndRaceView(); else toGarage(); });
 $('prevCar').addEventListener('click', () => cycleCar(-1));
 $('nextCar').addEventListener('click', () => cycleCar(1));
 $('paints').addEventListener('click', e => { const p = e.target.closest('[data-p]'); if (p) setPaint(+p.dataset.p); });
@@ -2064,8 +2068,8 @@ addEventListener('keydown', e => {
   if (state === 'title') { if (e.code === 'ArrowLeft' || e.code === 'KeyA') cycleCar(-1); if (e.code === 'ArrowRight' || e.code === 'KeyD') cycleCar(1); }
   if ((e.code === 'Enter' || e.code === 'Space') && state === 'intro') { endIntro(true); return; }
   if (e.code === 'Enter' && skipFinishCine()) return;
-  if (e.code === 'Enter') { if (state === 'title') startRace(); else if (state === 'finished' || paused) restart(); }
-  if (e.code === 'KeyR' && state === 'race' && !paused) sim.resetPlayer();
+  if (e.code === 'Enter' && !MP.race && !(MP.net && MP.net.room)) { if (state === 'title') startRace(); else if (state === 'finished' || paused) restart(); }
+  if (e.code === 'KeyR' && state === 'race' && !paused && !MP.race) sim.resetPlayer();
   if (e.code === 'Escape' && state === 'title') { for (const s of document.querySelectorAll('.sheet')) s.classList.add('hide'); GAR.fit = null; }
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'KeyM') { AU.setMusic(!AU.music); flash(AU.music ? 'MUSIC ON' : 'MUSIC OFF', '#8a5cff'); }
@@ -2108,6 +2112,7 @@ function advanceFrame(now, render = true) {
   // brief slow motion right after the player crosses the line (finish camera)
   const ts = state === 'finished' && FIN.on && FIN.t < 2.2 ? 0.3 : 1;
   applyTilt();
+  if (MP.race) { mpFrame(wall, Math.min(wall, clock.maxCatchUp)); if (render && !(DEBUG && window.__ngRenderEvery > 1 && (++mpRenderN % window.__ngRenderEvery))) renderNow(); return; }
   const adv = clock.advance(wall, ts);
   if (adv.stalled) onStall(wall);
   for (let i = 0; i < adv.steps; i++) sim.step(adv.h);
@@ -2120,7 +2125,7 @@ function advanceFrame(now, render = true) {
 const AUTO_PAUSE_AFTER = 3.0;
 function onStall(wall) {
   lastStall = { ms: Math.round(wall * 1000), state, at: Math.round(performance.now()), paused: false };
-  if (wall >= AUTO_PAUSE_AFTER && (state === 'race' || state === 'countdown') && !paused) {
+  if (!MP.race && wall >= AUTO_PAUSE_AFTER && (state === 'race' || state === 'countdown') && !paused) {
     lastStall.paused = true; togglePause(); $('pauseNote').textContent = `Auto-paused: the game was suspended for ${wall.toFixed(1)} s`; }
 }
 function renderNow() {
@@ -2145,7 +2150,7 @@ function update(dt, dt0) {
       AU.beep(440, 0.22, 0.22); startLamps.forEach((m, k) => { if (k < 4 - n) m.color.setRGB(7, 0.3, 0.35); });
     }
     if (cdT <= 0) {
-      state = 'race'; sim.diff = SETTINGS.diff; const perfect = sim.startRace();
+      state = 'race'; sim.diff = SETTINGS.diff; const perfect = MP.race ? false : sim.startRace();
       const el = $('count'); el.className = ''; el.textContent = 'GO'; void el.offsetWidth; el.className = 'pop go';
       AU.beep(880, 0.5, 0.26); startLamps.forEach(m => m.color.setRGB(0.4, 7, 1.5));
       secFlash(0);
@@ -2364,7 +2369,7 @@ function disposeWorld() {
   return { geometries: geos.size, materials: mats.size, textures: texs.size };
 }
 let mapBusy = false, lastDispose = null;
-async function switchMap(key) {
+async function switchMap(key, persist = true) {
   if (!MAPS[key] || key === MAPKEY || mapBusy || state !== 'title') return;
   mapBusy = true; $('go').disabled = true; $('go').textContent = 'Building…'; renderMapSeg(key); await tick(); await tick();
   const t0 = performance.now();
@@ -2376,7 +2381,7 @@ async function switchMap(key) {
   flyS = mod(SECSTART[Math.min(1, SECSTART.length - 1)] + 280, MAIN.L);
   for (const r of racers) updateVisual(r, 0.016);
   renderer.compile(scene, camera);
-  try { localStorage.setItem('nightgrid_v4_map', key); } catch (e) { }
+  if (persist) try { localStorage.setItem('nightgrid_v4_map', key); } catch (e) { }
   lastDispose.ms = Math.round(performance.now() - t0);
   mapBusy = false; updateGarageUI();
 }
@@ -2421,6 +2426,220 @@ async function boot() {
   checkOrientation();
   if (SETTINGS.steer === 'tilt') { SETTINGS.steer = 'touch'; renderSettings(); tiltMsg('Tap Enable Tilt to turn tilt steering back on.'); }
 }
+/* ============================== M4 private-room multiplayer ============================== */
+// The room server is authoritative. In a multiplayer race the render sim (`sim`) is NOT stepped:
+// the local car comes from the client predictor (src/net/netcode.js, replayed on every server
+// snapshot), remote cars from snapshot interpolation, drones from the predictor. Lap/finish events
+// from prediction are presentation only; positions, laps and results shown come from the server.
+// Single-player records are never offered from a multiplayer race (no record hooks are attached).
+const BUILD = __NG_BUILD__;
+const MP = { net: null, race: null, ui: null, results: null, preparing: false, autodrive: false, leaveArm: 0, lastErr: null };
+const MP_T = {}; let mpRenderN = 0;
+const mpApi = path => new URL('./' + path, location.href).toString();
+const mpWsBase = () => { const u = new URL('./', location.href); return (u.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + u.host + u.pathname.replace(/\/$/, ''); };
+const mpSimEvents = {
+  earn: (t, c) => earnPopup(t, c), cp: cpFlash, sfx: (name, ...a) => { if (typeof AU[name] === 'function') AU[name](...a); },
+  shake: x => { CC.shake += x; }, kick: x => { CC.kick += x; },
+  flash: (t, c) => { if (t !== 'VICTORY' && t !== 'FINISH') flash(t, c); },   // finishing is announced from the server state
+  wallHit: (r, vn, s, Rw) => onWallHit(vn, s, Rw), crash: () => sim.events.crash(player), respawn: () => sim.events.respawn(player),
+  droneHit: () => sim.events.droneHit(player), sector: sec => sim.events.sector(sec), racerReset: () => { }, lap: () => { }, playerFinish: () => { }, bump: () => { }
+};
+function disposeRacerVis(r) {
+  if (r.ship) scene.remove(r.ship.root);
+  for (const t of r.trails || []) { scene.remove(t.mesh); t.geo.dispose(); t.mat.dispose(); }
+  r.ship = null; r.trails = null; r.carKey = null;
+}
+function swapRacers(build) {
+  for (const r of racers) disposeRacerVis(r);
+  const dv = drones.map(d => ({ root: d.root, beacon: d.beacon }));
+  racers.length = 0; drones.length = 0; sim.player = null; sim.finishOrder = []; sim.phase = 'grid'; sim.time = 0; sim.raceStart = 0;
+  build();
+  drones.forEach((d, k) => Object.assign(d, dv[k] || makeDrone()));
+  player = sim.player;
+}
+const seatLivery = st => st.kind === 'bot' ? RIVAL_LIV[st.pers] : PAINTS[st.paint || 0];
+function mpSetupRacers(m) {
+  swapRacers(() => sim.addSeats(m.seats.map(st => ({ id: st.id, kind: st.kind, name: st.name, pers: st.pers, css: seatLivery(st).neon, carMods: CARS[st.car] ? CARS[st.car].mods : null })), m.you));
+  for (const r of racers) { r.wallLim = 1.2; r.seat = m.seats.find(s => s.id === r.id); if (r !== player) r.autopilot = true; }
+  mpRefreshCars();
+}
+function mpRefreshCars() {
+  for (const r of racers) {
+    const st = r.seat; if (!st) continue;
+    const want = st.car + ':' + (st.paint || 0) + ':' + assetStatus(st.car); if (r.carKey === want) continue;
+    if (r.ship) scene.remove(r.ship.root);
+    const liv = seatLivery(st); r.ship = buildCar(st.car, liv, 'race', r === player); scene.add(r.ship.root); r.carKey = want; r.emPrev = null;
+    if (r !== player) { const tag = nameTag(st.name.toUpperCase().slice(0, 12), liv.neon); tag.position.y = 1.5; r.ship.root.add(tag); }
+    else { $('carTag').className = ''; $('carTag').textContent = `${CARS[st.car].nick} · ROOM ${MP.net && MP.net.code || ''}`; }
+    makeTrailsFor(r);
+  }
+}
+function mpRestoreSP() {
+  swapRacers(() => sim.addRacers(RIVAL_ORDER.map(name => ({ name }))));
+  sim.setMode(driveMode); refreshRacerCars(); gridUp();
+  for (const r of racers) updateVisual(r, 0);
+}
+function mpNet(name) {
+  if (!MP.net) MP.net = new NetClient({ wsUrl: mpWsBase(), WebSocketImpl: WebSocket, now: () => performance.now(), build: BUILD, name, events: mpSimEvents, onEvent: mpOnEvent });
+  MP.net.name = name; return MP.net;
+}
+async function mpCreate(name) {
+  MP.ui.setError('');
+  try {
+    const r = await fetch(mpApi('api/rooms'), { method: 'POST' }); const j = await r.json().catch(() => ({}));
+    if (!j.ok) { MP.lastErr = j.error || 'server-unreachable'; return MP.ui.setError(MP.lastErr); }
+    mpJoin(j.code, name);
+  } catch (e) { MP.lastErr = 'server-unreachable'; MP.ui.setError('server-unreachable'); }
+}
+function mpJoin(code, name) {
+  let tok = null; try { tok = sessionStorage.getItem('ng_tok_' + code); } catch (e) { }
+  if (!mpNet(name).connect(code, tok)) MP.ui.setError('bad-code');
+}
+function mpReset(errCode) {
+  if (MP.race) mpEndRaceView();
+  const net = MP.net; MP.net = null; MP.results = null; if (net && net.status !== 'closed') net.leave();
+  document.body.classList.remove('mpinroom');
+  try { const u = new URL(location.href); if (u.searchParams.has('room')) { u.searchParams.delete('room'); history.replaceState(null, '', u); } } catch (e) { }
+  if (MP.ui) { MP.ui.render(); if (errCode) MP.ui.setError(errCode); }
+  updateGarageUI();
+}
+function mpLeave() { mpReset(); }
+function mpCarChanged() { const n = MP.net; if (n && n.room && n.room.phase === 'lobby') n.car(GAR.sel, GAR.paint); }
+function mpOnEvent(type, m) {
+  const net = MP.net; if (!net) return;
+  switch (type) {
+    case 'welcome':
+      try { sessionStorage.setItem('ng_tok_' + net.code, m.token); } catch (e) { }
+      document.body.classList.add('mpinroom'); mpCarChanged(); MP.ui.setError('');
+      try { const u = new URL(location.href); u.searchParams.set('room', net.code); history.replaceState(null, '', u); } catch (e) { }
+      if (m.notice) MP.ui.setNote('The room restarted, so the last race was cancelled.');
+      break;
+    case 'lobby': {
+      const room = m.room;
+      for (const s of room.seats) ensureAsset(s.car);   // preload every car in the room
+      if (state === 'title' && room.phase === 'lobby' && room.map !== MAPKEY && !mapBusy) switchMap(room.map, false);   // preload the circuit
+      if (room.phase === 'lobby' && MP.race && state !== 'countdown' && state !== 'race') { /* stay on results until the player taps back */ }
+      MP.ui.render(); break;
+    }
+    case 'race': mpBeginRace(m); break;
+    case 'results': MP.results = m; if (MP.race && state !== 'finished') mpLocalFinish(true); break;
+    case 'error': MP.lastErr = m.error; if (m.fatal) mpReset(m.error); else MP.ui.setError(m.error); break;
+    case 'roomClosed': MP.lastErr = 'room-closed'; mpReset('room-closed'); break;
+    case 'closed': if (MP.net) mpReset(m.reason === 'connection-lost' ? 'connection-lost' : m.reason); break;
+    case 'reconnecting': MP.ui.render(); break;
+  }
+}
+async function mpBeginRace(m) {
+  if (MP.race && MP.race.msg.seed === m.seed) { MP.race.msg = m; return; }   // reconnect into the same race
+  if (MP.preparing) return; MP.preparing = true;
+  try {
+    if (state !== 'title') mpEndRaceView();
+    while (mapBusy) await tick();
+    if (m.map !== MAPKEY) await switchMap(m.map, false);
+    for (const st of m.seats) ensureAsset(st.car);
+    mpSetupRacers(m); sim.setMode(m.mode);
+    MP.race = { msg: m, startAt: m.countdownAt }; MP.results = null;
+    AU.init(); hudCache = {}; $('sector').textContent = `S1 · ${SECTORS[0].name}`; $('sector').style.color = SECTORS[0].css;
+    MP.ui.show(false); $('title').classList.add('hide'); $('results').classList.add('hide'); $('pause').classList.add('hide'); $('hud').classList.add('on');
+    document.body.classList.add('mprace'); paused = false; cineUI(false); FIN.on = false; FIN.t = 99; shownResults = false;
+    for (const lm of startLamps) lm.color.setRGB(0.15, 0.02, 0.03);
+    state = 'countdown'; cdT = 3; lastCount = -1; CC.shake = 0; boostAmt = 0;
+    sim.pose(player); chaseTarget(0, true, CC.pos, CC.look, CC.up);
+    for (const r of racers) updateVisual(r, 0);
+    try { await renderer.compileAsync(scene, camera); } catch (e) { }
+  } finally { MP.preparing = false; }
+}
+const MP_COPY = ['s', 'd', 'h', 'vh', 'psi', 'va', 'vd', 'yawV', 'steer', 'speed', 'dv', 'prog', 'lastRd', 'lap', 'lapStart', 'lapTimes', 'finished', 'finishTime', 'boost', 'meter', 'drift', 'air', 'airT', 'thr', 'vf', 'vl', 'acc', 'scrape', 'scrapeSide', 'sector', 'draftT', 'tow', 'wrongWayT', 'bestLap', 'curSplits', 'autopilot', 'rollAI', 'edgeAssist', 'cornerAssist'];
+function mpFrame(wall, dt0) {
+  const net = MP.net, RC = net && net.race;
+  if (!RC || MP.preparing) { update(0, dt0); return; }
+  if (DEBUG && MP.autodrive) mpAutodrive(RC.pred);
+  const steps = net.frame(keys);
+  const sn = net.serverNow();
+  if (state === 'countdown') cdT = (MP.race.startAt - sn) / 1000 + dt0;
+  // local car <- predictor
+  const pred = RC.pred, me = pred.me, trk = pred.sim.track, mapPath = p => (p && p === trk.BR ? BR : MAIN);
+  const wasCr = player.crashed > 0;
+  for (const k of MP_COPY) player[k] = me[k];
+  player.path = mapPath(me.path);
+  if (me.crashed > 0) { if (!wasCr) { player.world.copy(me.world); player.crashVel = me.crashVel ? me.crashVel.clone() : new V3(); player.crashSpin = me.crashSpin ? me.crashSpin.clone() : new V3(); } player.crashed = me.crashed; }
+  else { player.crashed = 0; sim.pose(player); player.world.add(pred.decay(dt0)); }
+  sim.time = pred.sim.time; sim.raceStart = pred.sim.raceStart; sim.phase = state === 'countdown' ? 'grid' : (me.finished ? 'finished' : 'race'); sim.bestLap = me.bestLap;
+  // remote cars <- interpolation (~120 ms in the past)
+  for (const r of racers) {
+    if (r === player || !RC.interp.sample(r.id, sn, MP_T)) continue;
+    r.path = mapPath(MP_T.path); r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;
+    r.lap = MP_T.lap; r.prog = MP_T.prog; r.boost = MP_T.boost; r.finished = MP_T.finished; r.steer = MP_T.steer; r.drift = MP_T.drift; r.thr = MP_T.thr; r.rollAI = MP_T.rollNet; r.autopilot = true;
+    if (MP_T.netCrashed) { if (!(r.crashed > 0)) { sim.pose(r); r.crashed = 1.7; r.crashVel = r.F.clone().multiplyScalar(r.speed * 0.8).addScaledVector(r.Uw, 6); r.crashSpin = new V3(R(-4, 4), R(-6, 6), R(-4, 4)); } }
+    else { r.crashed = 0; sim.pose(r); }
+  }
+  pred.sim.drones.forEach((pd, k) => { const d = drones[k]; if (!d) return; d.s = pd.s; d.d = pd.d; d.h = pd.h; d.world.copy(pd.world); d.fi = pd.fi; });
+  const fo = RC.last ? RC.last.fo : []; sim.finishOrder = fo.map(id => racers.find(r => r.id === id)).filter(Boolean);
+  if (state === 'race' && me.finished) mpLocalFinish(false);
+  gameTime = sim.time;
+  update(dt0, dt0);
+  mpStatus(sn);
+  void steps;
+}
+function mpLocalFinish(byServer) {
+  state = 'finished'; finishT = 0; orbitA = 0; FIN.on = CINE.on && !byServer; FIN.t = byServer ? 99 : 0;
+  const f = frameAt(MAIN, raceS(player.path, player.s) + 34, _fci); FIN.pos.copy(f.P).addScaledVector(f.R, MAIN.WR[f.i] - 2.2).addScaledVector(f.U, 3.4); FIN.up.copy(f.U);
+  const p = sim.finishOrder.indexOf(player) + 1;
+  if (!byServer) { flash(p === 1 ? 'VICTORY' : 'FINISH', p === 1 ? '#ffc23f' : '#00f0ff'); AU.chime(); }
+  else { flash('RACE OVER', '#8a5cff'); shownResults = true; $('results').classList.remove('hide'); }
+}
+function mpShowResults() {
+  const res = MP.results;
+  $('results').querySelector('.kicker').textContent = res ? 'ROOM RESULTS · SERVER' : 'FINISHED · WAITING FOR OTHERS';
+  let h = '<tr><th>POS</th><th>PILOT</th><th>BEST LAP</th><th>TIME</th></tr>', myPos = '';
+  if (res) {
+    for (const o of res.order) {
+      const liv = o.kind === 'bot' ? RIVAL_LIV[o.name] : PAINTS[o.paint || 0], col = liv ? liv.neon : '#0ff';
+      if (o.id === MP.net.you) myPos = o.dnf ? 'DNF' : 'P' + o.pos;
+      h += `<tr class="${o.id === MP.net.you ? 'me' : ''}"><td>P${o.pos}</td><td><span class="sw" style="background:${col};box-shadow:0 0 8px ${col}"></span>${escHtml(o.name)}${o.kind === 'bot' ? ' <small>BOT</small>' : ''}</td><td>${fmt(o.best)}</td><td>${o.dnf ? 'DNF' : fmt(o.time)}</td></tr>`;
+    }
+  } else {
+    const ranks = sim.ranks(); myPos = 'P' + (ranks.indexOf(player) + 1);
+    ranks.forEach((r, k) => { h += `<tr class="${r === player ? 'me' : ''}"><td>P${k + 1}</td><td><span class="sw" style="background:${r.css};box-shadow:0 0 8px ${r.css}"></span>${escHtml(r.name)}</td><td>—</td><td>${r.finished ? 'FIN' : 'LAP ' + Math.min(r.lap + 1, LAPS) + '…'}</td></tr>`; });
+  }
+  const el = $('resPos'); el.textContent = myPos; el.dataset.t = myPos;
+  $('resTable').innerHTML = h;
+  $('resLaps').innerHTML = player.lapTimes.map((t, k) => `LAP ${k + 1} &nbsp; ${fmt(t)}`).join('<br>') + '<br><span style="color:rgba(232,246,255,.5)">Multiplayer races never change single-player records.</span>';
+  $('toGarage').textContent = 'BACK TO LOBBY';
+}
+const escHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function mpEndRaceView() {
+  MP.race = null; document.body.classList.remove('mprace'); cineUI(false); FIN.on = false; FIN.t = 99;
+  $('results').classList.add('hide'); $('hud').classList.remove('on'); $('crashv').classList.remove('on'); $('toGarage').textContent = 'BACK TO GARAGE';
+  $('results').querySelector('.kicker').textContent = 'RACE COMPLETE';
+  releaseAllInputs(); mpRestoreSP();
+  $('title').classList.remove('hide'); shownResults = false; state = 'title'; garageShow();
+  for (const lm of startLamps) lm.color.setRGB(0.15, 0.02, 0.03);
+  if (MP.net && MP.net.room) MP.ui.show(true);
+}
+let mpStatT = 0;
+function mpStatus(sn) {
+  if (performance.now() - mpStatT < 500) return; mpStatT = performance.now();
+  const n = MP.net; if (!n) return;
+  $('mpStat').textContent = n.status === 'reconnecting' ? 'Reconnecting…' : `Room ${n.code} · ${Math.round(n.clock.rtt)} ms`;
+}
+// test builds only: scripted driving through the real input path (keys -> frames -> server)
+function mpAutodrive(pred) {
+  const r = pred.me; if (!r) return; const kg = pred.sim.kgAt(r.path, r.s + 10 + r.speed * 0.3);
+  const st = Math.max(-1, Math.min(1, r.d * 0.03 + r.psi * 3 - 30 * kg));
+  keys.up = 1; keys.down = 0; keys.right = st > 0 ? st : 0; keys.left = st < 0 ? -st : 0; keys.boost = r.meter > 0.6 ? 1 : 0;
+}
+$('mpLeave').addEventListener('click', () => {
+  const b = $('mpLeave');
+  if (performance.now() - MP.leaveArm > 3000) { MP.leaveArm = performance.now(); b.textContent = 'Tap again to leave'; setTimeout(() => { b.textContent = 'Leave race'; }, 3000); return; }
+  b.textContent = 'Leave race'; mpLeave();
+});
+MP.ui = createLobbyUI({ el: $('mpPanel'), getNet: () => MP.net, onCreate: mpCreate, onJoin: async (c, name) => mpJoin(c, name), onLeave: mpLeave,
+  onOpenChange: on => { GAR.fit = null; if (!on) $('mpBtn').focus({ preventScroll: true }); } });
+$('mpBtn').addEventListener('click', () => { $('mpBtn').blur(); MP.ui.show(!MP.ui.open); });
+{ const q = new URLSearchParams(location.search).get('room'); if (q) { MP.ui.setCode(q); MP.ui.show(true); } }
+if (import.meta.env.VITE_MP === '0') { $('mpBtn').remove(); }
+
 resize();
 // ---------- debug / QA hooks: compiled into dev and `--mode test` builds only ----------
 // In the production build DEBUG is the constant `false`, so this block (and the QA panel
@@ -2450,6 +2669,10 @@ if (DEBUG) {
     get rain() { return { shelterOn: rainMat.uniforms.uShelterOn.value, cells: SHELTER_MAP ? SHELTER_MAP.nx * SHELTER_MAP.nz : 0, camSheltered: SHELTER_MAP ? camera.position.y < shelterTop(SHELTER_MAP, camera.position.x, camera.position.z) - 0.15 : null }; },
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
+    get mp() { const n = MP.net, R = n && n.race; return { inRoom: !!(n && n.room), code: n && n.code, you: n && n.you, status: n && n.status, room: n && n.room, race: !!MP.race, state, lastErr: MP.lastErr, results: MP.results && MP.results.order.map(o => [o.pos, o.id, o.time, o.dnf]),
+      net: n ? (q => ({ recvDelayP50: q(n.stats.recvDelay, .5), recvDelayP95: q(n.stats.recvDelay, .95), frameGapP50: q(n.stats.frameGaps, .5), frameGapP95: q(n.stats.frameGaps, .95), behindMax: n.stats.behindMax, resyncSteps: n.stats.resyncSteps }))((a, p) => { if (!a.length) return null; const b = a.slice(-3000).sort((x, y) => x - y); return Math.round(b[Math.floor(b.length * p)]); }) : null,
+      rtt: n ? +n.clock.rtt.toFixed(1) : null, lead: n && n.lead, pending: R ? R.pred.pending : null, corrections: R ? R.pred.stats.corrections.length : 0, mispredictP95: R ? (a => a.length ? a[Math.floor(a.length * 0.95)] : 0)(R.pred.stats.corrections.slice(10).sort((x, y) => x - y)) : null, hard: R ? R.pred.stats.hard : 0,
+      me: player ? { lap: player.lap, prog: +player.prog.toFixed(1), finished: player.finished, speed: +player.speed.toFixed(1) } : null, racers: racers.map(r => ({ id: r.id, name: r.name, lap: r.lap, prog: +r.prog.toFixed(1), body: r.ship ? (r.ship.fallback ? 'FALLBACK' : 'glTF:' + r.ship.key) : null })), recordsOffered: records.rejected.length + (lastRecordOffer ? 1 : 0) }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
     qa: { open: qaOpen, garageNext: qaGarageNext, boostDemo: () => { touch(); qaBoostDemo(false); }, invertedDemo: () => { touch(); qaBoostDemo(true); }, exit: toGarage, select: (k, p) => { if (p != null) GAR.paint = p; selectCar(k); } }
   };
@@ -2459,7 +2682,7 @@ if (DEBUG) {
     // manual wall clock: drive the real frame path with synthetic frame gaps (low FPS / stalls)
     manualClock(on) { manualClock = !!on; last = performance.now(); },
     advance(ms, render = false) { const now = last + ms; advanceFrame(now, render); return clockInfo(); },
-    render() { renderNow(); }, start() { startRace(); } };
+    render() { renderNow(); }, start() { startRace(); }, mpAutodrive(on) { MP.autodrive = !!on; }, mpUI: () => MP.ui };
   $('qaBtn').addEventListener('click', () => { $('qaBtn').blur(); qaOpen(); });
 } else {
   $('qaBtn').remove();   // the QA panel markup stays (hidden, never openable): garage UI writes diagnostics into it

@@ -1,0 +1,15 @@
+# pass 95
+# fail 0
+PASS  A: guest sees no host-only bot controls
+PASS  A: lobby shows 2 humans + 2 bots, host marker, all ready  — [["Ana","human",true],["Ben","human",true],["GHOST","bot",true],["VEX","bot",true]]
+PASS  A-2h2b: every player is racing (local car moving)  — 1817.5,284.2
+PASS  A-2h2b: every client shows the SAME server result order  — [[1,"bot1",180.908,false],[2,"bot2",182.292,false],[3,"p1",197.133,false],[4,"p2",null,true]]
+PASS  A-2h2b: race completed by finishing (not the time cap)  — [[1,"bot1",180.908,false],[2,"bot2",182.292,false],[3,"p1",197.133,false],[4,"p2",null,true]]
+PASS  A-2h2b: no records offered from multiplayer
+PASS  A-2h2b: prediction p95 / hard snaps  — p1: p95 3.371 m, hard 934, rtt 69.3, lead 20, fps 4.9 | p2: p95 0.228 m, hard 42, rtt 10.3, lead 16, fps 4.8
+PASS  A: 4 racers in results
+PASS  A-rematch-2h1b: every player is racing (local car moving)  — 173.7,173.6
+FAIL  suite crashed  — page.waitForFunction: Timeout 140000ms exceeded.
+9/10 multiplayer browser checks passed
+
+[exited with code 0]
