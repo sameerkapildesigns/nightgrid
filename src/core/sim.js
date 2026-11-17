@@ -7,6 +7,7 @@
 //  - randomness comes from an injected seeded RNG (the city keeps its own stream).
 import { Vec3 } from './vec.js';
 import { clamp, lerp, mod, wrapA, damp, mulberry32, fmtTime } from './math.js';
+import { paceFor, FASTEST_MOD } from './pace.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
 
 export { H0, S0 };
@@ -39,7 +40,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     time: 0, raceStart: 0, phase: 'grid',   // grid | race | finished
     racers: [], drones: [], player: null, finishOrder: [],
     input: { up: 0, down: 0, left: 0, right: 0, boost: 0 },
-    diff: 'normal', bestLap: Infinity, bestSplits: [], curSplits: [], wrongWayT: 0,
+    diff: 'normal', mode: 'expert', pace: null, bestLap: Infinity, bestSplits: [], curSplits: [], wrongWayT: 0,
     debugTouched: false,   // set by debug hooks; taints laps for record purposes
     events: events || null,
     get track() { return td; },
@@ -50,10 +51,19 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function setTrack(key) {
     td = typeof key === 'string' ? buildTrackData(key) : key;
     ({ MAIN, BR, SAm, SBm, OFF, W0, LAPLEN, LAPS, HASBR, SECTORS } = td);
+    sim.pace = paceFor(td.key, sim.mode);
     for (const r of sim.racers) { r.path = MAIN; r.prevS = undefined; }
     return td;
   }
 
+  function setMode(mode) { sim.mode = mode === 'assisted' ? 'assisted' : 'expert'; if (td) sim.pace = paceFor(td.key, sim.mode); return sim.mode; }
+  // lookahead max |curvature| (follows the branch when the racer is committed to it)
+  function lookK(r, look) {
+    let km = 0;
+    const lp = (r.path === MAIN && r.takeShort && r.s < SAm && r.s > SAm - look) ? null : r.path;
+    for (let j = 6; j < look; j += 3) { const ss = r.s + j; let k; if (!lp) { k = ss >= SAm ? kgAt(BR, ss - SAm) : kgAt(MAIN, ss); } else k = kgAt(r.path, ss); k = Math.abs(k); if (k > km) km = k; }
+    return km;
+  }
   function makeRacer(name, isAI, pers, css) {
     return {
       name, isAI, pers, css, path: MAIN, s: 0, d: 0, h: H0, vh: 0, psi: 0, va: 0, vd: 0, yawV: 0, steer: 0,
@@ -135,16 +145,35 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const f = frameAt(r.path, r.s, _fp); const pth = f.path, i = f.i;
     const kg = pth.KG[i], kn = pth.KN[i];
     const inverted = f.U.y < -0.2, steep = f.U.y < 0.5;
-    const thr = keys.up ? 1 : 0, brk = keys.down ? 1 : 0, st = clamp((+keys.right || 0) - (+keys.left || 0), -1, 1);   // analogue-capable (tilt); keys send 0/1
+    const PC = sim.pace || paceFor(td.key, sim.mode), MD = PC.mode;
+    let thr = keys.up ? 1 : 0; const brk = keys.down ? 1 : 0;
+    let st = clamp((+keys.right || 0) - (+keys.left || 0), -1, 1);   // analogue-capable (tilt); keys send 0/1
+    // Assisted edge correction: only while the player is not steering (manual override), capped 15 %
+    r.edgeAssist = 0;
+    if (MD.edgeAssist > 0 && Math.abs(st) < 0.05 && !r.air) {
+      const [wl0, wr0] = walls(r), gapR = wr0 - r.d, gapL = r.d + wl0;
+      if (gapR < 3) r.edgeAssist = -MD.edgeAssist * clamp((3 - gapR) / 2, 0, 1);
+      else if (gapL < 3) r.edgeAssist = MD.edgeAssist * clamp((3 - gapL) / 2, 0, 1);
+      st = clamp(st + r.edgeAssist, -1, 1);
+    }
+    // Assisted corner easing: curvature lookahead -> lift (and gentle brake) above corner speed
+    r.cornerAssist = 0;
+    if (MD.cornerAssist && !r.air) {
+      const vC = Math.sqrt(PC.cornerA * (r.carMods ? r.carMods.grip : 1) / Math.max(lookK(r, 14 + r.speed * 1.2), 1e-4));
+      const over = r.va - vC;
+      if (over > 0) { thr = 0; r.cornerAssist = Math.min(12, over * 2.5); }
+    }
     r.thr = lerp(r.thr, thr, Math.min(1, dt * 8));
-    r.steer += (st - r.steer) * Math.min(1, dt * (st === 0 ? 7 : 4.5));
+    r.steer += (st - r.steer) * Math.min(1, dt * (st === 0 ? MD.steerNeutral : MD.steerRise));
     const wantB = keys.boost && r.meter > 0.01;
     r.boost = wantB; if (wantB) r.meter = Math.max(0, r.meter - dt * 0.32);
     const air = r.air;
     let vf = r.va * Math.cos(r.psi) - r.vd * Math.sin(r.psi);
     const avf = Math.abs(vf);
     const sf = Math.min(1, avf / 12) * (1 - 0.4 * Math.min(1, avf / 110));
-    const airbrake = brk && Math.abs(r.steer) > 0.25 && vf > 28;
+    // explicit drift (keys.drift) replaces v5b's hidden brake+steer airbrake; brake+steer = full braking
+    const airbrake = !!keys.drift && Math.abs(r.steer) > 0.25 && vf > 28;
+    r.brakeT = brk ? (r.brakeT || 0) + dt : 0;
     let yawT = -r.steer * 2.2 * sf * (vf < -0.5 ? -1 : 1) * (airbrake ? 1.3 : 1) * (air ? 0.35 : 1);
     // racing-line assist when inverted / on the wall: gently aim back toward the middle (player still steers)
     if ((steep || pth === BR) && vf > 15) {
@@ -153,22 +182,29 @@ export function createSim({ seed = 4242, events = null } = {}) {
       const k = (inverted ? 1.0 : steep ? 0.6 : 0.4) * (st === 0 ? 1 : 0.35);
       yawT += clamp((psiT - r.psi) * 3.2, -1.4, 1.4) * k;
     }
-    r.yawV += (yawT - r.yawV) * Math.min(1, dt * 9);
+    r.yawV += (yawT - r.yawV) * Math.min(1, dt * MD.yaw);
     r.psi = wrapA(r.psi + r.yawV * dt);
     const c = Math.cos(r.psi), sn = Math.sin(r.psi);
     vf = r.va * c - r.vd * sn; let vl = r.va * sn + r.vd * c;
     const tow = r.tow;
     const CM = r.carMods || { vmax: 1, acc: 1, grip: 1 };
-    const vmax = (r.boost ? 125 : 92) * (1 + 0.06 * tow) * CM.vmax;
+    const capN = PC.normal * CM.vmax / FASTEST_MOD, capB = PC.boost * CM.vmax / FASTEST_MOD;
+    const vmax = (r.boost ? capB : capN) * (MD.draftOverCap ? 1 + 0.06 * tow : 1);
     let a = 0;
     const tm = air ? 0.25 : 1;
     if (thr) a += (r.boost ? 80 : 44) * CM.acc * tm * Math.max(-0.5, 1 - (vf / vmax) * (vf / vmax));
     else if (r.boost) a += 34 * tm * Math.max(0, 1 - (vf / vmax) * (vf / vmax));
     if (vf > vmax) a -= (vf - vmax) * 1.2;
-    if (brk && !air) { if (airbrake) a -= 9; else a -= vf > 0.5 ? 46 : 16; }
+    if (airbrake && !air) a -= 9;
+    else if (brk && !air) a -= vf > 0.5 ? MD.brake0 + (MD.brakeMax - MD.brake0) * Math.min(1, r.brakeT / MD.brakeRamp) : 16;
+    else if (r.cornerAssist > 0 && vf > 0.5) a -= r.cornerAssist;
     a -= vf * 0.035 * (1 - 0.35 * tow) + (thr || r.boost ? 0 : 3.5) * Math.sign(vf);
     if (r.slingT > 0) { a += 22; r.slingT -= dt; }
     vf += a * dt; if (vf < -22) vf = -22;
+    if (!MD.draftOverCap) {   // Assisted: hard ceiling (boost cap while boosting, decaying back to the normal cap) - gravity/draft/slingshot can't exceed it
+      r.capHold = r.boost ? capB : Math.max(capN, Math.min(capB, (r.capHold || capN) - 25 * dt));
+      if (vf > r.capHold) vf = r.capHold;
+    }
     if (!thr && !brk && !r.boost && Math.abs(vf) < 0.6) vf = 0;
     const grip = air ? 0.4 : airbrake ? 1.5 * CM.grip : (r.boost ? 6.0 : 7.5) * (inverted ? 1.25 : 1) * CM.grip;
     const nvl = vl * Math.exp(-grip * dt), lost = Math.abs(vl - nvl); vl = nvl;
@@ -229,30 +265,35 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function stepAI(r, dt) {
     const P0 = r.pers, player = sim.player, racing = sim.phase === 'race';
     const f = frameAt(r.path, r.s, _fa); const pth = f.path, i = f.i;
-    const look = 12 + r.speed * 1.15; let km = 0;
-    const lp = (r.path === MAIN && r.takeShort && r.s < SAm && r.s > SAm - look) ? null : r.path;
-    for (let j = 6; j < look; j += 3) { const ss = r.s + j; let k; if (!lp) { k = ss >= SAm ? kgAt(BR, ss - SAm) : kgAt(MAIN, ss); } else k = kgAt(r.path, ss); k = Math.abs(k); if (k > km) km = k; }
+    const look = 12 + r.speed * 1.15, km = lookK(r, look), PC = sim.pace || paceFor(td.key, sim.mode);
     const kn = kgAt(r.path, r.s + 8 + r.speed * 0.3);
     const DF = DIFF[sim.diff] || DIFF.normal;
-    const vC = Math.sqrt(P0.lat * td.def.ai.lat * DF.lat / Math.max(km, 1e-4));
+    // M3: corner speed from the mode's lateral accel (personality lat relative to 84, difficulty lat)
+    const vC = Math.sqrt(PC.cornerA * (P0 ? P0.lat / 84 : 1) * DF.lat / Math.max(km, 1e-4));
     const noise = 1 + 0.018 * Math.sin(sim.time * 0.21 + r.phA) + 0.012 * Math.sin(sim.time * 0.67 + r.phB);
     let rub = 1;
     if (r !== player && !player.finished && racing) {
       const gapSec = (player.prog - r.prog) / 62;
       rub = 1 + (gapSec > 0 ? clamp(gapSec / 8, 0, 1.35) * 0.06 : clamp(gapSec / 8, -1.3, 0) * 0.065);
     }
-    let vmax = (P0 ? P0.vmax : 70) * td.def.ai.vmax * DF.vmax * noise * rub * (1 + 0.04 * r.tow);
+    // M3: AI top pace scaled to the mode's cap (v5b AI ~= the fastest car's cap), personality relative to 93.75
+    let vmax = PC.normal * ((P0 ? P0.vmax : 70) / 93.75) * DF.vmax * noise * rub * (PC.mode.draftOverCap ? 1 + 0.04 * r.tow : 1);
     if (r !== player && racing) {
       r.aiBoostCD -= dt;
       if (r.aiBoostT > 0) { r.aiBoostT -= dt; r.boost = true; }
       else { r.boost = false; if (r.aiBoostCD <= 0 && vC > vmax * 1.4 && r.speed > 60) { r.aiBoostT = R(1.2, 2.2) * P0.boostUse; r.aiBoostCD = R(9, 16) / P0.boostUse; } }
-      if (r.boost) vmax *= 1.24;
+      if (r.boost) vmax = Math.min(vmax * 1.24, PC.boost * Math.min(1, (P0 ? P0.vmax : 70) / 93.75));
     } else r.boost = false;
     if (r.qaBoost) { r.boost = true; vmax *= 1.24; r.meter = 1; }
     const vT = Math.min(vmax, vC * (r.boost ? 1.04 : 1) * Math.min(1.04, rub * noise));
     const dv = vT - r.speed;
     r.speed += dv > 0 ? Math.min(dv, ((P0 ? P0.acc : 24) + (r.boost ? 12 : 0)) * dt) : Math.max(dv, -(P0 ? P0.brake : 44) * dt);
     r.speed -= GRAV * f.T.y * dt; if (r.speed < 0) r.speed = 0;
+    if (!PC.mode.draftOverCap) {   // Assisted: same hard ceiling rule as the player (AI never outruns the cap)
+      const pf = Math.min(1, (P0 ? P0.vmax : 70) / 93.75), cN = PC.normal * pf, cB = PC.boost * pf;
+      r.capHold = r.boost ? cB : Math.max(cN, Math.min(cB, (r.capHold || cN) - 25 * dt));
+      if (r.speed > r.capHold) r.speed = r.capHold;
+    }
     r.thr = dv > 0.5 ? 1 : 0.3;
     const W = r.path === BR ? WB : W0;
     let dT = -Math.sign(kn) * Math.min(Math.abs(kn) * 260, 1) * W * 0.55 + (P0 ? P0.off : 0);
@@ -358,7 +399,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (r === sim.player) {
       if (r.tow > 0.2) earn('SLIPSTREAM', '#00f0ff', dt * 0.06);
       if (!inCone && was >= 1.5 && r.slingT <= 0 && !r.autopilot) { r.slingT = 0.5; r.draftT = 0; ev.flash('SLINGSHOT', '#00f0ff'); ev.sfx('whoosh'); ev.kick(6); }
-    } else if (!inCone && was >= 1.5) { r.speed += 6; r.draftT = 0; }
+    } else if (!inCone && was >= 1.5) { r.speed += 6; r.draftT = 0; }   // (Assisted: clipped by the AI ceiling next step)
   }
   function checkLaps(r, h) {
     const player = sim.player;
@@ -454,6 +495,12 @@ export function createSim({ seed = 4242, events = null } = {}) {
       collideRacers();
       for (const r of sim.racers) { if (!r.crashed) { slipstream(r, h); checkLaps(r, h); } }
       nearMisses();
+      // Assisted: ceiling re-applied after slingshot/collision impulses (AI uses r.speed; player uses va/vd)
+      if (!(sim.pace && sim.pace.mode.draftOverCap)) for (const r of sim.racers) {
+        if (r.capHold == null || r.crashed) continue;
+        if (r.autopilot) { if (r.speed > r.capHold) r.speed = r.capHold; }
+        else { const sp = Math.hypot(r.va, r.vd); if (sp > r.capHold) { const k = r.capHold / sp; r.va *= k; r.vd *= k; r.speed = r.capHold; } }
+      }
     } else {
       for (const r of sim.racers) { const f = frameAt(r.path, r.s, _fb); hoverStep(r, f.path.KN[f.i], 0, h); if (r === player) r.thr = lerp(r.thr, sim.input.up ? 1 : 0, Math.min(1, h * 8)); }
     }
@@ -470,7 +517,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     return false;
   }
 
-  Object.assign(sim, { setTrack, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
+  Object.assign(sim, { setTrack, setMode, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
     frameAt, kgAt, raceS, rdist });
   return sim;
 }

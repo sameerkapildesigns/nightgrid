@@ -111,7 +111,7 @@ try {
       C(`maps: ${k} builds (length/laps/name/world)`, m.lengthM === expect[k][0] && m.laps === expect[k][1] && m.name === expect[k][2] && m.worldMeshes > 40 && m.lastSwitch.geometries > 0, `${m.lengthM} m, ${m.laps} laps, ${m.worldMeshes} meshes, switch ${m.lastSwitch.ms} ms`);
       const gr = await page.evaluate(() => NG_DEBUG.ground);
       C(`ground ${k}: full-width road/rail/vehicle solid clears the rendered ground; no building over a pit`, gr.worst.c >= -1e-3 && gr.buildingsOverPits === 0 && gr.buildingsChecked > 100, JSON.stringify({ worst: gr.worst, pits: gr.pitBlocks, buildings: gr.buildingsChecked, over: gr.buildingsOverPits }));
-      C(`maps: ${k} shows no record in a clean session`, m.rec === 'No record yet', m.rec);
+      C(`maps: ${k} shows no record in a clean session`, /^No (Assisted|Expert) record yet$/.test(m.rec), m.rec);
     }
     C('maps: no page errors', realErrors(logs).length === 0, realErrors(logs).slice(0, 3).join(' | '));
     await ctx.close();
@@ -353,7 +353,7 @@ try {
       await page.goto(TEST + '?touch'); await waitRaceBtn(page);
       const calls0 = await page.evaluate(() => window.__permCalls);
       C(`tilt (${mode}): no permission prompt on page load; Touch is default`, calls0 === 0 && (await page.evaluate(() => NG_DEBUG.tilt.pref)) === 'touch');
-      await page.tap('#setBtn'); await page.tap('[data-steer="tilt"]'); await page.waitForTimeout(1900);
+      await page.tap('#setBtn'); await page.tap('[data-steer="tilt"]'); await page.waitForFunction(() => !/Checking/.test(NG_DEBUG.tilt.msg), null, { timeout: 15000 });
       const t = await page.evaluate(() => ({ ...NG_DEBUG.tilt, calls: window.__permCalls }));
       if (mode === 'denied') C('tilt (denied): clear message, Touch fallback', t.pref === 'touch' && /not granted/.test(t.msg) && t.calls === 1, t.msg);
       if (mode === 'nomethod') C('tilt (no permission API, no events): clear message, Touch fallback', t.pref === 'touch' && /No tilt sensor events/.test(t.msg), t.msg);
@@ -378,6 +378,23 @@ try {
       C(`tilt (${mode}): no page errors`, logs.length === 0, logs.slice(0, 2).join(' | '));
       await ctx.close();
     }
+  }
+
+  // ---------------- H. M3 driving modes: defaults, persistence across reload, per-mode records ----------------
+  if (run('H')) {
+    { const { ctx, page } = await openGame(browser, { width: 1280, height: 675 });
+      const d0 = await page.evaluate(() => NG_DEBUG.drive);
+      C('mode: desktop default is Expert (pace caps applied to the sim)', d0.mode === 'expert' && d0.simMode === 'expert' && d0.pace.normalKmh === 310 && /Expert/.test(d0.recordLabel), JSON.stringify(d0));
+      await page.click('#setBtn'); await page.click('[data-mode="assisted"]');
+      const d1 = await page.evaluate(() => NG_DEBUG.drive);
+      await page.reload(); await page.waitForFunction(() => window.NG_DEBUG && NG_DEBUG.state === 'title', null, { timeout: 180000 });
+      const d2 = await page.evaluate(() => NG_DEBUG.drive);
+      C('mode: Assisted choice persists across reload; separate record key + label', d1.mode === 'assisted' && d2.mode === 'assisted' && d2.simMode === 'assisted' && d2.pace.normalKmh === 240 && d2.recordKey === 'm3_assisted_velocity' && /Assisted/.test(d2.recordLabel), JSON.stringify({ d1, d2 }));
+      await ctx.close(); }
+    { const { ctx, page } = await openGame(browser, { width: 844, height: 390, query: '?touch', ctxOpts: { isMobile: true, hasTouch: true } });
+      const d = await page.evaluate(() => NG_DEBUG.drive);
+      C('mode: phone (touch) default is Assisted', d.mode === 'assisted' && d.pace.normalKmh === 240, JSON.stringify(d));
+      await ctx.close(); }
   }
 
   // ---------------- G. production build: debug gated off ----------------

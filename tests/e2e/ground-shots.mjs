@@ -5,7 +5,7 @@ import { launch, openGame } from './harness.mjs';
 const [dir, prefix] = process.argv.slice(2);
 const srv = await preview({ root: dir.replace(/\/dist-test$/, ''), build: { outDir: dir }, preview: { port: 4174, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
 const b = await launch();
-const spots = [['velocity', 3905, 'top'], ['velocity', 3905, 'drive'], ['technical', 1481, 'top'], ['technical', 1481, 'drive'], ['legacy', 2443, 'top'], ['legacy', 2443, 'drive']];
+const spots = [['velocity', 3905, 'top'], ['velocity', 3905, 'drive'], ['velocity', 3935, 'inverted'], ['technical', 1481, 'top'], ['technical', 1481, 'drive'], ['legacy', 2443, 'top'], ['legacy', 2443, 'drive']];
 const { page } = await openGame(b, { width: 960, height: 540 });
 await page.waitForFunction(() => document.getElementById('go').textContent === 'Race' && !document.getElementById('go').disabled, null, { timeout: 120000 });
 for (const [map, s, view] of spots) {
@@ -20,6 +20,7 @@ for (const [map, s, view] of spots) {
     const flat = (v) => { const n = Math.hypot(v.x, v.z) || 1; return { x: v.x / n, z: v.z / n }; };
     const t = flat(T), side = { x: -t.z, z: t.x };
     if (view === 'top') { c.position.set(P.x - t.x * 25, P.y + 75, P.z - t.z * 25); c.up.set(t.x, 0, t.z); c.lookAt(P.x, P.y, P.z); }
+    else if (view === 'inverted') { const U = M.U[i]; c.position.set(P.x + U.x * 3.2, P.y + U.y * 3.2, P.z + U.z * 3.2); c.up.set(U.x, U.y, U.z); const k2 = (i + 60) % M.N, Q = M.P[k2]; c.lookAt(Q.x, Q.y, Q.z); }
     else { const j = (i - 70 + M.N) % M.N, Q = M.P[j], U = M.U[j]; c.position.set(Q.x + U.x * 3.2, Q.y + U.y * 3.2, Q.z + U.z * 3.2); c.up.set(U.x, U.y, U.z); c.lookAt(P.x, P.y, P.z); }
     c.fov = 70; c.updateProjectionMatrix();
     for (const r of __ng.racers) if (r.ship) r.ship.root.visible = false;

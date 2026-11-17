@@ -14,7 +14,8 @@ import { clamp, lerp, mod, wrapA, damp, smooth, sstep, mulberry32, fmtTime as fm
 import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
-import { createRecordStore, memoryStorage } from '../core/records.js';
+import { createRecordStore, memoryStorage, recordKey } from '../core/records.js';
+import { DRIVE_MODES } from '../core/pace.js';
 import { createTilt } from '../core/tilt.js';
 import { buildClearance, groundHeightAt, worstClearance, GROUND_Y } from '../core/terrain.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
@@ -492,6 +493,7 @@ function buildGroundGeometry(cx, cz) {
     if (pit.has((X0 + i * B) + ',' + (Z0 + j * B))) continue;
     const a = base + j * (nb + 1) + i, b = a + 1, c = a + nb + 1, d = c + 1; idx.push(a, c, b, b, c, d);
   }
+  const flatIdx = idx.length;
   // pit blocks at the clearance-grid resolution
   const per = Math.round(B / cl.cell);
   for (const [bx, bz] of cl.blocks) {
@@ -502,6 +504,7 @@ function buildGroundGeometry(cx, cz) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx); g.computeVertexNormals();
+  g.addGroup(0, flatIdx, 0); g.addGroup(flatIdx, idx.length - flatIdx, 1);   // 0: flat tiles, 1: pit blocks
   return g;
 }
 function buildCity() {
@@ -614,7 +617,11 @@ function buildCity() {
   mk(signsV, SIGN_V, true); mk(signsH, SIGN_H, false);
   const gtex = canvasTex(256, 256, g => { g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(0,240,255,0.35)'; g.fillRect(0, 0, 256, 2); g.fillRect(0, 0, 2, 256); g.fillStyle = 'rgba(255,43,214,0.18)'; g.fillRect(0, 128, 256, 1); g.fillRect(128, 0, 1, 256); });
   gtex.wrapS = gtex.wrapT = THREE.RepeatWrapping; gtex.repeat.set(6000 / 50, 6000 / 50);
-  const ground = new THREE.Mesh(buildGroundGeometry((minX + maxX) / 2, (minZ + maxZ) / 2), new THREE.MeshStandardMaterial({ color: 0x07060c, roughness: 0.32, metalness: 0.6, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(0.5, 0.5, 0.5), side: THREE.DoubleSide }));
+  // single-sided like v5b (no visible underside). Flat ground: original material. Pit embankments: matte
+  // retaining-wall variant of the same material (no mirror streaks on steep faces).
+  const gGeo = buildGroundGeometry((minX + maxX) / 2, (minZ + maxZ) / 2);
+  const ground = new THREE.Mesh(gGeo, [new THREE.MeshStandardMaterial({ color: 0x07060c, roughness: 0.32, metalness: 0.6, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(0.5, 0.5, 0.5) }),
+    new THREE.MeshStandardMaterial({ color: 0x0c0b12, roughness: 0.88, metalness: 0.15, envMapIntensity: 0.15, emissiveMap: gtex, emissive: new THREE.Color(0.32, 0.32, 0.36) })]);
   ground.name = 'ground'; WORLD.add(ground);
   return { minX, maxX, minZ, maxZ };
 }
@@ -1484,7 +1491,7 @@ function updateGarageUI() {
     $('go').disabled = !(ready && state === 'title') || mapBusy;
     $('go').textContent = mapBusy ? 'Building…' : ready ? 'Race' : !settled ? `Loading ${A && A.bytes ? fmtMB(A.bytes) : '…'}` : 'Loading rivals…';
   }
-  if ($('record')) $('record').textContent = isFinite(recordLap) ? `Record ${fmt(recordLap)}` : 'No record yet';
+  if ($('record')) $('record').textContent = isFinite(recordLap) ? `${modeLabel()} record ${fmt(recordLap)}` : `No ${modeLabel()} record yet`;
   GAR.fit = null;
 }
 function layoutMode() { GAR.fit = null; }
@@ -1687,9 +1694,14 @@ let shownResults = false;
 // automated or debug sessions can never write a real record. Every lap is validated
 // (core/records.js) before it is offered: physics bound, position jumps, autopilot, debug.
 const RECORD_STORAGE = DEBUG ? memoryStorage() : (() => { try { return window.localStorage || memoryStorage(); } catch (e) { return memoryStorage(); } })();
-const records = createRecordStore(RECORD_STORAGE, { lapLenOf: k => (k === MAPKEY ? LAPLEN : NaN) });
+const records = createRecordStore(RECORD_STORAGE, { lapLenOf: k => (k.endsWith('_' + MAPKEY) ? LAPLEN : NaN) });
 let recordLap = Infinity, lastRecordOffer = null;
-function loadRecord() { recordLap = records.get(MAPKEY); }
+// M3 driving mode (Assisted / Expert): separate from AI difficulty and from the input method.
+// Default: Assisted on touch (coarse-pointer) devices, Expert otherwise; the choice persists.
+let driveMode = (() => { try { const v = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (v && DRIVE_MODES.includes(v.mode)) return v.mode; } catch (e) { } const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) || new URLSearchParams(location.search).has('touch'); return coarse ? 'assisted' : 'expert'; })();
+sim.setMode(driveMode);
+const modeLabel = () => (driveMode === 'assisted' ? 'Assisted' : 'Expert');
+function loadRecord() { recordLap = records.get(recordKey(driveMode, MAPKEY)); }
 loadRecord();
 const keys = sim.input;
 let lastCount = -1;
@@ -1734,7 +1746,7 @@ sim.events = {
   sector: sec => { secFlash(sec); $('sector').textContent = `S${sec + 1} · ${SECTORS[sec].name}`; $('sector').style.color = SECTORS[sec].css; },
   lap: lap => {
     if (lap.isBest) { $('best').classList.add('flash'); setTimeout(() => $('best').classList.remove('flash'), 2000); }
-    lastRecordOffer = Object.assign({ time: lap.time, map: lap.map }, records.offer(MAPKEY, lap));
+    lastRecordOffer = Object.assign({ time: lap.time, map: lap.map }, records.offer(recordKey(driveMode, MAPKEY), lap));
     if (lastRecordOffer.saved) recordLap = lap.time;
   },
   playerFinish: () => {
@@ -1882,7 +1894,7 @@ function initHUD() {
   g.setLineDash([3 * dpr, 3 * dpr]); g.strokeStyle = '#ff8a2a'; g.lineWidth = 1.6 * dpr; g.beginPath(); if (HASBR) for (let i = 0; i < BR.N; i += 4) { const [x, y] = mmT(BR.P[i].x, BR.P[i].z); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.setLineDash([]);
   const si = Math.round(S0 / MAIN.ds); const [sx, sy] = mmT(MAIN.P[si].x, MAIN.P[si].z); g.fillStyle = '#fff'; g.fillRect(sx - 4 * dpr, sy - 4 * dpr, 8 * dpr, 8 * dpr);
   mm.dpr = dpr;
-  $('record').textContent = isFinite(recordLap) ? `Record ${fmt(recordLap)}` : 'No record yet';
+  $('record').textContent = isFinite(recordLap) ? `${modeLabel()} record ${fmt(recordLap)}` : `No ${modeLabel()} record yet`;
 }
 let hudCache = {};
 function setT(id, v) { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } }
@@ -1952,7 +1964,7 @@ async function startRace() {
   if (!isRaceReady(GAR.sel, assetStatus)) { ensureRaceAssets(GAR.sel); return; }
   raceStarting = true;
   try {
-    AU.init(); sim.diff = SETTINGS.diff;
+    AU.init(); sim.diff = SETTINGS.diff; sim.setMode(driveMode);
     refreshRacerCars(); gridUp(); hudCache = {}; $('sector').textContent = `S1 · ${SECTORS[0].name}`; $('sector').style.color = SECTORS[0].css;
     $('go').blur(); $('go').disabled = true; $('go').textContent = 'Preparing…';
     for (const r of racers) updateVisual(r, 0);
@@ -2025,7 +2037,7 @@ if (DEBUG) $('qa').addEventListener('click', e => { const b = e.target.closest('
   const end = () => { GAR.drag = null; GAR.lastInteract = gameTime; };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
 }
-const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'boost' };
+const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', KeyX: 'drift', ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'boost' };
 addEventListener('keydown', e => {
   const k = KEYMAP[e.code];
   if (k) { keys[k] = 1; e.preventDefault(); }
@@ -2185,12 +2197,13 @@ function update(dt, dt0) {
 
 /* ---------- settings: motion blur / camera shake (reduced-motion aware) ---------- */
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch' };
+const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode };
 try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
 const BLUR_K = [0, 1, 1.8];
 function renderSettings() {
   $('setBlur').innerHTML = ['Off', 'Mild', 'Strong'].map((n, i) => `<button class="${SETTINGS.blur === i ? 'on' : ''}" data-blur="${i}" role="radio" aria-checked="${SETTINGS.blur === i}">${n}</button>`).join('');
   $('setShake').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+SETTINGS.shake === i ? 'on' : ''}" data-shake="${i}" role="radio" aria-checked="${+SETTINGS.shake === i}">${n}</button>`).join('');
+  $('setMode').innerHTML = [['assisted', 'Assisted'], ['expert', 'Expert']].map(([k, n]) => `<button class="${driveMode === k ? 'on' : ''}" data-mode="${k}" role="radio" aria-checked="${driveMode === k}">${n}</button>`).join('');
   $('setDiff').innerHTML = [['normal', 'Normal'], ['hard', 'Hard']].map(([k, n]) => `<button class="${SETTINGS.diff === k ? 'on' : ''}" data-diff="${k}" role="radio" aria-checked="${SETTINGS.diff === k}">${n}</button>`).join('');
   $('setCine').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+(SETTINGS.cine !== false) === i ? 'on' : ''}" data-cine="${i}" role="radio" aria-checked="${+(SETTINGS.cine !== false) === i}">${n}</button>`).join('');
   $('setSteer').innerHTML = [['touch', 'Touch'], ['tilt', 'Enable Tilt']].map(([k, n]) => `<button class="${(SETTINGS.steer || 'touch') === k ? 'on' : ''}" data-steer="${k}" role="radio" aria-checked="${(SETTINGS.steer || 'touch') === k}" style="min-height:44px">${n}</button>`).join('');
@@ -2201,6 +2214,7 @@ $('setBlur').addEventListener('click', e => { const b = e.target.closest('[data-
 $('setShake').addEventListener('click', e => { const b = e.target.closest('[data-shake]'); if (b) { SETTINGS.shake = b.dataset.shake === '1'; saveSettings(); } });
 $('setBtn').addEventListener('click', () => openSheet('setPanel'));
 $('setCine').addEventListener('click', e => { const b = e.target.closest('[data-cine]'); if (b) { SETTINGS.cine = b.dataset.cine === '1'; saveSettings(); } });
+$('setMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (!b || !DRIVE_MODES.includes(b.dataset.mode)) return; SETTINGS.mode = driveMode = b.dataset.mode; if (state === 'title') sim.setMode(driveMode); saveSettings(); loadRecord(); updateGarageUI(); });
 $('setDiff').addEventListener('click', e => { const b = e.target.closest('[data-diff]'); if (b) { SETTINGS.diff = b.dataset.diff; sim.diff = SETTINGS.diff; saveSettings(); } });
 renderSettings();
 
@@ -2229,7 +2243,7 @@ function cineIntroCam(t, dt) {
 }
 function startIntroCine() {
   $('cineSub').textContent = MAPDEF.sub; $('cineName').textContent = MAPDEF.name;
-  $('cineMeta').textContent = `${LAPS} laps · ${(SHORT[GAR.sel] || [CARS[GAR.sel].nick])[0]} · ${SETTINGS.diff === 'hard' ? 'Hard' : 'Normal'} rivals`;
+  $('cineMeta').textContent = `${LAPS} laps · ${(SHORT[GAR.sel] || [CARS[GAR.sel].nick])[0]} · ${modeLabel()} · ${SETTINGS.diff === 'hard' ? 'Hard' : 'Normal'} rivals`;
 }
 function endIntro(skipped = false) { if (state !== 'intro') return; if (introStats) { introStats.endedAt = performance.now(); introStats.skipped = skipped; introStats.wallSec = (introStats.endedAt - introStats.startedAt) / 1000; } state = 'countdown'; cdT = 3.0; lastCount = -1; cineUI(false); chaseTarget(0, true, CC.pos, CC.look, CC.up); }
 function skipFinishCine() { if (state === 'finished' && FIN.on && FIN.t < 3.4) { FIN.t = 3.4; return true; } return false; }
@@ -2413,6 +2427,7 @@ if (DEBUG) {
     get records() { return { storage: 'memory (debug/test build)', current: isFinite(recordLap) ? recordLap : null, lastOffer: lastRecordOffer, rejected: records.rejected.slice() }; },
     get results() { return { lapTimes: player ? player.lapTimes.slice() : [], lapValid: player ? player.lapValid.slice() : [], finishTime: player ? player.finishTime : 0, order: sim.finishOrder.map(r => r.name), visible: !$('results').classList.contains('hide') }; },
     get ground() { const cl = CLEARANCE; if (!cl) return null; const w = worstClearance(TD, (x, z) => groundHeightAt(cl, x, z)); const fp = []; for (const b of bList) if (b.y0 === 0) { let hit = false; for (let u = -0.5; u <= 0.5 && !hit; u += 0.125) for (let v = -0.5; v <= 0.5 && !hit; v += 0.125) if (groundHeightAt(cl, b.x + u * b.w, b.z + v * b.d) < GROUND_Y - 1e-4) hit = true; if (hit) fp.push([Math.round(b.x), Math.round(b.z)]); } return { worst: w, pitBlocks: cl.blocks.length, buildingsOverPits: fp.length, buildingsChecked: bList.filter(b => b.y0 === 0).length }; },
+    get drive() { return { mode: driveMode, simMode: sim.mode, pace: sim.pace && { normalKmh: +(sim.pace.normal * 3.6).toFixed(1), boostKmh: +(sim.pace.boost * 3.6).toFixed(1) }, recordKey: recordKey(driveMode, MAPKEY), recordLabel: $('record').textContent }; },
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },

@@ -8,6 +8,10 @@ export const LEGACY_KEYS = { legacy: ['nightgrid_v2_best'] };
 export const MAX_LAP_SPEED = 140;
 export const MAX_LAP_SECONDS = 3600;
 
+// M3: records are kept per driving mode. Pre-M3 records (nightgrid_v4_rec_<map>, nightgrid_v2_best)
+// were set under v5b physics, which neither mode reproduces; they are NOT migrated into either mode
+// and are left untouched in storage (read-only, never deleted).
+export function recordKey(mode, map) { return `m3_${mode === 'assisted' ? 'assisted' : 'expert'}_${map}`; }
 export function minPlausibleLap(lapLenM) { return lapLenM / MAX_LAP_SPEED; }
 
 // lap: { time, lapLen, integrity: { teleport, autopilot, debug } }
