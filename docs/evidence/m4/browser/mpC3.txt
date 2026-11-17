@@ -1,0 +1,14 @@
+PASS  C: Add bot disabled at 4 seats
+PASS  C: portrait phone opening an invite link sees the room panel (rotate prompt deferred)
+PASS  C-1h3b: every player is racing (local car moving)  — 801.2
+PASS  C-1h3b: every client shows the SAME server result order  — [[1,"bot1",181,false],[2,"bot3",185.192,false],[3,"bot2",185.667,false],[4,"p1",null,true]]
+FAIL  C-1h3b: every HUMAN finished the race (no human DNF)  — [[4,"p1",null,true]]
+PASS  C-1h3b: server tick never overran its 50 ms budget  — ticks 6098, tick p95 0.47 ms, overruns 0, late ticks 1, dropped 0 ms, starved frames 3908, skipped frames 0, rejected {}
+INFO  C-1h3b p1: server input  — frames consumed 36000, missed 3908 (10.9 %), skipped 0, max queued 130
+PASS  C-1h3b: no records offered from multiplayer
+TARGET FAIL  C-1h3b p1: mispredict p95 <= 1 m  — 1.077 m
+TARGET FAIL  C-1h3b p1: hard snaps <= 2/min  — 68 in 5.0 min
+INFO  C-1h3b p1: client  — rtt 961.7 ms, lead 180, fps 1.1, render every 1, main thread {"recvDelayP50":0,"recvDelayP95":0,"frameGapP50":909,"frameGapP95":1200,"behindMax":184,"resyncSteps":0,"stallsOver250ms":299,"stallsOver1s":114,"aheadRejections":[],"frames":496}
+PASS  Hal: no page errors
+7/8 functional checks passed; 0/2 quality targets met (render every 1 frame(s))
+EXIT 1

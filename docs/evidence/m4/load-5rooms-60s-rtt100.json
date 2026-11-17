@@ -1,5 +1,5 @@
 {
- "when": "2026-11-17T19:07:49.436Z",
+ "when": "2026-11-17T20:50:33.272Z",
  "rooms": 5,
  "humansPerRoom": 4,
  "raceSeconds": 60,
@@ -12,29 +12,29 @@
   "error": "capacity"
  },
  "processCpu": {
-  "userS": 14.2,
-  "systemS": 0.7,
-  "utilisationOfOneCore": 0.234
+  "userS": 14.9,
+  "systemS": 0.8,
+  "utilisationOfOneCore": 0.246
  },
  "eventLoopLagMs": {
-  "p50": 10.14,
-  "p99": 11.5,
-  "max": 167.25
+  "p50": 10.15,
+  "p99": 11.58,
+  "max": 276.3
  },
  "rssMB": {
   "start": 63,
-  "end": 264
+  "end": 251
  },
  "perRoomServer": [
   {
    "map": "technical",
-   "ticks": 1235,
-   "steps": 7150,
+   "ticks": 1236,
+   "steps": 7182,
    "tickMs": {
-    "n": 1235,
-    "median": 0.3058709999968414,
-    "p95": 0.4312170000048354,
-    "max": 1.9253439999993134
+    "n": 1236,
+    "median": 0.3196800000005169,
+    "p95": 0.47712699999829056,
+    "max": 3.6422700000002806
    },
    "overruns": 0,
    "lateTicks": 0,
@@ -42,18 +42,18 @@
    "starvedFrames": 0,
    "skippedFrames": 0,
    "rejected": {},
-   "recvMsgs": 4100,
-   "sentMsgs": 5254
+   "recvMsgs": 4133,
+   "sentMsgs": 5258
   },
   {
    "map": "velocity",
-   "ticks": 1235,
-   "steps": 7184,
+   "ticks": 1232,
+   "steps": 7181,
    "tickMs": {
-    "n": 1235,
-    "median": 0.35214799999812385,
-    "p95": 0.5050469999987399,
-    "max": 1.2115869999997813
+    "n": 1232,
+    "median": 0.34846099999776925,
+    "p95": 0.5133120000027702,
+    "max": 3.777825999997731
    },
    "overruns": 0,
    "lateTicks": 0,
@@ -61,18 +61,18 @@
    "starvedFrames": 4,
    "skippedFrames": 0,
    "rejected": {},
-   "recvMsgs": 4112,
-   "sentMsgs": 5254
+   "recvMsgs": 4127,
+   "sentMsgs": 5242
   },
   {
    "map": "legacy",
-   "ticks": 1238,
-   "steps": 7168,
+   "ticks": 1236,
+   "steps": 7191,
    "tickMs": {
-    "n": 1238,
-    "median": 0.33697700000084296,
-    "p95": 0.4755720000002839,
-    "max": 3.543031000001065
+    "n": 1236,
+    "median": 0.3363519999984419,
+    "p95": 0.5216609999988577,
+    "max": 2.219716999999946
    },
    "overruns": 0,
    "lateTicks": 0,
@@ -80,18 +80,18 @@
    "starvedFrames": 0,
    "skippedFrames": 0,
    "rejected": {},
-   "recvMsgs": 4119,
-   "sentMsgs": 5266
+   "recvMsgs": 4146,
+   "sentMsgs": 5258
   },
   {
    "map": "technical",
-   "ticks": 1238,
-   "steps": 7164,
+   "ticks": 1236,
+   "steps": 7185,
    "tickMs": {
-    "n": 1238,
-    "median": 0.3083279999991646,
-    "p95": 0.4372770000009041,
-    "max": 2.758523000004061
+    "n": 1236,
+    "median": 0.32000300000072457,
+    "p95": 0.4794079999992391,
+    "max": 1.0264569999999367
    },
    "overruns": 0,
    "lateTicks": 0,
@@ -99,60 +99,60 @@
    "starvedFrames": 0,
    "skippedFrames": 0,
    "rejected": {},
-   "recvMsgs": 4097,
-   "sentMsgs": 5266
+   "recvMsgs": 4134,
+   "sentMsgs": 5258
   },
   {
    "map": "velocity",
-   "ticks": 1235,
-   "steps": 7174,
+   "ticks": 1229,
+   "steps": 7169,
    "tickMs": {
-    "n": 1235,
-    "median": 0.3439049999942654,
-    "p95": 0.483023000000685,
-    "max": 5.7478659999997035
+    "n": 1229,
+    "median": 0.3655339999968419,
+    "p95": 0.5593269999990298,
+    "max": 2.616915999999037
    },
    "overruns": 0,
-   "lateTicks": 1,
+   "lateTicks": 0,
    "droppedMs": 0,
    "starvedFrames": 0,
    "skippedFrames": 0,
    "rejected": {},
-   "recvMsgs": 4091,
-   "sentMsgs": 5254
+   "recvMsgs": 4125,
+   "sentMsgs": 5230
   }
  ],
  "clientsAggregate": {
   "n": 20,
-  "correctionP95Max": 0.33702497512265445,
-  "correctionP95Median": 0.18409924447896378,
-  "over1mTotal": 40,
+  "correctionP95Max": 0.27264672536060003,
+  "correctionP95Median": 0.14180226457824138,
+  "over1mTotal": 27,
   "hardSnaps": 0,
   "resyncs": 0,
-  "maxPending": 37,
+  "maxPending": 34,
   "upMsgsPerSPerClient": {
    "n": 20,
-   "median": 16.2,
+   "median": 16.3,
    "p95": 16.3,
    "max": 16.3
   },
   "upBytesPerSPerClient": {
    "n": 20,
-   "median": 967,
-   "p95": 979,
-   "max": 979
+   "median": 971,
+   "p95": 981,
+   "max": 981
   },
   "downMsgsPerSPerClient": {
    "n": 20,
-   "median": 20.7,
+   "median": 20.6,
    "p95": 20.7,
    "max": 20.7
   },
   "downBytesPerSPerClient": {
    "n": 20,
-   "median": 43384,
-   "p95": 43878,
-   "max": 43878
+   "median": 43328,
+   "p95": 43827,
+   "max": 43827
   }
  },
  "views": [
@@ -160,25 +160,25 @@
    {
     "id": "p1",
     "lap": 1,
-    "prog": 2546.2,
+    "prog": 2555.8,
     "finished": false
    },
    {
     "id": "p2",
     "lap": 1,
-    "prog": 2449.4,
+    "prog": 2463.3,
     "finished": false
    },
    {
     "id": "p3",
     "lap": 1,
-    "prog": 2540,
+    "prog": 2549.5,
     "finished": false
    },
    {
     "id": "p4",
     "lap": 1,
-    "prog": 2493.5,
+    "prog": 2499,
     "finished": false
    }
   ],
@@ -186,25 +186,25 @@
    {
     "id": "p1",
     "lap": 0,
-    "prog": 3482,
+    "prog": 3481.5,
     "finished": false
    },
    {
     "id": "p2",
     "lap": 0,
-    "prog": 3492.3,
+    "prog": 3492.4,
     "finished": false
    },
    {
     "id": "p3",
     "lap": 0,
-    "prog": 3460.5,
+    "prog": 3460.3,
     "finished": false
    },
    {
     "id": "p4",
     "lap": 0,
-    "prog": 3486.8,
+    "prog": 3486.3,
     "finished": false
    }
   ],
@@ -212,25 +212,25 @@
    {
     "id": "p1",
     "lap": 0,
-    "prog": 3226.5,
+    "prog": 3230.4,
     "finished": false
    },
    {
     "id": "p2",
     "lap": 0,
-    "prog": 3090.2,
+    "prog": 3099.7,
     "finished": false
    },
    {
     "id": "p3",
     "lap": 0,
-    "prog": 3231.1,
+    "prog": 3219,
     "finished": false
    },
    {
     "id": "p4",
     "lap": 0,
-    "prog": 3083.9,
+    "prog": 3093.3,
     "finished": false
    }
   ],
@@ -238,25 +238,25 @@
    {
     "id": "p1",
     "lap": 1,
-    "prog": 2549.2,
+    "prog": 2555.5,
     "finished": false
    },
    {
     "id": "p2",
     "lap": 1,
-    "prog": 2461.9,
+    "prog": 2472.8,
     "finished": false
    },
    {
     "id": "p3",
     "lap": 1,
-    "prog": 2543,
+    "prog": 2572.8,
     "finished": false
    },
    {
     "id": "p4",
     "lap": 1,
-    "prog": 2471.2,
+    "prog": 2508,
     "finished": false
    }
   ],
@@ -264,25 +264,25 @@
    {
     "id": "p1",
     "lap": 0,
-    "prog": 3476.1,
+    "prog": 3475.6,
     "finished": false
    },
    {
     "id": "p2",
     "lap": 0,
-    "prog": 3486.8,
+    "prog": 3487.7,
     "finished": false
    },
    {
     "id": "p3",
     "lap": 0,
-    "prog": 3454.9,
+    "prog": 3454.4,
     "finished": false
    },
    {
     "id": "p4",
     "lap": 0,
-    "prog": 3480.9,
+    "prog": 3480.4,
     "finished": false
    }
   ]

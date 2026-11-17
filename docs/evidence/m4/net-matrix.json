@@ -1,6 +1,6 @@
 {
- "when": "2026-11-17T18:28:39.975Z",
- "raceSeconds": 8,
+ "when": "2026-11-17T20:49:29.212Z",
+ "raceSeconds": 20,
  "map": "technical",
  "note": "lagMs = round-trip; headless clients (no rendering); localhost + injected delay",
  "cases": [
@@ -12,14 +12,14 @@
    "mode": "assisted",
    "lagMs": 50,
    "jitterMs": 0,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
-     "rttMs": 49.5,
-     "lead": 15,
+     "rttMs": 50.1,
+     "lead": 17,
      "corrections": {
-      "n": 152,
+      "n": 391,
       "median": 0,
       "p95": 0,
       "max": 0,
@@ -28,27 +28,27 @@
       "visualP95": 0
      },
      "hardSnaps": 0,
-     "maxPending": 24,
-     "pendingNow": 17,
+     "maxPending": 27,
+     "pendingNow": 19,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 190,
-      "median": 25.5673828125,
-      "p95": 26.79833984375,
-      "max": 28.463134765625
+      "n": 429,
+      "median": 25.57763671875,
+      "p95": 26.489013671875,
+      "max": 27.446044921875
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 14,
-     "upBytesPerS": 775,
-     "downMsgsPerS": 21.7,
-     "downBytesPerS": 39088
+     "upMsgsPerS": 15.4,
+     "upBytesPerS": 888,
+     "downMsgsPerS": 21.3,
+     "downBytesPerS": 41184
     },
     {
      "you": "p2",
-     "rttMs": 49.8,
-     "lead": 15,
+     "rttMs": 50,
+     "lead": 17,
      "corrections": {
-      "n": 152,
+      "n": 391,
       "median": 0,
       "p95": 0,
       "max": 0,
@@ -57,30 +57,30 @@
       "visualP95": 0
      },
      "hardSnaps": 0,
-     "maxPending": 24,
-     "pendingNow": 17,
+     "maxPending": 27,
+     "pendingNow": 19,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 190,
-      "median": 25.909423828125,
-      "p95": 27.254150390625,
-      "max": 28.7822265625
+      "n": 429,
+      "median": 25.8564453125,
+      "p95": 26.831298828125,
+      "max": 28.3623046875
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.7,
-     "upBytesPerS": 778,
-     "downMsgsPerS": 21.7,
-     "downBytesPerS": 39278
+     "upMsgsPerS": 15.3,
+     "upBytesPerS": 897,
+     "downMsgsPerS": 21.3,
+     "downBytesPerS": 41293
     }
    ],
    "server": {
-    "ticks": 210,
-    "steps": 968,
+    "ticks": 449,
+    "steps": 2411,
     "tickMs": {
-     "n": 210,
-     "median": 0.4421990000000733,
-     "p95": 0.7279099999996106,
-     "max": 2.9530150000000503
+     "n": 449,
+     "median": 0.36903500000062195,
+     "p95": 0.5713020000002871,
+     "max": 2.3871610000001056
     },
     "overruns": 0,
     "lateTicks": 0,
@@ -88,8 +88,8 @@
     "starvedFrames": 0,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 300,
-    "sentMsgs": 471
+    "recvMsgs": 703,
+    "sentMsgs": 973
    },
    "events": [
     [
@@ -121,25 +121,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 348.7,
+     "prog": 894.3,
      "finished": false
     },
     {
      "id": "p2",
      "lap": 0,
-     "prog": 311.8,
+     "prog": 838.6,
      "finished": false
     },
     {
      "id": "bot1",
      "lap": 0,
-     "prog": 284.1,
+     "prog": 807.9,
      "finished": false
     },
     {
      "id": "bot2",
      "lap": 0,
-     "prog": 278.2,
+     "prog": 784.7,
      "finished": false
     }
    ],
@@ -148,44 +148,44 @@
      [
       "p1",
       0,
-      348.73
+      894.26
      ],
      [
       "p2",
       0,
-      311.8
+      838.6
      ],
      [
       "bot1",
       0,
-      284.06
+      807.93
      ],
      [
       "bot2",
       0,
-      278.16
+      784.67
      ]
     ],
     [
      [
       "p1",
       0,
-      348.73
+      894.26
      ],
      [
       "p2",
       0,
-      311.8
+      838.6
      ],
      [
       "bot1",
       0,
-      284.06
+      807.93
      ],
      [
       "bot2",
       0,
-      278.16
+      784.67
      ]
     ]
    ]
@@ -198,43 +198,43 @@
    "mode": "assisted",
    "lagMs": 100,
    "jitterMs": 0,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
-     "rttMs": 99.9,
-     "lead": 23,
+     "rttMs": 99.5,
+     "lead": 24,
      "corrections": {
-      "n": 149,
+      "n": 386,
       "median": 0,
       "p95": 0,
       "max": 0,
       "over1m": 0,
       "perS": 0,
-      "visualP95": 1.044232186321432e-8
+      "visualP95": 1.1504944755932188e-11
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 28,
+     "maxPending": 38,
+     "pendingNow": 32,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 188,
-      "median": 51.183349609375,
-      "p95": 52.022705078125,
-      "max": 53.59228515625
+      "n": 425,
+      "median": 51.1259765625,
+      "p95": 51.81298828125,
+      "max": 59.614990234375
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.4,
-     "upBytesPerS": 757,
-     "downMsgsPerS": 21.1,
-     "downBytesPerS": 37938
+     "upMsgsPerS": 15,
+     "upBytesPerS": 874,
+     "downMsgsPerS": 20.9,
+     "downBytesPerS": 40438
     },
     {
      "you": "p2",
-     "rttMs": 100.2,
-     "lead": 23,
+     "rttMs": 99.5,
+     "lead": 24,
      "corrections": {
-      "n": 149,
+      "n": 386,
       "median": 0,
       "p95": 0,
       "max": 0,
@@ -243,39 +243,39 @@
       "visualP95": 0
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 28,
+     "maxPending": 38,
+     "pendingNow": 32,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 188,
-      "median": 51.885498046875,
-      "p95": 52.902587890625,
-      "max": 55.11767578125
+      "n": 425,
+      "median": 51.3974609375,
+      "p95": 52.237548828125,
+      "max": 59.832763671875
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.2,
-     "upBytesPerS": 766,
-     "downMsgsPerS": 21.2,
-     "downBytesPerS": 38294
+     "upMsgsPerS": 14.9,
+     "upBytesPerS": 885,
+     "downMsgsPerS": 21,
+     "downBytesPerS": 40583
     }
    ],
    "server": {
-    "ticks": 209,
-    "steps": 970,
+    "ticks": 446,
+    "steps": 2407,
     "tickMs": {
-     "n": 209,
-     "median": 0.3719600000003993,
-     "p95": 0.513915999999881,
-     "max": 2.11072299999978
+     "n": 446,
+     "median": 0.31088099999760743,
+     "p95": 0.4522270000015851,
+     "max": 2.1179380000030505
     },
     "overruns": 0,
     "lateTicks": 0,
     "droppedMs": 0,
-    "starvedFrames": 2,
+    "starvedFrames": 4,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 293,
-    "sentMsgs": 469
+    "recvMsgs": 686,
+    "sentMsgs": 967
    },
    "events": [
     [
@@ -307,25 +307,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 349.5,
+     "prog": 892.2,
      "finished": false
     },
     {
      "id": "p2",
      "lap": 0,
-     "prog": 312.5,
+     "prog": 837.3,
      "finished": false
     },
     {
      "id": "bot1",
      "lap": 0,
-     "prog": 283.7,
+     "prog": 806.8,
      "finished": false
     },
     {
      "id": "bot2",
      "lap": 0,
-     "prog": 277.1,
+     "prog": 791.2,
      "finished": false
     }
    ],
@@ -334,44 +334,44 @@
      [
       "p1",
       0,
-      347.1
+      889.77
      ],
      [
       "p2",
       0,
-      310.13
+      835.73
      ],
      [
       "bot1",
       0,
-      281.32
+      804.78
      ],
      [
       "bot2",
       0,
-      274.68
+      789.26
      ]
     ],
     [
      [
       "p1",
       0,
-      347.1
+      889.77
      ],
      [
       "p2",
       0,
-      310.13
+      835.73
      ],
      [
       "bot1",
       0,
-      281.32
+      804.78
      ],
      [
       "bot2",
       0,
-      274.68
+      789.26
      ]
     ]
    ]
@@ -384,84 +384,84 @@
    "mode": "assisted",
    "lagMs": 200,
    "jitterMs": 0,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
-     "rttMs": 199.7,
-     "lead": 29,
+     "rttMs": 199.8,
+     "lead": 30,
      "corrections": {
-      "n": 151,
+      "n": 390,
       "median": 0,
       "p95": 0,
       "max": 0,
       "over1m": 0,
       "perS": 0,
-      "visualP95": 3.298180165858408e-7
+      "visualP95": 3.839698775666908e-10
      },
      "hardSnaps": 0,
-     "maxPending": 48,
-     "pendingNow": 40,
+     "maxPending": 49,
+     "pendingNow": 44,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 190,
-      "median": 101.362548828125,
-      "p95": 102.057373046875,
-      "max": 103.11572265625
+      "n": 429,
+      "median": 100.858642578125,
+      "p95": 101.6357421875,
+      "max": 102.873046875
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.1,
-     "upBytesPerS": 739,
-     "downMsgsPerS": 20.4,
-     "downBytesPerS": 36664
+     "upMsgsPerS": 14.8,
+     "upBytesPerS": 863,
+     "downMsgsPerS": 20.7,
+     "downBytesPerS": 39925
     },
     {
      "you": "p2",
-     "rttMs": 199.6,
-     "lead": 29,
+     "rttMs": 199.8,
+     "lead": 30,
      "corrections": {
-      "n": 151,
+      "n": 390,
       "median": 0,
       "p95": 0,
-      "max": 0,
-      "over1m": 0,
-      "perS": 0,
-      "visualP95": 3.3093658070276784e-7
+      "max": 1.832709409705465,
+      "over1m": 2,
+      "perS": 0.34,
+      "visualP95": 0.0008940114229657704
      },
      "hardSnaps": 0,
-     "maxPending": 48,
-     "pendingNow": 40,
+     "maxPending": 49,
+     "pendingNow": 44,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 190,
-      "median": 101.645263671875,
-      "p95": 102.5107421875,
-      "max": 103.5078125
+      "n": 429,
+      "median": 101.53759765625,
+      "p95": 102.505859375,
+      "max": 103.610595703125
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13,
-     "upBytesPerS": 752,
-     "downMsgsPerS": 20.7,
-     "downBytesPerS": 37332
+     "upMsgsPerS": 14.8,
+     "upBytesPerS": 877,
+     "downMsgsPerS": 20.8,
+     "downBytesPerS": 40284
     }
    ],
    "server": {
-    "ticks": 212,
-    "steps": 977,
+    "ticks": 451,
+    "steps": 2415,
     "tickMs": {
-     "n": 212,
-     "median": 0.33583100000032573,
-     "p95": 0.4768870000007155,
-     "max": 0.920880000001489
+     "n": 451,
+     "median": 0.30428399999800604,
+     "p95": 0.462374999995518,
+     "max": 1.3273620000036317
     },
     "overruns": 0,
     "lateTicks": 0,
     "droppedMs": 0,
-    "starvedFrames": 2,
+    "starvedFrames": 6,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 296,
-    "sentMsgs": 475
+    "recvMsgs": 691,
+    "sentMsgs": 977
    },
    "events": [
     [
@@ -493,25 +493,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 352.3,
+     "prog": 895.6,
      "finished": false
     },
     {
      "id": "p2",
      "lap": 0,
-     "prog": 315.2,
+     "prog": 835.9,
      "finished": false
     },
     {
      "id": "bot1",
      "lap": 0,
-     "prog": 296.1,
+     "prog": 813.7,
      "finished": false
     },
     {
      "id": "bot2",
      "lap": 0,
-     "prog": 287.9,
+     "prog": 791.1,
      "finished": false
     }
    ],
@@ -520,44 +520,44 @@
      [
       "p1",
       0,
-      347.43
+      890.7
      ],
      [
       "p2",
       0,
-      310.51
+      832.69
      ],
      [
       "bot1",
       0,
-      291.18
+      809.55
      ],
      [
       "bot2",
       0,
-      283.02
+      787.1
      ]
     ],
     [
      [
       "p1",
       0,
-      347.43
+      890.7
      ],
      [
       "p2",
       0,
-      310.51
+      832.69
      ],
      [
       "bot1",
       0,
-      291.18
+      809.55
      ],
      [
       "bot2",
       0,
-      283.02
+      787.1
      ]
     ]
    ]
@@ -570,14 +570,14 @@
    "mode": "assisted",
    "lagMs": 100,
    "jitterMs": 20,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
-     "rttMs": 83.7,
-     "lead": 22,
+     "rttMs": 89.9,
+     "lead": 19,
      "corrections": {
-      "n": 150,
+      "n": 390,
       "median": 0,
       "p95": 0,
       "max": 0,
@@ -586,27 +586,27 @@
       "visualP95": 0
      },
      "hardSnaps": 0,
-     "maxPending": 35,
-     "pendingNow": 29,
+     "maxPending": 33,
+     "pendingNow": 23,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 189,
-      "median": 51.451904296875,
-      "p95": 61.579345703125,
-      "max": 63.3427734375
+      "n": 429,
+      "median": 49.88330078125,
+      "p95": 60.3388671875,
+      "max": 63.12451171875
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.4,
-     "upBytesPerS": 757,
-     "downMsgsPerS": 21.2,
-     "downBytesPerS": 38184
+     "upMsgsPerS": 15.1,
+     "upBytesPerS": 877,
+     "downMsgsPerS": 21.1,
+     "downBytesPerS": 40741
     },
     {
      "you": "p2",
-     "rttMs": 85,
-     "lead": 23,
+     "rttMs": 79.7,
+     "lead": 21,
      "corrections": {
-      "n": 150,
+      "n": 389,
       "median": 0,
       "p95": 0,
       "max": 0,
@@ -615,39 +615,39 @@
       "visualP95": 0
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 30,
+     "maxPending": 34,
+     "pendingNow": 31,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 189,
-      "median": 49.538330078125,
-      "p95": 57.901123046875,
-      "max": 59.23193359375
+      "n": 428,
+      "median": 50.70068359375,
+      "p95": 58.754150390625,
+      "max": 60.0810546875
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.2,
-     "upBytesPerS": 765,
-     "downMsgsPerS": 21.3,
-     "downBytesPerS": 38526
+     "upMsgsPerS": 15,
+     "upBytesPerS": 888,
+     "downMsgsPerS": 21.1,
+     "downBytesPerS": 40840
     }
    ],
    "server": {
-    "ticks": 210,
-    "steps": 966,
+    "ticks": 450,
+    "steps": 2411,
     "tickMs": {
-     "n": 210,
-     "median": 0.32593400000041584,
-     "p95": 0.5075819999983651,
-     "max": 0.9434059999985038
+     "n": 450,
+     "median": 0.30445600001257844,
+     "p95": 0.457127000001492,
+     "max": 0.8057459999981802
     },
     "overruns": 0,
     "lateTicks": 0,
     "droppedMs": 0,
-    "starvedFrames": 1,
+    "starvedFrames": 0,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 291,
-    "sentMsgs": 471
+    "recvMsgs": 692,
+    "sentMsgs": 975
    },
    "events": [
     [
@@ -679,25 +679,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 348,
+     "prog": 894.4,
      "finished": false
     },
     {
      "id": "p2",
      "lap": 0,
-     "prog": 311.1,
+     "prog": 838.2,
      "finished": false
     },
     {
      "id": "bot1",
      "lap": 0,
-     "prog": 285.9,
+     "prog": 812.1,
      "finished": false
     },
     {
      "id": "bot2",
      "lap": 0,
-     "prog": 277.4,
+     "prog": 800,
      "finished": false
     }
    ],
@@ -706,44 +706,44 @@
      [
       "p1",
       0,
-      345.55
+      891.92
      ],
      [
       "p2",
       0,
-      308.74
+      836.57
      ],
      [
       "bot1",
       0,
-      283.36
+      810.13
      ],
      [
       "bot2",
       0,
-      274.99
+      797.97
      ]
     ],
     [
      [
       "p1",
       0,
-      345.55
+      889.45
      ],
      [
       "p2",
       0,
-      308.74
+      834.96
      ],
      [
       "bot1",
       0,
-      283.36
+      808.15
      ],
      [
       "bot2",
       0,
-      274.99
+      795.96
      ]
     ]
    ]
@@ -756,84 +756,84 @@
    "mode": "assisted",
    "lagMs": 100,
    "jitterMs": 0,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
-     "rttMs": 100,
-     "lead": 44,
+     "rttMs": 99.6,
+     "lead": 36,
      "corrections": {
-      "n": 142,
+      "n": 381,
       "median": 0,
       "p95": 0,
-      "max": 2.5017474941056763,
-      "over1m": 1,
-      "perS": 0.27,
-      "visualP95": 0.10066558079863801
+      "max": 0.08440321315171673,
+      "over1m": 0,
+      "perS": 0.13,
+      "visualP95": 0.000008626304179415456
      },
      "hardSnaps": 0,
-     "maxPending": 84,
-     "pendingNow": 50,
+     "maxPending": 82,
+     "pendingNow": 41,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 188,
-      "median": 50.961669921875,
-      "p95": 52.294921875,
-      "max": 465.271728515625
+      "n": 426,
+      "median": 50.913330078125,
+      "p95": 52.0322265625,
+      "max": 478.9853515625
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.6,
-     "upBytesPerS": 767,
-     "downMsgsPerS": 21.1,
-     "downBytesPerS": 37907
+     "upMsgsPerS": 15.1,
+     "upBytesPerS": 881,
+     "downMsgsPerS": 21,
+     "downBytesPerS": 40561
     },
     {
      "you": "p2",
-     "rttMs": 99.9,
-     "lead": 44,
+     "rttMs": 99.5,
+     "lead": 36,
      "corrections": {
-      "n": 142,
+      "n": 381,
       "median": 0,
-      "p95": 0.10433380384844781,
-      "max": 1.017333534067132,
-      "over1m": 1,
-      "perS": 0.73,
-      "visualP95": 0.13463532975274006
+      "p95": 0,
+      "max": 0.2918840484017551,
+      "over1m": 0,
+      "perS": 0.13,
+      "visualP95": 0.00002990181465634123
      },
      "hardSnaps": 0,
-     "maxPending": 84,
-     "pendingNow": 50,
+     "maxPending": 82,
+     "pendingNow": 41,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 188,
-      "median": 51.409423828125,
-      "p95": 52.81689453125,
-      "max": 465.367431640625
+      "n": 426,
+      "median": 51.181884765625,
+      "p95": 52.302734375,
+      "max": 479.175048828125
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.4,
-     "upBytesPerS": 771,
-     "downMsgsPerS": 21.2,
-     "downBytesPerS": 38447
+     "upMsgsPerS": 14.9,
+     "upBytesPerS": 890,
+     "downMsgsPerS": 21,
+     "downBytesPerS": 40727
     }
    ],
    "server": {
-    "ticks": 209,
-    "steps": 968,
+    "ticks": 447,
+    "steps": 2410,
     "tickMs": {
-     "n": 209,
-     "median": 0.29647499999555293,
-     "p95": 0.41458099999726983,
-     "max": 0.8713149999966845
+     "n": 447,
+     "median": 0.34003999999549706,
+     "p95": 0.49436499999137595,
+     "max": 0.7244900000077905
     },
     "overruns": 0,
     "lateTicks": 0,
     "droppedMs": 0,
-    "starvedFrames": 88,
+    "starvedFrames": 84,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 296,
-    "sentMsgs": 469
+    "recvMsgs": 689,
+    "sentMsgs": 969
    },
    "events": [
     [
@@ -865,25 +865,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 344.4,
+     "prog": 893,
      "finished": false
     },
     {
      "id": "p2",
      "lap": 0,
-     "prog": 308,
+     "prog": 838,
      "finished": false
     },
     {
      "id": "bot1",
      "lap": 0,
-     "prog": 287.6,
+     "prog": 816.1,
      "finished": false
     },
     {
      "id": "bot2",
      "lap": 0,
-     "prog": 282.8,
+     "prog": 791.1,
      "finished": false
     }
    ],
@@ -892,44 +892,44 @@
      [
       "p1",
       0,
-      342.06
+      890.53
      ],
      [
       "p2",
       0,
-      305.66
+      836.38
      ],
      [
       "bot1",
       0,
-      285.21
+      813.93
      ],
      [
       "bot2",
       0,
-      280.41
+      789.12
      ]
     ],
     [
      [
       "p1",
       0,
-      342.06
+      890.53
      ],
      [
       "p2",
       0,
-      305.66
+      836.38
      ],
      [
       "bot1",
       0,
-      285.21
+      813.93
      ],
      [
       "bot2",
       0,
-      280.41
+      789.12
      ]
     ]
    ]
@@ -942,84 +942,84 @@
    "mode": "assisted",
    "lagMs": 100,
    "jitterMs": 0,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
-     "rttMs": 99.8,
-     "lead": 23,
+     "rttMs": 99.5,
+     "lead": 24,
      "corrections": {
-      "n": 149,
+      "n": 386,
       "median": 0,
       "p95": 0,
       "max": 0,
       "over1m": 0,
       "perS": 0,
-      "visualP95": 1.1851729929824691e-8
+      "visualP95": 0
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 31,
+     "maxPending": 37,
+     "pendingNow": 32,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 188,
-      "median": 51.25927734375,
-      "p95": 51.91943359375,
-      "max": 53.861572265625
+      "n": 425,
+      "median": 51.02978515625,
+      "p95": 52.0341796875,
+      "max": 53.406494140625
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.4,
-     "upBytesPerS": 758,
-     "downMsgsPerS": 21.3,
-     "downBytesPerS": 38111
+     "upMsgsPerS": 15,
+     "upBytesPerS": 876,
+     "downMsgsPerS": 21,
+     "downBytesPerS": 40528
     },
     {
      "you": "p2",
-     "rttMs": 99.8,
-     "lead": 26,
+     "rttMs": 99.4,
+     "lead": 36,
      "corrections": {
-      "n": 57,
+      "n": 255,
       "median": 0,
       "p95": 0,
-      "max": 0.000026521046940786164,
+      "max": 0,
       "over1m": 0,
       "perS": 0,
-      "visualP95": 0.0007179214052839224
+      "visualP95": 0.0000019404333181644756
      },
      "hardSnaps": 0,
-     "maxPending": 39,
-     "pendingNow": 34,
+     "maxPending": 60,
+     "pendingNow": 44,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 176,
-      "median": 51.396728515625,
-      "p95": 52.308349609375,
-      "max": 53.996826171875
+      "n": 413,
+      "median": 51.173095703125,
+      "p95": 52.248046875,
+      "max": 53.338623046875
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 12.6,
-     "upBytesPerS": 747,
-     "downMsgsPerS": 20.4,
-     "downBytesPerS": 36842
+     "upMsgsPerS": 14.7,
+     "upBytesPerS": 884,
+     "downMsgsPerS": 20.6,
+     "downBytesPerS": 39902
     }
    ],
    "server": {
-    "ticks": 209,
-    "steps": 967,
+    "ticks": 446,
+    "steps": 2407,
     "tickMs": {
-     "n": 209,
-     "median": 0.31676299999526236,
-     "p95": 0.4674879999947734,
-     "max": 1.0316509999975096
+     "n": 446,
+     "median": 0.33524000000033993,
+     "p95": 0.5070760000089649,
+     "max": 1.1361009999964153
     },
     "overruns": 0,
     "lateTicks": 0,
     "droppedMs": 0,
-    "starvedFrames": 67,
+    "starvedFrames": 56,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 287,
-    "sentMsgs": 464
+    "recvMsgs": 682,
+    "sentMsgs": 962
    },
    "events": [
     [
@@ -1066,25 +1066,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 348.4,
+     "prog": 893.4,
      "finished": false
     },
     {
      "id": "p2",
      "lap": 0,
-     "prog": 302.9,
+     "prog": 837.4,
      "finished": false
     },
     {
      "id": "bot1",
      "lap": 0,
-     "prog": 282.9,
+     "prog": 814.7,
      "finished": false
     },
     {
      "id": "bot2",
      "lap": 0,
-     "prog": 278.8,
+     "prog": 791.5,
      "finished": false
     }
    ],
@@ -1093,44 +1093,44 @@
      [
       "p1",
       0,
-      345.98
+      890.92
      ],
      [
       "p2",
       0,
-      300.58
+      835.77
      ],
      [
       "bot1",
       0,
-      280.49
+      812.66
      ],
      [
       "bot2",
       0,
-      276.7
+      789.51
      ]
     ],
     [
      [
       "p1",
       0,
-      345.98
+      890.92
      ],
      [
       "p2",
       0,
-      300.58
+      835.77
      ],
      [
       "bot1",
       0,
-      280.49
+      812.66
      ],
      [
       "bot2",
       0,
-      276.7
+      789.51
      ]
     ]
    ]
@@ -1143,142 +1143,142 @@
    "mode": "assisted",
    "lagMs": 100,
    "jitterMs": 0,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
-     "rttMs": 99.8,
-     "lead": 23,
+     "rttMs": 99.7,
+     "lead": 24,
      "corrections": {
-      "n": 150,
+      "n": 386,
       "median": 0,
-      "p95": 0,
-      "max": 0,
+      "p95": 0.03363007979669419,
+      "max": 0.5571677144145042,
       "over1m": 0,
-      "perS": 0,
-      "visualP95": 0
+      "perS": 0.69,
+      "visualP95": 0.09408408320246053
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 27,
+     "maxPending": 37,
+     "pendingNow": 32,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 189,
-      "median": 50.771240234375,
-      "p95": 51.475830078125,
-      "max": 53.05859375
+      "n": 425,
+      "median": 50.964111328125,
+      "p95": 51.737060546875,
+      "max": 54.388916015625
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 12.9,
-     "upBytesPerS": 739,
-     "downMsgsPerS": 20.9,
-     "downBytesPerS": 37432
+     "upMsgsPerS": 14.8,
+     "upBytesPerS": 869,
+     "downMsgsPerS": 20.8,
+     "downBytesPerS": 40192
     },
     {
      "you": "p2",
-     "rttMs": 99.7,
-     "lead": 23,
+     "rttMs": 99.6,
+     "lead": 24,
      "corrections": {
-      "n": 150,
+      "n": 386,
       "median": 0,
-      "p95": 0,
-      "max": 0,
+      "p95": 0.005877989072814671,
+      "max": 0.5755877394545053,
       "over1m": 0,
-      "perS": 0,
-      "visualP95": 0
+      "perS": 0.73,
+      "visualP95": 0.03839337766660833
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 27,
+     "maxPending": 37,
+     "pendingNow": 32,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 189,
-      "median": 50.947509765625,
-      "p95": 51.7822265625,
-      "max": 53.353515625
+      "n": 425,
+      "median": 51.162109375,
+      "p95": 52.060546875,
+      "max": 54.67431640625
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 12.9,
-     "upBytesPerS": 748,
-     "downMsgsPerS": 21,
-     "downBytesPerS": 37797
+     "upMsgsPerS": 14.8,
+     "upBytesPerS": 882,
+     "downMsgsPerS": 20.9,
+     "downBytesPerS": 40296
     },
     {
      "you": "p3",
-     "rttMs": 99.7,
-     "lead": 23,
+     "rttMs": 99.6,
+     "lead": 24,
      "corrections": {
-      "n": 150,
-      "median": 0.0009833974757872883,
-      "p95": 0.027775760912970383,
-      "max": 0.8014847832446321,
-      "over1m": 0,
-      "perS": 0.54,
-      "visualP95": 0.10441572018642355
+      "n": 386,
+      "median": 0.000526371101725168,
+      "p95": 0.24237274149982113,
+      "max": 1.9868098688293117,
+      "over1m": 1,
+      "perS": 3.77,
+      "visualP95": 0.49151097870759486
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 27,
+     "maxPending": 37,
+     "pendingNow": 32,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 189,
-      "median": 51.390380859375,
-      "p95": 52.27294921875,
-      "max": 57.875732421875
+      "n": 425,
+      "median": 51.481201171875,
+      "p95": 52.407958984375,
+      "max": 55.234375
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.1,
-     "upBytesPerS": 752,
-     "downMsgsPerS": 21.1,
-     "downBytesPerS": 38553
+     "upMsgsPerS": 14.9,
+     "upBytesPerS": 875,
+     "downMsgsPerS": 20.9,
+     "downBytesPerS": 40924
     },
     {
      "you": "p4",
-     "rttMs": 99.9,
-     "lead": 23,
+     "rttMs": 99.6,
+     "lead": 24,
      "corrections": {
-      "n": 150,
+      "n": 386,
       "median": 0,
-      "p95": 0.25996238078414535,
-      "max": 0.7568012567831204,
-      "over1m": 0,
-      "perS": 1.27,
-      "visualP95": 0.4371982407409711
+      "p95": 0.26077970247297344,
+      "max": 1.87932204073104,
+      "over1m": 1,
+      "perS": 1.96,
+      "visualP95": 0.5660277642526808
      },
      "hardSnaps": 0,
-     "maxPending": 36,
-     "pendingNow": 27,
+     "maxPending": 37,
+     "pendingNow": 32,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 189,
-      "median": 51.700439453125,
-      "p95": 52.6943359375,
-      "max": 58.20458984375
+      "n": 425,
+      "median": 51.82421875,
+      "p95": 52.847900390625,
+      "max": 55.63037109375
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.3,
-     "upBytesPerS": 767,
-     "downMsgsPerS": 21.3,
-     "downBytesPerS": 38903
+     "upMsgsPerS": 15,
+     "upBytesPerS": 893,
+     "downMsgsPerS": 21,
+     "downBytesPerS": 41059
     }
    ],
    "server": {
-    "ticks": 210,
-    "steps": 973,
+    "ticks": 446,
+    "steps": 2409,
     "tickMs": {
-     "n": 210,
-     "median": 0.3518389999953797,
-     "p95": 0.5103579999995418,
-     "max": 1.1320540000015171
+     "n": 446,
+     "median": 0.35300100001040846,
+     "p95": 0.5493460000143386,
+     "max": 2.5566150000086054
     },
     "overruns": 0,
     "lateTicks": 0,
     "droppedMs": 0,
-    "starvedFrames": 4,
+    "starvedFrames": 8,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 583,
-    "sentMsgs": 946
+    "recvMsgs": 1374,
+    "sentMsgs": 1938
    },
    "events": [
     [
@@ -1332,25 +1332,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 350.7,
+     "prog": 898.9,
      "finished": false
     },
     {
      "id": "p2",
      "lap": 0,
-     "prog": 313.7,
+     "prog": 838.1,
      "finished": false
     },
     {
      "id": "p3",
      "lap": 0,
-     "prog": 337.3,
+     "prog": 871.9,
      "finished": false
     },
     {
      "id": "p4",
      "lap": 0,
-     "prog": 301.6,
+     "prog": 813.4,
      "finished": false
     }
    ],
@@ -1359,88 +1359,88 @@
      [
       "p1",
       0,
-      348.29
+      896.44
      ],
      [
       "p2",
       0,
-      311.35
+      836.47
      ],
      [
       "p3",
       0,
-      334.89
+      869.44
      ],
      [
       "p4",
       0,
-      298.88
+      811.54
      ]
     ],
     [
      [
       "p1",
       0,
-      348.29
+      896.44
      ],
      [
       "p2",
       0,
-      311.35
+      836.47
      ],
      [
       "p3",
       0,
-      334.89
+      869.44
      ],
      [
       "p4",
       0,
-      298.88
+      811.54
      ]
     ],
     [
      [
       "p1",
       0,
-      348.29
+      896.44
      ],
      [
       "p2",
       0,
-      311.35
+      836.47
      ],
      [
       "p3",
       0,
-      334.89
+      869.44
      ],
      [
       "p4",
       0,
-      298.88
+      811.54
      ]
     ],
     [
      [
       "p1",
       0,
-      348.29
+      896.44
      ],
      [
       "p2",
       0,
-      311.35
+      836.47
      ],
      [
       "p3",
       0,
-      334.89
+      869.44
      ],
      [
       "p4",
       0,
-      298.88
+      811.54
      ]
     ]
    ]
@@ -1453,55 +1453,55 @@
    "mode": "assisted",
    "lagMs": 100,
    "jitterMs": 0,
-   "elapsedS": 10.5,
+   "elapsedS": 22.5,
    "clients": [
     {
      "you": "p1",
      "rttMs": 99.7,
-     "lead": 23,
+     "lead": 24,
      "corrections": {
-      "n": 149,
+      "n": 387,
       "median": 0,
       "p95": 0,
       "max": 0,
       "over1m": 0,
       "perS": 0,
-      "visualP95": 7.497190674646918e-9
+      "visualP95": 0
      },
      "hardSnaps": 0,
-     "maxPending": 36,
+     "maxPending": 37,
      "pendingNow": 31,
      "resyncs": 0,
      "snapAgeMs": {
-      "n": 188,
-      "median": 51.303955078125,
-      "p95": 52.27880859375,
-      "max": 52.90478515625
+      "n": 426,
+      "median": 50.82568359375,
+      "p95": 51.399169921875,
+      "max": 54.400146484375
      },
      "interpUnderruns": 0,
-     "upMsgsPerS": 13.6,
-     "upBytesPerS": 765,
-     "downMsgsPerS": 21.3,
-     "downBytesPerS": 38398
+     "upMsgsPerS": 15.1,
+     "upBytesPerS": 880,
+     "downMsgsPerS": 21,
+     "downBytesPerS": 40787
     }
    ],
    "server": {
-    "ticks": 209,
-    "steps": 966,
+    "ticks": 447,
+    "steps": 2406,
     "tickMs": {
-     "n": 209,
-     "median": 0.2880789999908302,
-     "p95": 0.4346800000057556,
-     "max": 0.889841999989585
+     "n": 447,
+     "median": 0.2417049999930896,
+     "p95": 0.3798710000119172,
+     "max": 1.4860170000174548
     },
     "overruns": 0,
     "lateTicks": 0,
     "droppedMs": 0,
-    "starvedFrames": 1,
+    "starvedFrames": 2,
     "skippedFrames": 0,
     "rejected": {},
-    "recvMsgs": 149,
-    "sentMsgs": 234
+    "recvMsgs": 346,
+    "sentMsgs": 484
    },
    "events": [
     [
@@ -1522,25 +1522,25 @@
     {
      "id": "p1",
      "lap": 0,
-     "prog": 347.9,
+     "prog": 892.6,
      "finished": false
     },
     {
      "id": "bot1",
      "lap": 0,
-     "prog": 302.4,
+     "prog": 823,
      "finished": false
     },
     {
      "id": "bot2",
      "lap": 0,
-     "prog": 281.7,
+     "prog": 799.9,
      "finished": false
     },
     {
      "id": "bot3",
      "lap": 0,
-     "prog": 274.1,
+     "prog": 787.3,
      "finished": false
     }
    ],
@@ -1549,22 +1549,22 @@
      [
       "p1",
       0,
-      345.52
+      890.18
      ],
      [
       "bot1",
       0,
-      299.94
+      820.7
      ],
      [
       "bot2",
       0,
-      279.32
+      797.91
      ],
      [
       "bot3",
       0,
-      271.63
+      785.33
      ]
     ]
    ]

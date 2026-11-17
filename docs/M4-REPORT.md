@@ -4,10 +4,20 @@ Branch `claude/m4-multiplayer` only. Nothing is merged, released or deployed. No
 used, no login was performed, nothing was spent. `main` and `claude/admiring-meitner-db4ejz` are untouched
 (still 53af096). The live single-player site is unchanged.
 
-**Status in one line:** the server-authoritative multiplayer stack works end to end on real sockets, in
-real browsers and in local Cloudflare workerd. On this test host's software renderer (~1 FPS per page when
-several pages run), browser races are below the playable floor, so several browser quality targets FAIL.
-Real phone feel is **unverified** until Sameer's hosted test.
+**Status: NOT ready to release or to promise for an event.**
+
+* The server-authoritative stack works on real WebSockets on **localhost with simulated RTT** (headless
+  clients) and in **local** Cloudflare workerd.
+* Real-browser end-to-end evidence is **partial**:
+  - one phone-sized touch browser + 3 bots finished a full race with the shared server order (D);
+  - a desktop + phone pair raced with identical results, but both humans DNF'd at ~1 FPS (A);
+  - one desktop + 3 bots raced, human DNF at 1.1 FPS (C).
+* The **four-human browser gate is FAIL/unverified.** This 2-core software-GL host cannot run 4–5
+  browser pages: 4 humans joined one room, but no 4-browser race was verified.
+* Real phone feel and performance are **unverified** until Sameer's hosted test.
+
+Evidence is from commit **d86f139** unless stated: single-player e2e, matrix, load, browser C. Browser
+A/B/D ran at the earlier commits named in docs/evidence/m4/browser/.
 
 ## 1. Starting point and what was kept
 
@@ -20,7 +30,8 @@ Real phone feel is **unverified** until Sameer's hosted test.
 Commits on the branch after a96269f: 736b534 (protocol v2, room, budget, server), f207775 (local runtime,
 netcode, net tests), 474cc99 (browser lobby/race, WIP), 1c68295 (slow-render fixes, DO adaptor),
 47f75d3 (DO tested in workerd), d74203f (removal of committed local dev state, see §9), d715846
-(audit patches, rematch test), 3058630 (budget hard stop), and this report's commit.
+(audit patches, same-room rematch test), 3058630 (budget hard stop), d86f139 (no input after race end,
+lobby render throttle), and this report's commit (docs/evidence only).
 
 ## 2. How to run
 
@@ -41,11 +52,11 @@ npm run mp                  # play locally: build + http://127.0.0.1:8787 (open 
 
 | Gate | Result |
 |---|---|
-| 1. Unit / build / scan / single-player e2e | Unit **102/102** (65 baseline; old room tests replaced by stricter ones). Scan 0. Prod build has no debug hooks (`NG_DEBUG`, `__ng`, autodrive, render-every: 0 occurrences). GLBs byte-identical to M3, same 8 asset files. JS 763.8 → 795.6 KB (+4.2 %; gzip 215.8 → 227.6 KB), CSS 26.7 → 31.5 KB. Single-player e2e: see §8 (re-run on the final commit). |
+| 1. Unit / build / scan / single-player e2e | Unit **103/103** (65 baseline; old room tests replaced by stricter ones). Scan 0. Prod build has no debug hooks (`NG_DEBUG`, `__ng`, autodrive, render-every: 0 occurrences). GLBs byte-identical to M3, same 8 asset files. JS 763.8 → 795.6 KB (+4.2 %; gzip 215.8 → 227.6 KB), CSS 26.7 → 31.5 KB. Single-player e2e: see §8 (re-run on the final commit). |
 | 2. Determinism | **PASS**: snapshot → JSON → import continues bit-identically for 12 s at 120 Hz on all 3 maps, incl. contact (≥1 collision each), boost, crash + respawn (Legacy; Velocity/Kage have rails everywhere, so crash is impossible there by design), PRNG continuation, separate input objects per human. Predictor parity: client predictor = server racer exactly (all maps). Reconcile + silent replay == uninterrupted prediction. |
 | 3. Room tests | **PASS** (unit + real sockets): create/join, code validation, 4-seat cap, 5th human and 5th bot rejected without breaking the room, host-only actions (incl. inside the DO), ready/start gate (min 2 racers), map/mode/build/protocol mismatch, bot add/remove, malformed/oversized/rate-limited input, stale/out-of-order/duplicate frames, far-future frames, 250 ms input release, disconnect/reconnect by token, DNF retire after 15 s, teardown (empty/idle/lifetime), isolation of two rooms, **same-room rematch** (same code, new seed, identical results twice), budget fail-closed, budget hard stop. |
-| 4. Real browser sessions | **Functional parts PASS, gameplay quality FAIL on this host** (§5). |
-| 5. Network matrix | **PASS** for headless clients (§6). Browser clients on this host: below the playable floor (§5). |
+| 4. Real browser sessions | **Partial / FAIL.** Single phone + 3 bots: 6/6 functional, human finished (D). 2 browsers: lobby/bots/host-only/same results/leave pass, humans DNF (A 11/15). 1 desktop + 3 bots: 7/8, human DNF (C). **4 humans: FAIL/unverified** (B: joined; 5th refused once; no race verified). Browser quality targets: 1 of 12 met (§5). |
+| 5. Network matrix | **PASS for headless clients on localhost with simulated RTT** (§6), not real networks. Browser clients on this host: below the playable floor (§5). |
 | 6. Hosted test | **Not authorized; not done.** See docs/M4-DEPLOY-FREE.md. |
 
 ## 4. Architecture, protocol, deployment
@@ -70,8 +81,8 @@ Harness rules (after review):
 |---|---|---|---|---|
 | D: 1 phone (touch 844×390) + 3 bots, Kage, full race | 1.5 | **6/6** | 1/2 (mispredict p95 **0.27 m** PASS; hard snaps 11 in 3 min FAIL) | Human finished (178.2 s) with the shared server order. Server missed **1.4 %** of frames. |
 | A: desktop 1280×720 + phone 844×390, 2h+2b, Kage, full race + same-room rematch + leave | 0.8–1.2 | 11/15 | 0/8 | Both humans DNF at the cap. Frame gaps ~1.5 s (above the 1.5 s lead cap), so 77–80 % of frames missed. Lobby, bots, host-only UI, identical result order, no records, leave all PASS. |
-| B: 4 humans + 5th refused | ~0.8 | see evidence | — | Long harness actions on this host; result recorded in docs/evidence/m4/browser/. |
-| C: 1h+3b + portrait invite | — | Portrait invite panel PASS (screenshot) | — | — |
+| B: 4 humans + 5th refused | 0–0.8 | **FAIL / incomplete** | — | mpB2: 4 joined, 5th human got the readable "room is full" error, room kept 4 seats (PASS); the race then ended before the harness saw it. mpB3: 4 joined, the 5th page stalled at 0 FPS (click never completed); its car GLB also timed out and the game showed the **labelled stand-in** (existing fallback, caused by the environment). No 4-browser race verified. |
+| C (d86f139): 1 desktop + 3 bots, Kage, full race; portrait invite | 1.1 | 7/8 | 0/2 | Human DNF; 10.9 % frames missed; mispredict p95 1.08 m; 68 hard snaps / 5 min. Portrait invite panel PASS (screenshot). |
 
 Fix history driven by these runs (docs/evidence/m4/browser/README.md): missed frames 93.7 % → 61 % →
 1.4 % (single phone), human DNF → finished. Bugs found and fixed:
@@ -85,13 +96,24 @@ Fix history driven by these runs (docs/evidence/m4/browser/README.md): missed fr
 thread inflates measured RTT (380–1500 ms on localhost). That is why lead control now uses
 server-reported arrival margins, not the clock estimate.
 
-**Playable floor (measured, this host):** input delivery stays healthy (≤ 2 % missed) while frame gaps
-stay below ~0.6 s. Above ~1.5 s per frame, most inputs miss their step and the car mostly coasts. Fair,
-enjoyable racing needs far more: **target ≥ 30 FPS sustained, minimum ~20 FPS**. That is a design
-target, not a measurement on a phone.
+**Playable floor (measured, this host):** frame-gap p50 → server-missed frames:
+* 0.55 s → 1.4 % (D, human finished);
+* 0.91 s → 10.9 % (C, human DNF);
+* ~1.5 s → 77–80 % (A, humans DNF).
 
-Screenshots (inspected): test-results/mp/ (lobby desktop and phone, 2h+2b race desktop and phone,
-results, portrait invite). Selected copies are in docs/screenshots/m4/.
+Above ~1.5 s per frame most inputs miss their step and the car mostly coasts. Fair, enjoyable racing
+needs far more: **target ≥ 30 FPS sustained, minimum ~20 FPS**. That is a design target, not a
+measurement on a phone. The next structural fix for weak devices is moving input sampling + prediction
+into a Web Worker, so they no longer share the main thread with rendering.
+
+Screenshots (inspected) in docs/screenshots/m4/:
+* lobby: host and 2h+2b, desktop and phone;
+* race: desktop and phone;
+* results;
+* back in lobby;
+* 5th human refused;
+* portrait invite;
+* phone race and finished results.
 
 ## 6. Network matrix (headless clients, real sockets, injected delay; `lagMs` = RTT, half each way)
 
@@ -103,6 +125,8 @@ See docs/evidence/m4/net-matrix.md (Kage, 2h+2b unless stated). Highlights:
 * Disconnect + auto-reconnect: rejoined the same seat mid-race with the full snapshot.
 * Server tick p95 < 1 ms per 50 ms tick; 0 overruns.
 * Cadence: up ~16 messages/s (~0.97 KB/s), down ~20.7 snapshots/s (~37–43 KB/s per client).
+* Final run on d86f139, 20 s per case: p95 0.000 m for 50/100/200 ms RTT, jitter, outage and reconnect;
+  4 humans p95 ≤ 0.26 m; 0 server overruns.
 
 ## 7. Event load test (measured) and cost model
 
@@ -112,12 +136,13 @@ all 20 headless clients (2 cores):
 | Measure | Value |
 |---|---|
 | 6th room | refused: HTTP 503 `capacity` |
-| Server tick per room | p50 0.31–0.35 ms, p95 0.43–0.51 ms, max ≤ 5.8 ms; 0 overruns |
-| Process CPU (rooms + 20 clients) | 23 % of one core |
-| Event-loop lag | p99 11.5 ms |
-| RSS | 63 → 264 MB |
-| 20 clients | mispredict p95 median 0.18 m, max 0.34 m; 0 hard snaps; 0 resyncs; max pending 37 frames |
-| Per client | up 16.2 msg/s (967 B/s); down 20.7 msg/s (43.4 KB/s) |
+| Server tick per room (distinct rooms; harness keyed by code) | p50 0.32–0.37 ms, p95 0.48–0.56 ms, max ≤ 3.8 ms; 0 overruns |
+| Process CPU (rooms + 20 clients) | 25 % of one core |
+| Event-loop lag | p99 11.6 ms |
+| RSS | 63 → 251 MB |
+| 20 clients | mispredict p95 median 0.14 m, max 0.27 m; 0 hard snaps; 0 resyncs; max pending 34 frames |
+| Per client | up 16.3 msg/s (971 B/s); down 20.6 msg/s (43.3 KB/s) |
+| Shutdown | exits cleanly (64 s wall) |
 
 Free-plan limits were rechecked 17 Nov 2026 from the official pages (docs/M4-DEPLOY-FREE.md):
 100,000 DO requests/day, incoming WS messages at 20:1, outgoing free, 13,000 GB-s/day.
@@ -136,9 +161,9 @@ Free-plan limits were rechecked 17 Nov 2026 from the official pages (docs/M4-DEP
   `MAX_ACTIVE_ROOMS=5`, a config change that needs approval. The daily guard is now a **hard stop**
   (worst-case overshoot = active rooms × 1 min).
 
-## 8. Single-player regression
+## 8. Single-player regression (d86f139)
 
-Result on the final commit: see the "Final verification" section appended below.
+`npm run test:e2e`: **116/116 browser checks + 6/6 rain checks, exit 0** (docs/evidence/m4/e2e-singleplayer-final.txt).
 
 ## 9. Honest notes / known gaps
 
@@ -146,8 +171,7 @@ Result on the final commit: see the "Final verification" section appended below.
   removed in d74203f. It contains only local throwaway test-room data (incl. test session tokens of
   rooms that never existed outside this machine). It **remains in branch history** (no force-push).
   The scan now rejects such paths.
-* `npm audit`: ws (8.23.0) and vite (6.4.6) were patched. Residual: picomatch 4.0.7 (latest) flagged `*`
-  through vite/tinyglobby. It is build-time only; npm's only remedy is a vite downgrade with older advisories.
+* `npm audit` is **not clean: 4 high** remain, all one transitive chain: picomatch (lock pins 4.0.7, the latest), fdir, tinyglobby and vite. The advisory range is `*`, and npm's only remedy is a Vite downgrade to 6.2.7 with older advisories, so it was not forced. Build/dev-time only; not in the shipped bundle. Directly fixed: ws 8.18.0 → 8.23.0 and vite 6.3.5 → 6.4.6 advisories.
 * Snapshots are ~1.8 KB (the full own-racer state). That is ~43 KB/s per phone, ~26 MB per 10 min.
   Trimming `me` to physics fields is a cheap next optimization.
 * Not predicted: contact and others' slipstream (server corrections). Remote cars are 120 ms in the
@@ -159,7 +183,10 @@ Result on the final commit: see the "Final verification" section appended below.
 ## 10. Event readiness plan: Fun Friday (~20 people), 4-seat rooms (no 20-car race)
 
 **Format**
-* Five heats of 4 (bots fill a short heat). The heat winners (or the top 4 by time) race a final.
+* Five heats of 4 (bots fill a short heat). **The 5 heat winners race a final**, with a 4-seat cap: a
+  4-human final plus a quick 2-person decider, or the organiser drops to 4 heats of 5→4. Comparing
+  times across heats is not fair (different devices, conditions, possibly maps), so placings come only
+  from races run together.
 * Kage (3 laps, ~2.5–3 min) or Velocity (2 laps). Assisted mode for everyone (phones).
 
 **Joining (non-technical)**
@@ -193,7 +220,7 @@ Result on the final commit: see the "Final verification" section appended below.
 ## 11. Three-role critique (one author, three lenses; not independent reviewers)
 
 **Tech lead**
-* Netcode is sound on real networks in headless tests. It degrades **gracefully but badly** on slow
+* Netcode behaves well on real WebSockets on localhost with simulated RTT/jitter/outage (headless). It is untested on real mobile networks.
   render loops (the main thread drives input).
 * The next real fix for weak devices is a Web Worker running the input timer + prediction.
 * The Registry DO is a single global object (fine at this scale; one RPC/min/room).
