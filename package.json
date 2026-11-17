@@ -10,7 +10,7 @@
     "build": "vite build",
     "build:test": "vite build --mode test --outDir dist-test",
     "preview": "vite preview",
-    "test": "node --test tests/unit/",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
     "test:e2e": "npm run build:test && node tests/e2e/run.mjs",
     "measure": "node scripts/measure.mjs",
     "scan": "node scripts/secret-scan.mjs"

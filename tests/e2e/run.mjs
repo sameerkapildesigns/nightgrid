@@ -1,0 +1,261 @@
+// End-to-end parity checks against the built game (Playwright + Chromium/SwiftShader).
+// Usage: npm run test:e2e   (builds dist-test/ and dist/, serves both with `vite preview`).
+// Results: printed, and written to test-results/e2e.json (+ screenshots in test-results/).
+// Note: SwiftShader is a software renderer; frame rates here are far below a real GPU.
+import { preview } from 'vite';
+import { mkdirSync, writeFileSync, statSync, existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { launch, openGame, realErrors, check } from './harness.mjs';
+
+const OUT = 'test-results'; mkdirSync(OUT, { recursive: true });
+if (!existsSync('dist/index.html')) execSync('npx vite build', { stdio: 'inherit' });
+const srvTest = await preview({ build: { outDir: 'dist-test' }, preview: { port: 4174, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
+const srvProd = await preview({ build: { outDir: 'dist' }, preview: { port: 4175, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
+const TEST = 'http://127.0.0.1:4174/', PROD = 'http://127.0.0.1:4175/';
+process.env.NG_BASE = TEST;
+const results = []; const C = (n, ok, d) => check(results, n, ok, d);
+const ONLY = (process.env.NG_ONLY || '').split(',').filter(Boolean); const run = k => !ONLY.length || ONLY.includes(k);
+const browser = await launch();
+const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.jpg`, type: 'jpeg', quality: 72 });
+const st = page => page.evaluate(() => NG_DEBUG.state);
+const glbName = u => (u.match(/\/([a-z]+)-[\w-]+\.glb$/) || [])[1];
+const waitRaceBtn = page => page.waitForFunction(() => { const g = document.getElementById('go'); return g.textContent === 'Race' && !g.disabled; }, null, { timeout: 180000 });
+const TP = `(()=>{ const p=__ng.player; const L=__ng.MAIN.L; p.lap=NG_DEBUG.map.laps-1; p.autopilot=true; p.pers={vmax:92,lat:84,acc:26,brake:46,off:0,short:0,aggr:0,block:0,boostUse:0,margin:4};
+  p.s=(60-120+L)%L; p.prevS=p.s; p.lastRd=L-120; p.prog=(p.lap+1)*L-120; p.speed=80; p.va=80; p.lapTimes=Array(p.lap).fill(40); p.lapValid=Array(p.lap).fill(false); })()`;
+
+try {
+  // ---------------- A. boot, roster, on-demand model loading ----------------
+  if (run('A')) {
+    const reqOrder = [];
+    const ctx = await browser.newContext({ viewport: { width: 960, height: 540 } });
+    const page = await ctx.newPage(); const logs = [];
+    page.on('pageerror', e => logs.push('PAGEERROR: ' + e.message));
+    page.on('console', m => { if (m.type() === 'error') logs.push(m.text()); });
+    page.on('request', r => reqOrder.push(r.url()));
+    const glbResp = {};
+    page.on('response', async r => { const n = glbName(r.url()); if (n) { try { glbResp[n] = { type: r.headers()['content-type'], len: (await r.body()).length }; } catch (e) { } } });
+    await page.route('**/*', r => /fonts\.(googleapis|gstatic)\.com/.test(r.request().url()) ? r.abort() : r.continue());
+    const t0 = Date.now();
+    await page.goto(TEST);
+    await page.waitForFunction(() => window.NG_DEBUG && NG_DEBUG.state === 'title', null, { timeout: 180000 });
+    const tTitle = Date.now() - t0;
+    await waitRaceBtn(page);
+    for (let i = 0; i < 100 && Object.keys(glbResp).length < 3; i++) await page.waitForTimeout(100);
+    const glbs = reqOrder.map(glbName).filter(Boolean);
+    C('boot: title reached', true, `${tTitle} ms (SwiftShader, local preview)`);
+    C('boot: selected car (hypercar) requested first', glbs[0] === 'hypercar', glbs.join(','));
+    C('boot: only selected + rival cars requested (no full roster)', glbs.length === 3 && ['hypercar', 'wedge', 'endurance'].every(k => glbs.includes(k)), glbs.join(','));
+    C('boot: no base64 / CDN model transfer', !reqOrder.some(u => /b64|jsdelivr/.test(u)));
+    const sizesOk = Object.entries(glbResp).every(([k, v]) => v.len === statSync(`assets/models/${k}.glb`).size);
+    C('assets: served GLBs are byte-identical in size to the originals', sizesOk && Object.keys(glbResp).length === 3, JSON.stringify(glbResp));
+    const info = await page.evaluate(() => ({ roster: NG_DEBUG.roster, sel: NG_DEBUG.selectedCar, fleet: NG_DEBUG.fleet, dots: document.querySelectorAll('#carDots button').length, z: /Z-32S|z32s/i.test(document.body.innerHTML), nick: document.getElementById('carNick').textContent }));
+    C('roster: six approved models in garage order', JSON.stringify(info.roster) === JSON.stringify(['hypercar', 'endurance', 'wedge', 'rally', 'streamliner', 'wipeout']) && info.dots === 6, info.roster.join(','));
+    C('roster: Hypercar is the default selection', info.sel.key === 'hypercar' && info.nick === 'Hypercar');
+    C('roster: no Z-32S anywhere in the shipped page', !info.z);
+    C('roster: every race body is a real glTF (no fallback)', info.fleet.every(f => /^glTF:/.test(f.body)), info.fleet.map(f => f.body).join(','));
+    await shot(page, 'garage-desktop');
+    for (let i = 0; i < 3; i++) await page.click('#nextCar');
+    await page.waitForFunction(() => NG_DEBUG.assets.rally.status === 'ok', null, { timeout: 120000 });
+    const g2 = reqOrder.map(glbName).filter(Boolean);
+    C('on-demand: selecting Off-roader fetches rally.glb only', g2.length === 4 && g2[3] === 'rally' && !g2.includes('wipeout') && !g2.includes('streamliner'), g2.join(','));
+    await page.click('#prevCar'); await page.waitForTimeout(300);
+    C('on-demand: re-selecting a loaded car does not refetch', reqOrder.map(glbName).filter(Boolean).length === 4);
+    await page.click('#carDots [data-car="wipeout"]');
+    await page.waitForFunction(() => NG_DEBUG.assets.wipeout.status === 'ok', null, { timeout: 180000 });
+    const wi = await page.evaluate(() => NG_DEBUG.assets.wipeout);
+    C('on-demand: Wipeout loads when selected (original 2k/4k textures)', wi.status === 'ok' && wi.tris > 20000, `${wi.tris} tris, ${wi.meshes} meshes`);
+    await page.evaluate(() => __ng.render()); await shot(page, 'garage-wipeout');
+    C('boot: no page errors', realErrors(logs).length === 0, realErrors(logs).slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
+  // ---------------- B. garage arrows pinned at 44x44 (desktop, landscape phone, portrait phone) ----------------
+  if (run('B')) for (const [w, h, label] of [[1280, 675, 'desktop'], [844, 390, 'landscape phone'], [390, 844, 'portrait phone']]) {
+    const { ctx, page } = await openGame(browser, { width: w, height: h, ctxOpts: w < 900 ? { isMobile: true, hasTouch: true } : {} });
+    const boxes = await page.evaluate(() => ['prevCar', 'nextCar'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height), r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight]; }));
+    C(`arrows: 44x44 and on-screen (${label} ${w}x${h})`, boxes.every(b => b[0] === 44 && b[1] === 44 && b[2]), JSON.stringify(boxes));
+    if (w < 900) await shot(page, `garage-${label.replace(' ', '-')}`);
+    await ctx.close();
+  }
+
+  // ---------------- B2. INFO: v5b garage-bar overflow (layout unchanged in M1, reported only) ----------------
+  if (run('B')) {
+    const { ctx, page } = await openGame(browser, { width: 1280, height: 675 });
+    const rows = [];
+    for (const [w, h] of [[1024, 576], [1024, 768], [1152, 648], [1280, 675], [1280, 800], [1366, 768], [1440, 900], [1920, 1080]]) {
+      await page.setViewportSize({ width: w, height: h }); await page.waitForTimeout(150);
+      const r = await page.evaluate(() => { const b = document.getElementById('go').getBoundingClientRect(); return b.right <= innerWidth && b.bottom <= innerHeight && b.left >= 0; });
+      rows.push(`${w}x${h}:${r ? 'on-screen' : 'OFF-SCREEN'}`);
+    }
+    console.log('INFO  layout (v5b CSS, unchanged): Race button ' + rows.join(' '));
+    results.push({ name: 'INFO layout: Race button visibility by viewport (baseline CSS)', ok: true, info: true, detail: rows.join(' ') });
+    await ctx.close();
+  }
+
+  // ---------------- C. maps ----------------
+  if (run('C')) {
+    const { ctx, page, logs } = await openGame(browser, { width: 640, height: 360 });
+    const expect = { technical: [2420, 3, 'Kage Circuit'], legacy: [5055, 3, 'Legacy Grid'], velocity: [5870, 2, 'Velocity Ring'] };
+    for (const k of ['technical', 'legacy', 'velocity']) {
+      await page.click(`[data-map="${k}"]`);
+      await page.waitForFunction(k2 => NG_DEBUG.map.key === k2 && document.getElementById('go').textContent === 'Race', k, { timeout: 120000 });
+      const m = await page.evaluate(() => ({ ...NG_DEBUG.map, rec: document.getElementById('record').textContent }));
+      C(`maps: ${k} builds (length/laps/name/world)`, m.lengthM === expect[k][0] && m.laps === expect[k][1] && m.name === expect[k][2] && m.worldMeshes > 40 && m.lastSwitch.geometries > 0, `${m.lengthM} m, ${m.laps} laps, ${m.worldMeshes} meshes, switch ${m.lastSwitch.ms} ms`);
+      C(`maps: ${k} shows no record in a clean session`, m.rec === 'No record yet', m.rec);
+    }
+    C('maps: no page errors', realErrors(logs).length === 0, realErrors(logs).slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
+  // ---------------- D. race / pause / restart / finish / results / garage (deterministic stepping) ----------------
+  if (run('D')) {
+    const { ctx, page, logs } = await openGame(browser, { width: 1280, height: 675 });
+    await page.evaluate(() => localStorage.clear());
+    await waitRaceBtn(page);
+    await page.evaluate(() => __ng.manualClock(true));
+    await page.click('#go');
+    await page.waitForFunction(() => NG_DEBUG.state === 'intro', null, { timeout: 60000 });
+    C('flow: Race -> cinematic intro', true, `precompile ${JSON.stringify(await page.evaluate(() => NG_DEBUG.precompile))}`);
+    await page.evaluate(() => { __ng.sim(1.2); __ng.render(); }); await shot(page, 'intro');
+    await page.keyboard.press('Enter');
+    C('flow: Enter skips intro -> countdown', await st(page) === 'countdown' && (await page.evaluate(() => NG_DEBUG.intro.skipped)));
+    await page.evaluate(() => __ng.sim(3.4));
+    C('flow: countdown -> race', await st(page) === 'race');
+    await page.keyboard.press('KeyP');
+    C('flow: P pauses', await page.evaluate(() => NG_DEBUG.paused && !document.getElementById('pause').classList.contains('hide')));
+    await page.keyboard.press('Enter');
+    C('flow: Enter while paused restarts (countdown)', await st(page) === 'countdown' && !(await page.evaluate(() => NG_DEBUG.paused)));
+    await page.evaluate(() => __ng.sim(3.4));
+    await page.keyboard.down('KeyW'); await page.evaluate(() => __ng.sim(3)); await page.keyboard.up('KeyW');
+    const sp = await page.evaluate(() => NG_DEBUG.speedFx.kmh);
+    C('flow: throttle accelerates the player', sp > 150, `${sp} km/h after 3 s`);
+    await page.evaluate(() => __ng.render()); await shot(page, 'race');
+    await page.evaluate(TP); await page.evaluate(() => __ng.sim(4));
+    C('flow: crossing the line on the final lap finishes (finish camera)', await st(page) === 'finished' && /fin/.test(await page.evaluate(() => document.getElementById('cine').className)));
+    await page.keyboard.press('Enter'); await page.evaluate(() => __ng.sim(0.2));
+    const res = await page.evaluate(() => ({ r: NG_DEBUG.results, rows: document.querySelectorAll('#resTable tr').length, pos: document.getElementById('resPos').textContent }));
+    C('flow: Enter skips finish camera -> results', res.r.visible && res.rows === 5, `${res.pos}, rows ${res.rows}`);
+    await page.evaluate(() => __ng.render()); await shot(page, 'results');
+    const rec = await page.evaluate(() => ({ dbg: NG_DEBUG.records, ls: Object.keys(localStorage).filter(k => k.includes('_rec_')) }));
+    C('records: teleported test lap is rejected', rec.dbg.lastOffer && rec.dbg.lastOffer.saved === false, JSON.stringify(rec.dbg.lastOffer));
+    C('records: test build never writes real records (localStorage untouched)', rec.ls.length === 0 && rec.dbg.storage.startsWith('memory'), JSON.stringify(rec.ls));
+    await page.click('#again');
+    C('flow: Race again -> countdown', await st(page) === 'countdown');
+    await page.evaluate(() => __ng.sim(3.4)); await page.keyboard.press('KeyP');
+    await page.evaluate(() => { document.getElementById('pause').classList.add('hide'); });
+    await page.evaluate(() => __ng.sim(0.1));
+    await page.evaluate(() => NG_DEBUG.qa.exit());
+    C('flow: back to garage', await st(page) === 'title' && !(await page.evaluate(() => document.getElementById('title').classList.contains('hide'))));
+    C('flow: no page errors', realErrors(logs).length === 0, realErrors(logs).slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
+  // ---------------- E. timing: fixed step, catch-up bound, stalls, wall-clock intro ----------------
+  if (run('E')) {
+    const { ctx, page, logs } = await openGame(browser, { width: 480, height: 270 });
+    await waitRaceBtn(page);
+    // real-time intro: wall-clock length regardless of the (very low) software-render FPS
+    const tClick = Date.now(); await page.click('#go');
+    await page.waitForFunction(() => NG_DEBUG.state === 'countdown', null, { timeout: 60000 });
+    const intro = await page.evaluate(() => NG_DEBUG.intro);
+    const maxF = intro.maxFrameMs / 1000;
+    C('timing: intro runs on the wall clock (not frame count)', intro.wallSec >= intro.len && intro.wallSec <= intro.len + maxF + 0.3, `intro ${intro.wallSec.toFixed(2)} s for len ${intro.len} s over ${intro.frames} frames (max frame ${intro.maxFrameMs.toFixed(0)} ms)`);
+    C('timing: shader precompile happens before intro timing starts', (await page.evaluate(() => NG_DEBUG.precompile)).ms >= 0 && intro.startedAt > 0, `precompile ${JSON.stringify(await page.evaluate(() => NG_DEBUG.precompile))}; click->intro-start includes it`);
+    // deterministic clock checks through the real frame path (synthetic frame gaps)
+    await page.evaluate(() => __ng.manualClock(true));
+    await page.evaluate(() => __ng.sim(3.4));
+    const r0 = await page.evaluate(() => NG_DEBUG.clock);
+    let r1; for (let i = 0; i < 30; i++) r1 = await page.evaluate(() => __ng.advance(100));
+    C('timing: 10 FPS frames advance race time 1:1 (3.0 s wall -> 3.0 s race)', Math.abs((r1.raceTime - r0.raceTime) - 3.0) <= 0.0084, `${(r1.raceTime - r0.raceTime).toFixed(4)} s`);
+    let r2; for (let i = 0; i < 20; i++) r2 = await page.evaluate(() => __ng.advance(250));
+    C('timing: 4 FPS frames still advance race time 1:1', Math.abs((r2.raceTime - r1.raceTime) - 5.0) <= 0.0084 && r2.droppedMs === r1.droppedMs, `${(r2.raceTime - r1.raceTime).toFixed(4)} s`);
+    const r3 = await page.evaluate(() => __ng.advance(600));
+    C('timing: a 600 ms hitch simulates the 250 ms cap and reports the drop', Math.abs((r3.raceTime - r2.raceTime) - 0.25) <= 0.0084 && Math.round(r3.droppedMs - r2.droppedMs) === 350, `+${(r3.raceTime - r2.raceTime).toFixed(3)} s, dropped ${Math.round(r3.droppedMs - r2.droppedMs)} ms`);
+    const r4 = await page.evaluate(() => __ng.advance(5000));
+    const p4 = await page.evaluate(() => ({ paused: NG_DEBUG.paused, note: document.getElementById('pauseNote').textContent }));
+    C('timing: a 5 s stall (tab suspension) is not simulated and auto-pauses the race', r4.raceTime === r3.raceTime && r4.stalls === r3.stalls + 1 && p4.paused, `${p4.note}`);
+    const r5 = await page.evaluate(() => __ng.advance(100));
+    C('timing: race clock frozen while paused', r5.raceTime === r4.raceTime);
+    await page.keyboard.press('KeyP');
+    let r6; for (let i = 0; i < 6; i++) r6 = await page.evaluate(() => __ng.advance(1000 / 60));
+    C('timing: resumes cleanly after the stall', Math.abs((r6.raceTime - r5.raceTime) - 0.1) <= 0.0084, `${(r6.raceTime - r5.raceTime).toFixed(4)} s`);
+    // visibility: hidden tab pauses the race
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+    C('timing: hidden tab pauses the race', await page.evaluate(() => NG_DEBUG.paused));
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => false }); });
+    await page.keyboard.press('KeyP');
+    // real time: race clock vs wall clock at whatever FPS SwiftShader manages
+    await page.evaluate(() => __ng.manualClock(false));
+    await page.waitForTimeout(500);
+    const a = await page.evaluate(() => [NG_DEBUG.clock, performance.now()]);
+    await page.waitForTimeout(5000);
+    const b = await page.evaluate(() => [NG_DEBUG.clock, performance.now()]);
+    const wallNow = (b[1] - a[1]) / 1000, wallClk = b[0].wallTime - a[0].wallTime, race = b[0].raceTime - a[0].raceTime, dropped = (b[0].droppedMs - a[0].droppedMs) / 1000;
+    const paused = await page.evaluate(() => NG_DEBUG.paused);
+    // invariant: every wall-clock second the loop saw is either simulated race time or reported as dropped
+    C('timing (real time): race time + reported drops == wall time seen by the loop', !paused && Math.abs(race + dropped - wallClk) < 0.02, `loop wall ${wallClk.toFixed(3)} s = race ${race.toFixed(3)} s + dropped ${dropped.toFixed(3)} s; fps ${b[0].fps}`);
+    C('timing (real time): loop wall time matches performance.now within one frame', Math.abs(wallClk - wallNow) <= Math.max(0.35, 1 / Math.max(0.2, b[0].minFps || 1)), `loop ${wallClk.toFixed(2)} s vs now ${wallNow.toFixed(2)} s`);
+    C('timing (real time): FPS meter reports real FPS (can be < 20)', b[0].fps > 0, `fps ${b[0].fps} (min ${b[0].minFps})`);
+    C('timing: no page errors', realErrors(logs).length === 0, realErrors(logs).slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+
+  // ---------------- F. touch layout ----------------
+  if (run('F')) for (const [w, h, label] of [[844, 390, 'landscape'], [390, 844, 'portrait']]) {
+    const { ctx, page } = await openGame(browser, { width: w, height: h, query: '?touch', ctxOpts: { isMobile: true, hasTouch: true } });
+    await waitRaceBtn(page);
+    await page.evaluate(() => __ng.manualClock(true));
+    await page.tap('#go');
+    await page.waitForFunction(() => NG_DEBUG.state === 'intro', null, { timeout: 60000 });
+    await page.evaluate(() => __ng.sim(0.5));
+    await page.touchscreen.tap(Math.round(w / 2), Math.round(h * 0.35));   // raw touch on the full-screen cinematic
+    C('touch: tapping the cinematic skips the intro', await st(page) === 'countdown');
+    await page.evaluate(() => __ng.sim(3.4));
+    await page.waitForFunction(() => document.body.classList.contains('racing'), null, { timeout: 5000 });
+    const L = await page.evaluate(() => {
+      const bs = [...document.querySelectorAll('#touch button')].map(b => { const r = b.getBoundingClientRect(); return { k: b.dataset.k, x: r.left, y: r.top, w: r.width, h: r.height, vis: getComputedStyle(b).display !== 'none' && getComputedStyle(document.getElementById('touch')).display !== 'none' }; });
+      const cr = document.getElementById('credits').getBoundingClientRect();
+      return { bs, cred: { x: cr.left, y: cr.top, w: cr.width, h: cr.height, r: cr.right, b: cr.bottom, vis: getComputedStyle(document.getElementById('credits')).display !== 'none' }, vw: innerWidth, vh: innerHeight };
+    });
+    const inside = L.bs.every(b => b.x >= 0 && b.y >= 0 && b.x + b.w <= L.vw + 0.5 && b.y + b.h <= L.vh + 0.5);
+    const big = L.bs.every(b => b.w >= 44 && b.h >= 44);
+    const ov = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    let overlap = false; for (let i = 0; i < L.bs.length; i++) for (let j = i + 1; j < L.bs.length; j++) if (ov(L.bs[i], L.bs[j])) overlap = true;
+    C(`touch (${label} ${w}x${h}): 4 controls visible, >=44 px, on-screen, non-overlapping`, L.bs.length === 4 && L.bs.every(b => b.vis) && big && inside && !overlap, L.bs.map(b => `${b.k}:${Math.round(b.w)}x${Math.round(b.h)}@${Math.round(b.x)},${Math.round(b.y)}`).join(' '));
+    const credOver = L.bs.some(b => ov(b, { x: L.cred.x, y: L.cred.y, w: L.cred.w, h: L.cred.h }));
+    C(`touch (${label}): compact credits on-screen and clear of controls`, !L.cred.vis || (L.cred.h <= 40 && L.cred.r <= L.vw + 0.5 && !credOver), JSON.stringify({ h: Math.round(L.cred.h), w: Math.round(L.cred.w), visible: L.cred.vis }));
+    await page.evaluate(() => __ng.render()); await shot(page, `touch-${label}`);
+    const before = await page.evaluate(() => NG_DEBUG.speedFx.kmh);
+    await page.evaluate(() => __ng.sim(2));
+    const after = await page.evaluate(() => NG_DEBUG.speedFx.kmh);
+    C(`touch (${label}): auto-throttle drives the car`, after > before + 50, `${before} -> ${after} km/h`);
+    await ctx.close();
+  }
+
+  // ---------------- G. production build: debug gated off ----------------
+  if (run('G')) {
+    const ctx = await browser.newContext({ viewport: { width: 640, height: 360 } }); const page = await ctx.newPage();
+    const logs = []; page.on('pageerror', e => logs.push(e.message));
+    await page.route('**/*', r => /fonts\.(googleapis|gstatic)\.com/.test(r.request().url()) ? r.abort() : r.continue());
+    await page.goto(PROD);
+    await waitRaceBtn(page);
+    const g = await page.evaluate(() => ({ dbg: typeof window.NG_DEBUG, ng: typeof window.__ng, qa: !!document.getElementById('qaBtn'), qaPanel: getComputedStyle(document.getElementById('qa')).display !== 'none', marks: performance.getEntriesByType('mark').map(m => m.name).filter(n => n.startsWith('ng:')) }));
+    C('prod: no debug hooks (NG_DEBUG/__ng undefined), no QA button, QA panel hidden', g.dbg === 'undefined' && g.ng === 'undefined' && !g.qa && !g.qaPanel, JSON.stringify(g));
+    C('prod: boots to an enabled Race button', true, g.marks.join(','));
+    await page.click('#go');
+    await page.waitForFunction(() => document.getElementById('title').classList.contains('hide') && document.getElementById('cine').classList.contains('on'), null, { timeout: 60000 });
+    await page.keyboard.press('Enter');
+    await page.waitForFunction(() => /^[123]$|^GO$/.test(document.getElementById('count').textContent), null, { timeout: 60000 });
+    C('prod: Race -> intro -> Enter skip -> countdown (no debug hooks used)', true, await page.evaluate(() => 'count=' + document.getElementById('count').textContent));
+    C('prod: no page errors', logs.length === 0, logs.slice(0, 3).join(' | '));
+    await ctx.close();
+  }
+} catch (e) {
+  C('runner: unexpected exception', false, e.stack.split('\n').slice(0, 4).join(' | '));
+} finally {
+  await browser.close(); await srvTest.httpServer.close(); await srvProd.httpServer.close();
+  const fail = results.filter(r => !r.ok);
+  writeFileSync(`${OUT}/e2e${ONLY.length ? '-' + ONLY.join('') : ''}.json`, JSON.stringify({ when: new Date().toISOString(), env: 'Chromium (Playwright 1.63) + SwiftShader software WebGL, headless, local vite preview', pass: results.length - fail.length, fail: fail.length, results }, null, 2));
+  console.log(`\n${results.length - fail.length}/${results.length} passed`);
+  process.exit(fail.length ? 1 : 0);
+}

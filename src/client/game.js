@@ -2053,9 +2053,13 @@ function advanceFrame(now, render = true) {
   update(adv.simDt, Math.min(wall, clock.maxCatchUp));
   if (render) renderNow();
 }
+// Gaps >= 1 s are never simulated (counted as dropped). A running race is additionally
+// auto-paused when the gap is long enough to be a suspension (>= 3 s) rather than a hitch.
+const AUTO_PAUSE_AFTER = 3.0;
 function onStall(wall) {
-  lastStall = { ms: Math.round(wall * 1000), state, at: Math.round(performance.now()) };
-  if ((state === 'race' || state === 'countdown') && !paused) { togglePause(); $('pauseNote').textContent = `Auto-paused: the game was suspended for ${wall.toFixed(1)} s`; }
+  lastStall = { ms: Math.round(wall * 1000), state, at: Math.round(performance.now()), paused: false };
+  if (wall >= AUTO_PAUSE_AFTER && (state === 'race' || state === 'countdown') && !paused) {
+    lastStall.paused = true; togglePause(); $('pauseNote').textContent = `Auto-paused: the game was suspended for ${wall.toFixed(1)} s`; }
 }
 function renderNow() {
   const g = state === 'title';
@@ -2098,7 +2102,7 @@ function update(dt, dt0) {
   if (state === 'title') { flyTarget(dt, _cp, _cl, _cu); CC.pos.lerp(_cp, damp(3, dt)); CC.look.lerp(_cl, damp(3, dt)); CC.up.lerp(_cu, damp(2, dt)).normalize(); CC.roll = 0; }
   else if (state === 'intro') {
     if (introStats) { introStats.frames++; introStats.maxFrameMs = Math.max(introStats.maxFrameMs, RDT * 1000); }
-    introT = RDT > 0 ? Math.max(introT + dt0, (performance.now() - introWall) / 1000) : introT + dt0; cineIntroCam(introT, dt0); if (introT >= CINE.len) endIntro();   // wall-clock from intro start (set after shader precompile)
+    introT = RDT > 0 ? (performance.now() - introWall) / 1000 : introT + dt0; cineIntroCam(introT, dt0); if (introT >= CINE.len) endIntro();   // wall-clock from intro start (set after shader precompile)
   } else if (state === 'finished' && FIN.on && FIN.t < 3.4) {   // trackside finish camera (live, not a replay)
     CC.pos.copy(FIN.pos); CC.look.lerp(player.world, damp(12, dt0)); CC.up.copy(FIN.up); CC.roll = 0;
   } else if (state === 'finished') {
@@ -2258,7 +2262,7 @@ async function boot() {
   // Selected car first (gates the garage), then the rivals' cars (gate "Race"). Every other
   // model is fetched only when selected; nothing waits for the full roster.
   const selLoad = ensureAsset(GAR.sel);
-  selLoad.then(() => { performance.mark('ng:selected-car'); return ensureRaceAssets(GAR.sel); }).then(() => { performance.mark('ng:race-ready'); updateGarageUI(); });
+  selLoad.then(() => { performance.mark('ng:selected-car'); return ensureRaceAssets(GAR.sel); }).then(() => { performance.mark('ng:race-ready'); refreshRacerCars(); updateGarageUI(); });
   try { await Promise.race([Promise.all([document.fonts.load('900 64px Orbitron'), document.fonts.load('700 30px Rajdhani')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
   buildEnv(); await setLoad(0.12, 'MAGNETISING CIRCUIT');
   scene.add(WORLD); planDecks(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');
@@ -2316,7 +2320,7 @@ if (DEBUG) {
     render() { renderNow(); }, start() { startRace(); } };
   $('qaBtn').addEventListener('click', () => { $('qaBtn').blur(); qaOpen(); });
 } else {
-  $('qaBtn').remove(); $('qa').remove();
+  $('qaBtn').remove();   // the QA panel markup stays (hidden, never openable): garage UI writes diagnostics into it
 }
 requestAnimationFrame(frame);
 boot().catch(e => { const el = $('err'); el.style.display = 'block'; el.textContent = 'Boot error: ' + e.message; console.error(e); });

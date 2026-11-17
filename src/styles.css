@@ -59,6 +59,8 @@ html,body{width:100%;height:100%;overflow:hidden;background:#05030c;color:#e8f6f
 @keyframes sfl{0%{opacity:0;letter-spacing:1.4em;filter:blur(8px)}15%{opacity:1;letter-spacing:.5em;filter:blur(0)}75%{opacity:1}100%{opacity:0}}
 .overlay{position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;transition:opacity .9s}
 .overlay.hide{opacity:0;pointer-events:none}
+/* M1 fix: children of a hidden overlay must not take input (v5b: #title > * kept pointer-events:auto, so invisible garage controls caught taps/clicks during races) */
+.overlay.hide *{pointer-events:none!important}
 #title{background:radial-gradient(ellipse at 50% 55%,rgba(5,3,12,.05) 0%,rgba(5,3,12,.55) 60%,rgba(5,3,12,.9) 100%)}
 .ttl{text-align:center;max-width:920px;padding:20px}
 .kicker{font-family:Orbitron;font-size:11px;letter-spacing:.5em;color:var(--c);opacity:.9}
