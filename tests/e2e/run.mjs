@@ -109,6 +109,8 @@ try {
       await page.waitForFunction(k2 => NG_DEBUG.map.key === k2 && document.getElementById('go').textContent === 'Race', k, { timeout: 120000 });
       const m = await page.evaluate(() => ({ ...NG_DEBUG.map, rec: document.getElementById('record').textContent }));
       C(`maps: ${k} builds (length/laps/name/world)`, m.lengthM === expect[k][0] && m.laps === expect[k][1] && m.name === expect[k][2] && m.worldMeshes > 40 && m.lastSwitch.geometries > 0, `${m.lengthM} m, ${m.laps} laps, ${m.worldMeshes} meshes, switch ${m.lastSwitch.ms} ms`);
+      const gr = await page.evaluate(() => NG_DEBUG.ground);
+      C(`ground ${k}: full-width road/rail/vehicle solid clears the rendered ground; no building over a pit`, gr.worst.c >= -1e-3 && gr.buildingsOverPits === 0 && gr.buildingsChecked > 100, JSON.stringify({ worst: gr.worst, pits: gr.pitBlocks, buildings: gr.buildingsChecked, over: gr.buildingsOverPits }));
       C(`maps: ${k} shows no record in a clean session`, m.rec === 'No record yet', m.rec);
     }
     C('maps: no page errors', realErrors(logs).length === 0, realErrors(logs).slice(0, 3).join(' | '));

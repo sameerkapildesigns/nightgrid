@@ -16,6 +16,7 @@ import { createSim, PERS } from '../core/sim.js';
 import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
 import { createRecordStore, memoryStorage } from '../core/records.js';
 import { createTilt } from '../core/tilt.js';
+import { buildClearance, groundHeightAt, worstClearance, GROUND_Y } from '../core/terrain.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
 
@@ -473,6 +474,36 @@ function windowMaterial() {
   };
   return bMat;
 }
+// M3 ground: same 6 km plane, material and texture mapping as v5b, but cut into pits wherever
+// the swept road solid (core/terrain.js) dips below ground level. Flat 20 m tiles everywhere
+// except pit blocks, which use the 2 m clearance grid. City foundations are untouched (buildings
+// keep >= W+15 m from any low track sample, see tests).
+let CLEARANCE = null;
+function buildGroundGeometry(cx, cz) {
+  const cl = CLEARANCE = buildClearance(TD), B = cl.block, half = 3000;
+  const X0 = Math.floor((cx - half - cl.x0) / B) * B + cl.x0, Z0 = Math.floor((cz - half - cl.z0) / B) * B + cl.z0, nb = Math.ceil(2 * half / B);
+  const pit = new Set(cl.blocks.map(([x, z]) => x + ',' + z));
+  const pos = [], uv = [], idx = [];
+  const vtx = (x, y, z) => { pos.push(x, y, z); uv.push((x - cx + half) / (2 * half), (half - (z - cz)) / (2 * half)); return pos.length / 3 - 1; };
+  // flat tiles (shared vertex grid), skipping pit blocks
+  const base = pos.length / 3;
+  for (let j = 0; j <= nb; j++) for (let i = 0; i <= nb; i++) vtx(X0 + i * B, GROUND_Y, Z0 + j * B);
+  for (let j = 0; j < nb; j++) for (let i = 0; i < nb; i++) {
+    if (pit.has((X0 + i * B) + ',' + (Z0 + j * B))) continue;
+    const a = base + j * (nb + 1) + i, b = a + 1, c = a + nb + 1, d = c + 1; idx.push(a, c, b, b, c, d);
+  }
+  // pit blocks at the clearance-grid resolution
+  const per = Math.round(B / cl.cell);
+  for (const [bx, bz] of cl.blocks) {
+    const gi = Math.round((bx - cl.x0) / cl.cell), gj = Math.round((bz - cl.z0) / cl.cell), b0 = pos.length / 3;
+    for (let j = 0; j <= per; j++) for (let i = 0; i <= per; i++) { const ii = Math.min(cl.nx - 1, gi + i), jj = Math.min(cl.nz - 1, gj + j); vtx(bx + i * cl.cell, cl.req[jj * cl.nx + ii], bz + j * cl.cell); }
+    for (let j = 0; j < per; j++) for (let i = 0; i < per; i++) { const a = b0 + j * (per + 1) + i, b = a + 1, c = a + per + 1, d = c + 1; idx.push(a, c, b, b, c, d); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
 function buildCity() {
   // spatial hash of all track samples (with height + width)
   const CELL = 32, grid = new Map();
@@ -583,9 +614,8 @@ function buildCity() {
   mk(signsV, SIGN_V, true); mk(signsH, SIGN_H, false);
   const gtex = canvasTex(256, 256, g => { g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(0,240,255,0.35)'; g.fillRect(0, 0, 256, 2); g.fillRect(0, 0, 2, 256); g.fillStyle = 'rgba(255,43,214,0.18)'; g.fillRect(0, 128, 256, 1); g.fillRect(128, 0, 1, 256); });
   gtex.wrapS = gtex.wrapT = THREE.RepeatWrapping; gtex.repeat.set(6000 / 50, 6000 / 50);
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({ color: 0x07060c, roughness: 0.32, metalness: 0.6, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(0.5, 0.5, 0.5) }));
-  ground.rotation.x = -Math.PI / 2; ground.position.set((minX + maxX) / 2, -0.06, (minZ + maxZ) / 2);
-  WORLD.add(ground);
+  const ground = new THREE.Mesh(buildGroundGeometry((minX + maxX) / 2, (minZ + maxZ) / 2), new THREE.MeshStandardMaterial({ color: 0x07060c, roughness: 0.32, metalness: 0.6, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(0.5, 0.5, 0.5), side: THREE.DoubleSide }));
+  ground.name = 'ground'; WORLD.add(ground);
   return { minX, maxX, minZ, maxZ };
 }
 
@@ -2382,6 +2412,7 @@ if (DEBUG) {
     get precompile() { return lastPrecompile; },
     get records() { return { storage: 'memory (debug/test build)', current: isFinite(recordLap) ? recordLap : null, lastOffer: lastRecordOffer, rejected: records.rejected.slice() }; },
     get results() { return { lapTimes: player ? player.lapTimes.slice() : [], lapValid: player ? player.lapValid.slice() : [], finishTime: player ? player.finishTime : 0, order: sim.finishOrder.map(r => r.name), visible: !$('results').classList.contains('hide') }; },
+    get ground() { const cl = CLEARANCE; if (!cl) return null; const w = worstClearance(TD, (x, z) => groundHeightAt(cl, x, z)); const fp = []; for (const b of bList) if (b.y0 === 0) { let hit = false; for (let u = -0.5; u <= 0.5 && !hit; u += 0.125) for (let v = -0.5; v <= 0.5 && !hit; v += 0.125) if (groundHeightAt(cl, b.x + u * b.w, b.z + v * b.d) < GROUND_Y - 1e-4) hit = true; if (hit) fp.push([Math.round(b.x), Math.round(b.z)]); } return { worst: w, pitBlocks: cl.blocks.length, buildingsOverPits: fp.length, buildingsChecked: bList.filter(b => b.y0 === 0).length }; },
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
