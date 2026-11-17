@@ -6,7 +6,7 @@
 //    record validation;
 //  - randomness comes from an injected seeded RNG (the city keeps its own stream).
 import { Vec3 } from './vec.js';
-import { clamp, lerp, mod, wrapA, damp, mulberry32, fmtTime } from './math.js';
+import { clamp, lerp, mod, wrapA, damp, fmtTime } from './math.js';
 import { paceFor, FASTEST_MOD } from './pace.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
 
@@ -24,7 +24,9 @@ export const MAX_STEP_ADVANCE = (h) => 150 * h + 5;
 const FINISH_PERS = { vmax: 60, lat: 50, acc: 20, brake: 40, off: 0, short: 0, aggr: 0, block: 0, boostUse: 0, margin: 5 };
 
 export function createSim({ seed = 4242, events = null } = {}) {
-  const rnd = mulberry32(seed);
+  // mulberry32 with exportable state (snapshot/import parity)
+  const rng = { a: seed | 0 };
+  const rnd = () => { let a = rng.a; a |= 0; a = a + 0x6D2B79F5 | 0; rng.a = a; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
   const R = (a = 0, b = 1) => a + (b - a) * rnd();
   const noop = () => {};
   // Presentation hooks; unknown/missing handlers are no-ops so the core runs headless.
@@ -41,6 +43,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
     racers: [], drones: [], player: null, finishOrder: [],
     input: { up: 0, down: 0, left: 0, right: 0, boost: 0 },
     diff: 'normal', mode: 'expert', pace: null, bestLap: Infinity, bestSplits: [], curSplits: [], wrongWayT: 0,
+    get wrongWayT() { return sim.player ? sim.player.wrongWayT : 0; },
+    get rngState() { return rng.a; },
     debugTouched: false,   // set by debug hooks; taints laps for record purposes
     events: events || null,
     get track() { return td; },
@@ -56,6 +60,10 @@ export function createSim({ seed = 4242, events = null } = {}) {
     return td;
   }
 
+  const humans = () => sim.racers.filter(r => !r.isAI);
+  const isFocus = r => r === sim.player;   // presentation events only for the local focus racer (null on a server)
+  // AI rubber band reference: the leading unfinished human (single player: the player)
+  function rubberRef() { let b = null; for (const r of sim.racers) if (!r.isAI && !r.finished && (!b || r.prog > b.prog)) b = r; return b; }
   function setMode(mode) { sim.mode = mode === 'assisted' ? 'assisted' : 'expert'; if (td) sim.pace = paceFor(td.key, sim.mode); return sim.mode; }
   // lookahead max |curvature| (follows the branch when the racer is committed to it)
   function lookK(r, look) {
@@ -72,13 +80,33 @@ export function createSim({ seed = 4242, events = null } = {}) {
       vf: 0, vl: 0, acc: 0, phase: R(0, 10), scrape: false, scrapeSide: 0, sector: 0, takeShort: false,
       draftT: 0, tow: 0, slingT: 0, crashed: 0, phA: R(0, 10), phB: R(0, 10), aiBoostT: 0, aiBoostCD: R(4, 10), blockD: 0,
       world: new Vec3(), F: new Vec3(), Uw: new Vec3(), lastSign: {}, nearRail: 0, flapK: 0,
-      carMods: null, wallLim: 1.2, lapIntegrity: { teleport: false, autopilot: false, debug: false }
+      carMods: null, wallLim: 1.2, lapIntegrity: { teleport: false, autopilot: false, debug: false },
+      input: { up: 0, down: 0, left: 0, right: 0, boost: 0, drift: 0 }, wrongWayT: 0, bestLap: Infinity, bestSplits: [], curSplits: [], id: null
     };
   }
-  function addRacers(rivals) {   // rivals: [{ name, css }]
-    sim.player = makeRacer('YOU', false, null, '#00f0ff');
-    for (const { name, css } of rivals) sim.racers.push(makeRacer(name, true, PERS[name], css || PERS[name].css));
+  function addRacers(rivals) {   // single player: rivals: [{ name, css }]
+    sim.player = makeRacer('YOU', false, null, '#00f0ff'); sim.player.input = sim.input; sim.player.id = 'p0';
+    for (const { name, css } of rivals) { const r = makeRacer(name, true, PERS[name], css || PERS[name].css); r.id = name; sim.racers.push(r); }
     sim.racers.unshift(sim.player);
+    sim.player.gridSlot = 3; sim.racers.slice(1).forEach((r, k) => { r.gridSlot = k; });
+    addDrones();
+  }
+  // Multiplayer/server: seats in order, kind 'human' | 'bot' (bots use AI personalities). focusId: local
+  // racer for presentation events (null on a server). Total cap 4 (grid slots).
+  const BOT_NAMES = ['GHOST', 'VEX', 'BLITZ'];
+  function addSeats(seats, focusId = null) {
+    if (seats.length < 1 || seats.length > 4) throw new Error('1-4 seats required');
+    let b = 0;
+    seats.forEach((st, k) => {
+      const bot = st.kind === 'bot', pn = bot ? (PERS[st.pers] ? st.pers : BOT_NAMES[b++ % 3]) : null;
+      const r = makeRacer(st.name || (bot ? pn : 'P' + (k + 1)), bot, bot ? PERS[pn] : null, st.css || (bot ? PERS[pn].css : '#00f0ff'));
+      r.id = st.id; r.gridSlot = k; if (st.carMods) r.carMods = st.carMods;
+      sim.racers.push(r);
+      if (st.id === focusId) { sim.player = r; r.input = sim.input; }
+    });
+    addDrones();
+  }
+  function addDrones() {
     const lanes = [-6, 0, 6, -4, 5, -7, 2];
     for (let k = 0; k < 7; k++) sim.drones.push({ s: (k + 0.35) * MAIN.L / 7, lane: lanes[k], d: lanes[k], speed: R(30, 41), h: H0 + 0.1, vh: 0, phase: R(0, 10), world: new Vec3(), lastSign: 0, fi: 0 });
     gridUp();
@@ -93,22 +121,19 @@ export function createSim({ seed = 4242, events = null } = {}) {
     ev.racerReset(r);
   }
   function gridUp() {
-    const [P, A, B, C] = sim.racers;
-    placeRacer(A, 14, -4.4);  // GHOST
-    placeRacer(B, 14, 4.4);   // VEX
-    placeRacer(C, 28, -4.4);  // BLITZ
-    placeRacer(P, 28, 4.4);
-    P.meter = 0.35;
+    const SLOTS = [[14, -4.4], [14, 4.4], [28, -4.4], [28, 4.4]];   // v5b grid: GHOST, VEX, BLITZ, player
+    for (const r of sim.racers.slice().sort((a, b) => a.gridSlot - b.gridSlot)) { const [bk, d] = SLOTS[r.gridSlot]; placeRacer(r, bk, d); if (!r.isAI) r.meter = 0.35; }
     sim.drones.forEach((d, k) => { d.s = mod(S0 + 380 + k * MAIN.L / 7, MAIN.L); d.speed = R(30, 41); });
-    sim.phase = 'grid'; sim.finishOrder = []; sim.curSplits = []; sim.wrongWayT = 0; sim.debugTouched = false;
+    sim.phase = 'grid'; sim.finishOrder = []; sim.curSplits = []; sim.debugTouched = false;
+    for (const r of sim.racers) { r.curSplits = []; r.wrongWayT = 0; }
     poseAll();
   }
 
   /* ---------- physics ---------- */
   const _fp = mkF(), _fa = mkF(), _fb = mkF(), _fv = mkF(), _fd = mkF();
-  function earn(txt, col, amt) {
-    const p = sim.player; if (p.autopilot) return;
-    p.meter = Math.min(1, p.meter + amt); ev.earn(txt, col, amt);
+  function earn(r, txt, col, amt) {
+    if (r.autopilot || r.isAI) return;
+    r.meter = Math.min(1, r.meter + amt); if (isFocus(r)) ev.earn(txt, col, amt);
   }
   function hoverStep(r, kn, speed, dt) {
     const cen = clamp(-speed * speed * kn, -130, 150);
@@ -125,7 +150,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (r.path === MAIN) {
       const prevS = r.prevS;
       if (prevS !== undefined && prevS < SAm && r.s >= SAm && r.s - prevS < 20) {
-        if (r.d > W0) { r.path = BR; r.s = r.s - SAm; r.d -= OFF; if (r === sim.player) ev.flash('LOOP SHORTCUT', '#ff8a2a'); }
+        if (r.d > W0) { r.path = BR; r.s = r.s - SAm; r.d -= OFF; if (isFocus(r)) ev.flash('LOOP SHORTCUT', '#ff8a2a'); }
       }
       r.s = mod(r.s, MAIN.L);
     } else {
@@ -141,7 +166,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   }
   function stepPlayer(r, dt) {
     if (r.crashed > 0) return;
-    const keys = sim.input;
+    const keys = r.input;
     const f = frameAt(r.path, r.s, _fp); const pth = f.path, i = f.i;
     const kg = pth.KG[i], kn = pth.KN[i];
     const inverted = f.U.y < -0.2, steep = f.U.y < 0.5;
@@ -220,7 +245,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const va2 = r.va * ca - r.vd * sa, vd2 = r.vd * ca + r.va * sa; r.va = va2; r.vd = vd2; r.psi = wrapA(r.psi - ang);
     r.prevS = r.s; r.s += dsm; transitions(r);
     r.vf = vf; r.vl = vl; r.acc = a; r.speed = Math.hypot(r.va, r.vd);
-    if (r.drift && vf > 30) earn('DRIFT', '#ffc23f', dt * 0.2);
+    if (r.drift && vf > 30) earn(r, 'DRIFT', '#ffc23f', dt * 0.2);
     // walls
     const [wl, wr, rl, rrl] = walls(r);
     const lim = r.wallLim; r.scrape = false;
@@ -233,37 +258,37 @@ export function createSim({ seed = 4242, events = null } = {}) {
         if (vn > 0) {
           r.vd -= s * vn * 1.3; const k = 1 - Math.min(0.28, vn * 0.009); r.va *= k; r.vd *= k;
           if (Math.abs(r.psi) < 1.4) r.psi -= r.psi * Math.min(0.6, vn * 0.03);
-          if (vn >= 2.5) ev.wallHit(r, vn, s, _fp.R);
+          if (vn >= 2.5 && isFocus(r)) ev.wallHit(r, vn, s, _fp.R);
         }
         r.scrape = true; r.scrapeSide = s;
       }
     } else if (r.speed > 50 && !air) {
       const gap = Math.min((wr - lim) - r.d, r.d + (wl - lim));
       const rails = (r.d > 0 ? rrl : rl);
-      if (gap < 1.1 && rails) { r.nearRail += dt; earn('NEAR MISS · RAIL', '#00f0ff', dt * 0.14); } else r.nearRail = 0;
+      if (gap < 1.1 && rails) { r.nearRail += dt; earn(r, 'NEAR MISS · RAIL', '#00f0ff', dt * 0.14); } else r.nearRail = 0;
     }
     // hover / airtime
     const wasAir = r.air;
     const impact = hoverStep(r, kn, Math.max(0, r.va), dt);
     r.air = r.h > H0 + 0.7;
-    if (r.air) { r.airT += dt; if (r.airT > 0.12) earn('AIRTIME', '#7dff4a', dt * 0.4); }
-    if (wasAir && !r.air) { if (r.airT > 0.35) { ev.cp(`AIRTIME ${r.airT.toFixed(1)}s`); ev.sfx('thud', 0.6); ev.shake(0.35); } r.airT = 0; }
-    if (impact > 3) ev.shake(Math.min(0.5, impact / 20));
+    if (r.air) { r.airT += dt; if (r.airT > 0.12) earn(r, 'AIRTIME', '#7dff4a', dt * 0.4); }
+    if (wasAir && !r.air) { if (r.airT > 0.35 && isFocus(r)) { ev.cp(`AIRTIME ${r.airT.toFixed(1)}s`); ev.sfx('thud', 0.6); ev.shake(0.35); } r.airT = 0; }
+    if (impact > 3 && isFocus(r)) ev.shake(Math.min(0.5, impact / 20));
   }
   function crashOut(r, s) {
     r.crashed = 1.7;
     r.crashVel = r.F.clone().multiplyScalar(r.speed * 0.8).addScaledVector(_fp.R, s * 14).addScaledVector(_fp.U, 6);
     r.crashSpin = new Vec3(R(-4, 4), R(-6, 6), R(-4, 4)); r.boost = false;
-    ev.flash('OFF THE EDGE', '#ff3355'); ev.crash(r);
+    ev.racer('crash', r); if (isFocus(r)) { ev.flash('OFF THE EDGE', '#ff3355'); ev.crash(r); }
   }
   function respawn(r) {
     r.path = MAIN; r.s = HASBR ? mod(SAm - 60, MAIN.L) : mod(raceS(r.path, r.s) - 40, MAIN.L); r.d = 0; r.psi = 0; r.va = 32; r.vd = 0; r.h = H0 + 1.5; r.vh = 0; r.prevS = r.s;
     r.crashed = 0; r.yawV = 0; r.steer = 0;
     const nd = rdist(MAIN, r.s); let delta = nd - r.lastRd; if (delta > LAPLEN / 2) delta -= LAPLEN; if (delta < -LAPLEN / 2) delta += LAPLEN; r.prog += delta; r.lastRd = nd;
-    ev.respawn(r); ev.flash('RESPAWN', '#8a5cff'); ev.sfx('beep', 440, 0.15, 0.12);
+    ev.racer('respawn', r); if (isFocus(r)) { ev.respawn(r); ev.flash('RESPAWN', '#8a5cff'); ev.sfx('beep', 440, 0.15, 0.12); }
   }
   function stepAI(r, dt) {
-    const P0 = r.pers, player = sim.player, racing = sim.phase === 'race';
+    const P0 = r.pers, ref = rubberRef(), racing = sim.phase === 'race' || (sim.phase === 'finished' && !!ref);
     const f = frameAt(r.path, r.s, _fa); const pth = f.path, i = f.i;
     const look = 12 + r.speed * 1.15, km = lookK(r, look), PC = sim.pace || paceFor(td.key, sim.mode);
     const kn = kgAt(r.path, r.s + 8 + r.speed * 0.3);
@@ -272,13 +297,13 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const vC = Math.sqrt(PC.cornerA * (P0 ? P0.lat / 84 : 1) * DF.lat / Math.max(km, 1e-4));
     const noise = 1 + 0.018 * Math.sin(sim.time * 0.21 + r.phA) + 0.012 * Math.sin(sim.time * 0.67 + r.phB);
     let rub = 1;
-    if (r !== player && !player.finished && racing) {
-      const gapSec = (player.prog - r.prog) / 62;
+    if (r.isAI && ref && racing) {
+      const gapSec = (ref.prog - r.prog) / 62;
       rub = 1 + (gapSec > 0 ? clamp(gapSec / 8, 0, 1.35) * 0.06 : clamp(gapSec / 8, -1.3, 0) * 0.065);
     }
     // M3: AI top pace scaled to the mode's cap (v5b AI ~= the fastest car's cap), personality relative to 93.75
     let vmax = PC.normal * ((P0 ? P0.vmax : 70) / 93.75) * DF.vmax * noise * rub * (PC.mode.draftOverCap ? 1 + 0.04 * r.tow : 1);
-    if (r !== player && racing) {
+    if (r.isAI && racing) {
       r.aiBoostCD -= dt;
       if (r.aiBoostT > 0) { r.aiBoostT -= dt; r.boost = true; }
       else { r.boost = false; if (r.aiBoostCD <= 0 && vC > vmax * 1.4 && r.speed > 60) { r.aiBoostT = R(1.2, 2.2) * P0.boostUse; r.aiBoostCD = R(9, 16) / P0.boostUse; } }
@@ -315,7 +340,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
         if (P0 && P0.aggr > 0.5) dT = roomL > roomR ? o.d - md * 0.8 : o.d + md * 0.8;
         blocked = true;
       }
-      if (P0 && P0.block && o === player && gp < 0 && gp > -45 && Math.abs(kn) < 0.006) {
+      if (P0 && P0.block && !o.isAI && gp < 0 && gp > -45 && Math.abs(kn) < 0.006) {
         r.blockD = lerp(r.blockD, o.d, damp(1.2, dt)); dT = clamp(r.blockD, -W + 2.5, W - 2.5);
       }
     }
@@ -346,7 +371,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     else { r.d += dd; r.s += ds; r.va += vs; r.vd += vd; }
   }
   function collideRacers() {
-    const all = sim.racers, player = sim.player;
+    const all = sim.racers;
     for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) {
       const A = all[a], B = all[b]; if (A.path !== B.path || A.crashed || B.crashed) continue;
       const gs = relS(A, B), gd = B.d - A.d;
@@ -360,7 +385,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       let hit = 0;
       if (rvS < 0 && ovS < ovD + 1) { const j = -rvS * 0.42 * Math.sign(gs || 1); bumpRacer(A, 0, 0, -j, 0); bumpRacer(B, 0, 0, j, 0); hit = Math.max(hit, -rvS); }
       if (rvD < 0) { const j = -rvD * 0.55 * Math.sign(gd || 1); bumpRacer(A, 0, 0, 0, -j); bumpRacer(B, 0, 0, 0, j); hit = Math.max(hit, -rvD); }
-      if ((A === player || B === player) && hit > 2) ev.bump(A, B, hit);
+      if ((isFocus(A) || isFocus(B)) && hit > 2) ev.bump(A, B, hit);
     }
     for (const r of all) {
       if (r.path !== MAIN || r.crashed) continue;
@@ -371,18 +396,19 @@ export function createSim({ seed = 4242, events = null } = {}) {
           const ovS = 5.2 - Math.abs(gs), ovD = 2.9 - Math.abs(gd);
           if (ovD < ovS) bumpRacer(r, 0, -ovD * Math.sign(gd || 1), 0, -Math.sign(gd || 1) * 6);
           else { bumpRacer(r, -ovS * Math.sign(gs || 1), 0, 0, 0); const v = r.autopilot ? r.speed : r.va; if (gs > 0 && v > dr.speed) bumpRacer(r, 0, 0, -(v - dr.speed) * 0.7, R(-3, 3)); }
-          if (r === player) ev.droneHit(r);
+          if (isFocus(r)) ev.droneHit(r);
         }
       }
     }
   }
-  function nearMisses() {
-    const p = sim.player; if (p.autopilot || p.crashed || p.speed < 40) return;
+  function nearMisses() { for (const h of sim.racers) if (!h.isAI) nearMiss(h); }
+  function nearMiss(p) {
+    if (p.autopilot || p.crashed || p.speed < 40) return;
     const others = sim.racers.filter(o => o !== p).map(o => [o, o.path === p.path ? relS(p, o) : null, o.d, o.name]).concat(sim.drones.map((d, k) => [d, p.path === MAIN ? (() => { let g = d.s - p.s; if (g > MAIN.L / 2) g -= MAIN.L; if (g < -MAIN.L / 2) g += MAIN.L; return g; })() : null, d.d, 'D' + k]));
     for (const [, gs, od, key] of others) {
       if (gs == null) { p.lastSign[key] = 0; continue; }
       const sg = Math.sign(gs); const prev = p.lastSign[key] || 0;
-      if (prev > 0 && sg <= 0 && Math.abs(gs) < 8) { const ld = Math.abs(od - p.d); if (ld > 2.8 && ld < 5.6) { earn('NEAR MISS', '#ff2bd6', 0.1); ev.sfx('zip'); } }
+      if (prev > 0 && sg <= 0 && Math.abs(gs) < 8) { const ld = Math.abs(od - p.d); if (ld > 2.8 && ld < 5.6) { earn(p, 'NEAR MISS', '#ff2bd6', 0.1); if (isFocus(p)) ev.sfx('zip'); } }
       p.lastSign[key] = Math.abs(gs) < 30 ? sg : 0;
     }
   }
@@ -396,17 +422,16 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const was = r.draftT;
     if (inCone && r.speed > 45) r.draftT = Math.min(1.8, r.draftT + dt); else r.draftT = Math.max(0, r.draftT - dt * (r.draftT > 1.5 ? 0.6 : 2.2));
     r.tow = clamp((r.draftT - 0.4) / 1.1, 0, 1);
-    if (r === sim.player) {
-      if (r.tow > 0.2) earn('SLIPSTREAM', '#00f0ff', dt * 0.06);
-      if (!inCone && was >= 1.5 && r.slingT <= 0 && !r.autopilot) { r.slingT = 0.5; r.draftT = 0; ev.flash('SLINGSHOT', '#00f0ff'); ev.sfx('whoosh'); ev.kick(6); }
+    if (!r.isAI) {
+      if (r.tow > 0.2) earn(r, 'SLIPSTREAM', '#00f0ff', dt * 0.06);
+      if (!inCone && was >= 1.5 && r.slingT <= 0 && !r.autopilot) { r.slingT = 0.5; r.draftT = 0; if (isFocus(r)) { ev.flash('SLINGSHOT', '#00f0ff'); ev.sfx('whoosh'); ev.kick(6); } }
     } else if (!inCone && was >= 1.5) { r.speed += 6; r.draftT = 0; }   // (Assisted: clipped by the AI ceiling next step)
   }
   function checkLaps(r, h) {
-    const player = sim.player;
     const nd = rdist(r.path, r.s);
     let delta = nd - r.lastRd; if (delta > LAPLEN / 2) delta -= LAPLEN; if (delta < -LAPLEN / 2) delta += LAPLEN;
     if (delta > MAX_STEP_ADVANCE(h)) r.lapIntegrity.teleport = true;     // position jumped forward: not a drivable lap
-    if (r === player && r.autopilot && !r.finished) r.lapIntegrity.autopilot = true;
+    if (!r.isAI && r.autopilot && !r.finished) r.lapIntegrity.autopilot = true;
     if (sim.debugTouched) r.lapIntegrity.debug = true;
     r.prog += delta; r.lastRd = nd;
     const rt = sim.raceTime();
@@ -414,52 +439,58 @@ export function createSim({ seed = 4242, events = null } = {}) {
       const lt = rt - r.lapStart, integ = r.lapIntegrity;
       r.lapTimes.push(lt); r.lapValid.push(!integ.teleport && !integ.autopilot && !integ.debug); r.lapStart = rt; r.lap++;
       r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
-      if (r === player) onPlayerLap(lt, integ);
-      if (r.lap >= LAPS) { r.finished = true; r.finishTime = rt; sim.finishOrder.push(r); if (r === player) onPlayerFinish(); }
+      if (!r.isAI) onHumanLap(r, lt, integ);
+      if (r.lap >= LAPS) { r.finished = true; r.finishTime = rt; sim.finishOrder.push(r); if (!r.isAI) onHumanFinish(r); }
     }
     const f = frameAt(r.path, r.s, _fb); const sec = f.path.sec[f.i];
     if (sec !== r.sector) {
       const prev = r.sector; r.sector = sec;
-      if (r === player && sim.phase === 'race' && sec === (prev + 1) % SECTORS.length) {
+      if (!r.isAI && !r.finished && sec === (prev + 1) % SECTORS.length) {
         let split = null, delta2 = null;
         if (sec !== 0) {
-          split = rt - r.lapStart; sim.curSplits[sec] = split;
-          if (sim.bestSplits[sec] != null) delta2 = split - sim.bestSplits[sec];
+          split = rt - r.lapStart; r.curSplits[sec] = split;
+          if (r.bestSplits[sec] != null) delta2 = split - r.bestSplits[sec];
           let html = `S${sec} SPLIT &nbsp; ${fmtTime(split)}`;
           if (delta2 != null) html += ` &nbsp; <span class="${delta2 < 0 ? 'neg' : 'pos'}">${delta2 < 0 ? '−' : '+'}${Math.abs(delta2).toFixed(2)}</span>`;
-          ev.cp(html); ev.sfx('beep', 1320, 0.08, 0.1);
+          if (isFocus(r)) { ev.cp(html); ev.sfx('beep', 1320, 0.08, 0.1); }
         }
-        ev.sector(sec, split, delta2);
+        if (isFocus(r)) ev.sector(sec, split, delta2);
       }
     }
   }
-  function onPlayerLap(lt, integrity) {
-    const player = sim.player;
-    const isBest = lt < sim.bestLap;
-    if (isBest) { sim.bestLap = lt; sim.bestSplits = sim.curSplits.slice(); }
-    sim.curSplits = [];
-    ev.lap({ time: lt, lapLen: LAPLEN, integrity, isBest, lap: player.lap, map: td.key });
-    if (player.lap < LAPS) {
-      ev.flash(player.lap === LAPS - 1 ? 'FINAL LAP' : `LAP ${player.lap + 1}`, player.lap === LAPS - 1 ? '#ffc23f' : '#00f0ff');
+  function onHumanLap(r, lt, integrity) {
+    const isBest = lt < r.bestLap;
+    if (isBest) { r.bestLap = lt; r.bestSplits = r.curSplits.slice(); }
+    r.curSplits = [];
+    if (isFocus(r)) { sim.bestLap = r.bestLap; sim.bestSplits = r.bestSplits; sim.curSplits = r.curSplits; }
+    const lap = { time: lt, lapLen: LAPLEN, integrity, isBest, lap: r.lap, map: td.key };
+    ev.racer('lap', r, lap);
+    if (!isFocus(r)) return;
+    ev.lap(lap);
+    if (r.lap < LAPS) {
+      ev.flash(r.lap === LAPS - 1 ? 'FINAL LAP' : `LAP ${r.lap + 1}`, r.lap === LAPS - 1 ? '#ffc23f' : '#00f0ff');
       ev.cp(`LAP ${fmtTime(lt)}${isBest ? ' &nbsp; <span class="neg">BEST</span>' : ''}`);
       ev.sfx('chime');
     }
   }
-  function onPlayerFinish() {
-    const player = sim.player;
-    sim.phase = 'finished'; player.autopilot = true;
-    player.speed = Math.max(25, player.va); player.dv = 0; player.pers = Object.assign({}, FINISH_PERS);
-    const p = sim.finishOrder.indexOf(player) + 1;
+  function onHumanFinish(r) {
+    r.autopilot = true;
+    r.speed = Math.max(25, r.va); r.dv = 0; r.pers = Object.assign({}, FINISH_PERS);
+    const p = sim.finishOrder.indexOf(r) + 1;
+    ev.racer('finish', r, { position: p, time: r.finishTime });
+    if (humans().every(h => h.finished)) sim.phase = 'finished';
+    if (!isFocus(r)) return;
+    sim.phase = 'finished';   // single player / local view: the local race is over
     ev.flash(p === 1 ? 'VICTORY' : 'FINISH', p === 1 ? '#ffc23f' : '#00f0ff'); ev.sfx('chime');
-    ev.cp(`P${p} · ${fmtTime(player.finishTime)}`);
-    ev.playerFinish(p, player.finishTime);
+    ev.cp(`P${p} · ${fmtTime(r.finishTime)}`);
+    ev.playerFinish(p, r.finishTime);
   }
-  function resetPlayer() {
-    const r = sim.player; if (r.autopilot || r.crashed) return false;
+  function resetPlayer(r = sim.player) {
+    if (!r || r.autopilot || r.crashed) return false;
     const f = frameAt(r.path, r.s, _fp);
     const wl = r.path === BR ? WB : MAIN.WL[f.i], wr = r.path === BR ? WB : MAIN.WR[f.i];
     r.d = clamp(r.d, -wl + 3, wr - 3); r.psi = 0; r.va = Math.max(0, r.va) * 0.3; r.vd = 0; r.yawV = 0; r.steer = 0; r.h = H0 + 1; r.vh = 0;
-    ev.flash('RESET', '#8a5cff'); ev.sfx('beep', 440, 0.15, 0.12); return true;
+    ev.racer('reset', r); if (isFocus(r)) { ev.flash('RESET', '#8a5cff'); ev.sfx('beep', 440, 0.15, 0.12); } return true;
   }
   function rankKey(r) { return r.finished ? 1e9 - sim.finishOrder.indexOf(r) * 1e6 : r.prog; }
   function ranks() { return sim.racers.slice().sort((a, b) => rankKey(b) - rankKey(a)); }
@@ -489,7 +520,6 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function step(h) {
     sim.time += h;
     const racing = sim.phase === 'race' || sim.phase === 'finished';
-    const player = sim.player;
     if (racing) {
       for (const r of sim.racers) { if (r.crashed > 0) continue; r.autopilot ? stepAI(r, h) : stepPlayer(r, h); }
       collideRacers();
@@ -502,22 +532,70 @@ export function createSim({ seed = 4242, events = null } = {}) {
         else { const sp = Math.hypot(r.va, r.vd); if (sp > r.capHold) { const k = r.capHold / sp; r.va *= k; r.vd *= k; r.speed = r.capHold; } }
       }
     } else {
-      for (const r of sim.racers) { const f = frameAt(r.path, r.s, _fb); hoverStep(r, f.path.KN[f.i], 0, h); if (r === player) r.thr = lerp(r.thr, sim.input.up ? 1 : 0, Math.min(1, h * 8)); }
+      for (const r of sim.racers) { const f = frameAt(r.path, r.s, _fb); hoverStep(r, f.path.KN[f.i], 0, h); if (!r.isAI) r.thr = lerp(r.thr, r.input.up ? 1 : 0, Math.min(1, h * 8)); }
     }
-    if (player.crashed > 0) { player.crashed -= h; if (player.crashed <= 0) respawn(player); }
+    for (const r of sim.racers) {
+      if (r.isAI) continue;
+      if (r.crashed > 0) { r.crashed -= h; if (r.crashed <= 0) respawn(r); }
+      r.wrongWayT = (racing && !r.finished && !r.autopilot && !r.crashed && Math.cos(r.psi) < -0.3 && r.va < -3) ? r.wrongWayT + h : 0;
+    }
     for (const d of sim.drones) stepDrone(d, h, racing);
-    if (sim.phase === 'race' && !player.autopilot && !player.crashed) { sim.wrongWayT = (Math.cos(player.psi) < -0.3 && player.va < -3) ? sim.wrongWayT + h : 0; } else sim.wrongWayT = 0;
     for (const r of sim.racers) if (!(r.crashed > 0)) pose(r);
   }
   // Countdown finished: lights out.
   function startRace() {
     sim.phase = 'race'; sim.raceStart = sim.time; for (const r of sim.racers) r.lapStart = 0;
-    const p = sim.player;
-    if (sim.input.up) { p.va = 34; p.meter = Math.min(1, p.meter + 0.2); ev.flash('PERFECT LAUNCH', '#ffc23f'); ev.sfx('whoosh'); ev.kick(8); return true; }
-    return false;
+    let focusPerfect = false;
+    for (const p of sim.racers) {
+      if (p.isAI || !p.input.up) continue;
+      p.va = 34; p.meter = Math.min(1, p.meter + 0.2);
+      if (isFocus(p)) { focusPerfect = true; ev.flash('PERFECT LAUNCH', '#ffc23f'); ev.sfx('whoosh'); ev.kick(8); }
+    }
+    return focusPerfect;
   }
 
-  Object.assign(sim, { setTrack, setMode, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
+  // ---- snapshot / import: complete simulation state (incl. PRNG), JSON-safe ----
+  const SKIP = new Set(['ship', 'trails', 'emPrev', 'emAcc', 'wvel', 'prevW', 'carKey', 'root', 'beacon']);   // client-only visuals
+  const enc = v => {
+    if (v === Infinity) return { $inf: 1 }; if (v === -Infinity) return { $inf: -1 };
+    if (v instanceof Vec3) return { $v: [v.x, v.y, v.z] };
+    if (v === MAIN) return { $path: 'main' }; if (BR && v === BR) return { $path: 'branch' };
+    if (Array.isArray(v)) return v.map(enc);
+    if (v && typeof v === 'object') { const o = {}; for (const k in v) if (typeof v[k] !== 'function') o[k] = enc(v[k]); return o; }
+    return v;
+  };
+  const dec = v => {
+    if (Array.isArray(v)) return v.map(dec);
+    if (v && typeof v === 'object') {
+      if ('$inf' in v) return v.$inf * Infinity; if ('$v' in v) return new Vec3(...v.$v); if ('$path' in v) return v.$path === 'main' ? MAIN : BR;
+      const o = {}; for (const k in v) o[k] = dec(v[k]); return o;
+    }
+    return v;
+  };
+  const encObj = (o) => { const out = {}; for (const k in o) if (!SKIP.has(k) && typeof o[k] !== 'function') out[k] = enc(o[k]); return out; };
+  function snapshot() {
+    return { v: 1, map: td.key, mode: sim.mode, diff: sim.diff, time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
+      bestLap: enc(sim.bestLap), bestSplits: enc(sim.bestSplits), curSplits: enc(sim.curSplits), debugTouched: sim.debugTouched,
+      focus: sim.player ? sim.player.id : null, finishOrder: sim.finishOrder.map(r => r.id),
+      racers: sim.racers.map(encObj), drones: sim.drones.map(encObj) };
+  }
+  // import into a sim created with the same seed-independent setup (track is rebuilt from the map key)
+  function importSnapshot(sn) {
+    if (!sn || sn.v !== 1) throw new Error('bad snapshot version');
+    if (!td || td.key !== sn.map) setTrack(sn.map);
+    setMode(sn.mode); sim.diff = sn.diff; sim.time = sn.time; sim.raceStart = sn.raceStart; sim.phase = sn.phase; rng.a = sn.rng;
+    sim.bestLap = dec(sn.bestLap); sim.bestSplits = dec(sn.bestSplits); sim.curSplits = dec(sn.curSplits); sim.debugTouched = sn.debugTouched;
+    const old = new Map(sim.racers.map(r => [r.id, r]));
+    sim.racers.length = 0;
+    for (const o of sn.racers) { const r = old.get(o.id) || {}; for (const k in r) if (!SKIP.has(k)) delete r[k]; Object.assign(r, dec(o)); sim.racers.push(r); }
+    sim.player = sn.focus ? sim.racers.find(r => r.id === sn.focus) || null : null;
+    if (sim.player) { Object.assign(sim.input, sim.player.input); sim.player.input = sim.input; }
+    sim.finishOrder = sn.finishOrder.map(id => sim.racers.find(r => r.id === id));
+    sn.drones.forEach((o, k) => { const d = sim.drones[k] || (sim.drones[k] = {}); for (const key in d) if (!SKIP.has(key)) delete d[key]; Object.assign(d, dec(o)); });
+    sim.drones.length = sn.drones.length;
+  }
+
+  Object.assign(sim, { snapshot, importSnapshot, addSeats, setTrack, setMode, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
     frameAt, kgAt, raceS, rdist });
   return sim;
 }
