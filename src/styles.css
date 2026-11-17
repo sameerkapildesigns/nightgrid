@@ -254,6 +254,35 @@ body.touchmode #bl{display:none}
    Landscape: shift it left of the pad column. Narrow portrait: lift it above the pads. */
 body.touchmode #br{right:204px}
 @media (max-width:600px){body.touchmode #br{right:22px;bottom:170px}}
+/* ---- M2 mobile: landscape-only touch play ---- */
+#resumeBtn{display:none;margin:14px auto 0;min-width:180px;min-height:48px}
+body.touchmode #resumeBtn{display:block}
+#rotate{display:none;position:fixed;inset:0;z-index:50;background:rgba(5,3,12,.96);color:#e8f6ff;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px calc(24px + env(safe-area-inset-right)) 24px calc(24px + env(safe-area-inset-left));text-align:center;font-family:Inter,sans-serif}
+#rotate b{font:700 italic 28px 'Chakra Petch',sans-serif;letter-spacing:.06em;color:#fff}
+#rotate span{font-size:15px;max-width:300px;color:rgba(232,246,255,.75);line-height:1.4}
+#rotate .rotIcon{font-size:56px;color:var(--c);line-height:1}
+body.touchmode.portrait #rotate{display:flex}
+/* compact landscape race HUD (touch devices only; desktop unchanged) */
+body.touchmode #touch [data-k=left]{left:calc(18px + env(safe-area-inset-left))}
+body.touchmode #touch [data-k=right]{left:calc(106px + env(safe-area-inset-left))}
+body.touchmode #touch [data-k=down]{right:calc(112px + env(safe-area-inset-right));bottom:calc(26px + env(safe-area-inset-bottom))}
+body.touchmode #touch [data-k=boost]{right:calc(18px + env(safe-area-inset-right));bottom:calc(96px + env(safe-area-inset-bottom))}
+body.touchmode #touch [data-k=left],body.touchmode #touch [data-k=right]{bottom:calc(22px + env(safe-area-inset-bottom))}
+@media (orientation:landscape) and (max-height:520px){
+  body.touchmode #tl{left:calc(10px + env(safe-area-inset-left));top:calc(8px + env(safe-area-inset-top));min-width:0;padding:6px 12px 6px 10px;clip-path:none}
+  body.touchmode #lapbig{font-size:24px;margin:0}
+  body.touchmode #lapbig span{font-size:12px}
+  body.touchmode #tl .lbl:first-child,body.touchmode #tl .row ~ .row,body.touchmode #sector,body.touchmode #carTag{display:none}
+  body.touchmode #tl .row{margin-top:2px;font-size:12px;gap:8px}
+  body.touchmode #tr{right:calc(10px + env(safe-area-inset-right));top:calc(8px + env(safe-area-inset-top));gap:6px}
+  body.touchmode #pos{font-size:30px;padding:4px 10px 4px 14px}
+  body.touchmode #pos small{font-size:12px}
+  body.touchmode #gaps,body.touchmode #closing{display:none}
+  body.touchmode #minimap{width:84px;height:84px;opacity:.85}
+  body.touchmode #br{right:auto;left:50%;bottom:calc(2px + env(safe-area-inset-bottom));transform:translateX(-50%) scale(.5);transform-origin:50% 100%}
+  body.touchmode #earn{display:none}
+  body.touchmode #credits{bottom:calc(2px + env(safe-area-inset-bottom));font-size:8px;opacity:.4}
+}
 #cine{position:fixed;inset:0;z-index:6;pointer-events:none;opacity:0;transition:opacity .35s}
 #cine.on{opacity:1}
 body.cinematic #hud{opacity:0;transition:opacity .3s} body.cinematic #fx{opacity:0}

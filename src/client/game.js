@@ -1917,7 +1917,7 @@ function initSceneTextures(root) {
   return seen.size;
 }
 async function startRace() {
-  if (state !== 'title' || raceStarting || mapBusy) return;
+  if (state !== 'title' || raceStarting || mapBusy || isPortrait()) return;
   if (!isRaceReady(GAR.sel, assetStatus)) { ensureRaceAssets(GAR.sel); return; }
   raceStarting = true;
   try {
@@ -1972,9 +1972,9 @@ function restart() {
 }
 function togglePause() {
   if (!(state === 'race' || state === 'countdown')) return;
-  paused = !paused; $('pause').classList.toggle('hide', !paused); AU.pause(paused); $('pauseNote').textContent = '';
+  paused = !paused; releaseAllInputs(); $('pause').classList.toggle('hide', !paused); AU.pause(paused); $('pauseNote').textContent = '';
 }
-$('go').addEventListener('click', startRace);
+$('go').addEventListener('click', () => { if (isPortrait()) return; if (TOUCH) requestLandscape(); startRace(); });
 $('again').addEventListener('click', () => { $('again').blur(); restart(); });
 $('toGarage').addEventListener('click', () => { $('toGarage').blur(); toGarage(); });
 $('prevCar').addEventListener('click', () => cycleCar(-1));
@@ -2203,16 +2203,43 @@ function skipFinishCine() { if (state === 'finished' && FIN.on && FIN.t < 3.4) {
 $('cineSkip').addEventListener('click', e => { e.stopPropagation(); if (state === 'intro') endIntro(true); else skipFinishCine(); });
 $('cine').addEventListener('pointerdown', () => { if (state === 'intro') endIntro(true); else skipFinishCine(); });
 
+/* ---------- M2 mobile: landscape-only (touch devices) ---------- */
+// Portrait shows a "Rotate your phone" panel: no new race can start, an active race is paused
+// and every held input is released. Returning to landscape does NOT auto-resume: the pause
+// screen shows an explicit Resume button. On the Race tap we best-effort request fullscreen and
+// screen.orientation.lock('landscape'); rejection/unsupported (e.g. iPhone Safari) falls back to
+// manual rotation. No CSS-rotated canvas.
+let touchRelease = () => {};
+function releaseAllInputs() { for (const k in keys) keys[k] = 0; touchRelease(); }
+const isPortrait = () => TOUCH && innerHeight > innerWidth;
+let orientLock = { requested: false, fullscreen: null, lock: null };
+function checkOrientation() {
+  const por = isPortrait();
+  document.body.classList.toggle('portrait', por);
+  if (!por) return;
+  releaseAllInputs();
+  if ((state === 'race' || state === 'countdown') && !paused) { togglePause(); $('pauseNote').textContent = 'Paused: rotate to landscape, then tap Resume.'; }
+}
+async function requestLandscape() {
+  orientLock.requested = true;
+  try { const el = document.documentElement; if (el.requestFullscreen && !document.fullscreenElement) { orientLock.fullscreen = 'pending'; await el.requestFullscreen({ navigationUI: 'hide' }); orientLock.fullscreen = 'ok'; } else orientLock.fullscreen = 'unsupported'; } catch (e) { orientLock.fullscreen = 'rejected'; }
+  try { if (screen.orientation && screen.orientation.lock) { orientLock.lock = 'pending'; await screen.orientation.lock('landscape'); orientLock.lock = 'ok'; } else orientLock.lock = 'unsupported'; } catch (e) { orientLock.lock = 'rejected'; }
+}
+$('resumeBtn').addEventListener('click', e => { e.preventDefault(); if (paused && !isPortrait()) { releaseAllInputs(); togglePause(); } });
+addEventListener('resize', checkOrientation);
+if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', checkOrientation);
+
 /* ---------- touch driving (coarse pointers only): auto-throttle, hold Brake to slow/drift, steer pads, Boost ---------- */
 const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) || new URLSearchParams(location.search).has('touch');
 document.body.classList.toggle('touchmode', TOUCH);
 if (TOUCH) {
   const held = {};
   for (const b of document.querySelectorAll('#touch button')) {
-    const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; b.classList.add('on'); if (b.setPointerCapture) b.setPointerCapture(e.pointerId); }, off = e => { held[k] = 0; keys[k] = 0; b.classList.remove('on'); };
+    const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } }, off = e => { held[k] = 0; keys[k] = 0; b.classList.remove('on'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   }
-  setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot) keys.up = held.down ? 0 : 1; }, 50);
+  touchRelease = () => { for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
+  setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused) keys.up = held.down ? 0 : 1; }, 50);
   $('cine').addEventListener('pointerdown', () => { if (state === 'intro') endIntro(true); else skipFinishCine(); });
   $('cine').style.pointerEvents = 'auto';
 }
@@ -2285,6 +2312,7 @@ async function boot() {
   await setLoad(1, st === 'ok' ? `${CARS[GAR.sel].title} ready` : st === 'failed' ? 'model failed · labelled fallback in use' : 'still downloading');
   state = 'title'; last = performance.now(); updateGarageUI(); $('go').focus({ preventScroll: true });
   performance.mark('ng:title');
+  checkOrientation();
 }
 resize();
 // ---------- debug / QA hooks: compiled into dev and `--mode test` builds only ----------
@@ -2310,6 +2338,7 @@ if (DEBUG) {
     get precompile() { return lastPrecompile; },
     get records() { return { storage: 'memory (debug/test build)', current: isFinite(recordLap) ? recordLap : null, lastOffer: lastRecordOffer, rejected: records.rejected.slice() }; },
     get results() { return { lapTimes: player ? player.lapTimes.slice() : [], lapValid: player ? player.lapValid.slice() : [], finishTime: player ? player.finishTime : 0, order: sim.finishOrder.map(r => r.name), visible: !$('results').classList.contains('hide') }; },
+    get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
     qa: { open: qaOpen, garageNext: qaGarageNext, boostDemo: () => { touch(); qaBoostDemo(false); }, invertedDemo: () => { touch(); qaBoostDemo(true); }, exit: toGarage, select: (k, p) => { if (p != null) GAR.paint = p; selectCar(k); } }
   };

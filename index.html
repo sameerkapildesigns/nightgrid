@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>NIGHTGRID — Anti-Gravity Racing</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -104,6 +104,7 @@
     <div class="logo" data-t="PAUSED" style="font-size:72px">PAUSED</div>
     <div class="small">P TO RESUME · ENTER TO RESTART</div>
     <div id="pauseNote" class="small" role="status"></div>
+    <button id="resumeBtn" class="btn" type="button">RESUME</button>
   </div>
 </div>
 
@@ -118,6 +119,7 @@
     <div class="small">ENTER TO RESTART</div>
   </div>
 </div>
+<div id="rotate" role="alertdialog" aria-live="assertive" aria-label="Rotate your phone"><div class="rotIcon" aria-hidden="true">⟳</div><b>Rotate your phone</b><span>NIGHTGRID plays in landscape. Turn your phone sideways to continue.</span></div>
 <div id="err"></div>
 <script>
   window.addEventListener('error', e => { const el = document.getElementById('err'); el.style.display = 'block'; el.textContent = 'Error: ' + (e.message || e); });

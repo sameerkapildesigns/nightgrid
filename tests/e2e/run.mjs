@@ -209,7 +209,7 @@ try {
   }
 
   // ---------------- F. touch layout ----------------
-  if (run('F')) for (const [w, h, label] of [[844, 390, 'landscape'], [390, 844, 'portrait']]) {
+  if (run('F')) for (const [w, h, label] of [[844, 390, 'landscape']]) {   // portrait racing is blocked by design (see section M)
     const { ctx, page } = await openGame(browser, { width: w, height: h, query: '?touch', ctxOpts: { isMobile: true, hasTouch: true } });
     await waitRaceBtn(page);
     await page.evaluate(() => __ng.manualClock(true));
@@ -241,6 +241,74 @@ try {
     const after = await page.evaluate(() => NG_DEBUG.speedFx.kmh);
     C(`touch (${label}): auto-throttle drives the car`, after > before + 50, `${before} -> ${after} km/h`);
     await ctx.close();
+  }
+
+  // ---------------- M. mobile landscape-only + compact HUD ----------------
+  if (run('M')) {
+    const ov = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+    const rect = (page, sel) => page.evaluate(q => { const e = document.querySelector(q); const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, vis: getComputedStyle(e).display !== 'none' }; }, sel);
+    for (const [w, h] of [[844, 390], [852, 393], [667, 375]]) {
+      const { ctx, page, logs } = await openGame(browser, { width: w, height: h, query: '?touch', ctxOpts: { isMobile: true, hasTouch: true } });
+      await waitRaceBtn(page);
+      await page.evaluate(() => __ng.manualClock(true));
+      await page.tap('#go');
+      await page.waitForFunction(() => NG_DEBUG.state === 'intro', null, { timeout: 60000 });
+      const lock = await page.evaluate(() => NG_DEBUG.mobile.orientLock);
+      C(`mobile ${w}x${h}: Race tap requests fullscreen/orientation lock best-effort; race starts either way`, lock.requested && lock.fullscreen !== null, JSON.stringify(lock));
+      await page.evaluate(() => __ng.sim(0.5)); await page.touchscreen.tap(Math.round(w / 2), Math.round(h * 0.35));
+      await page.evaluate(() => __ng.sim(3.4));
+      await page.waitForFunction(() => document.body.classList.contains('racing'), null, { timeout: 5000 });
+      await page.evaluate(() => __ng.sim(2));
+      const R = { tl: await rect(page, '#tl'), pos: await rect(page, '#pos'), mm: await rect(page, '#minimap'), spd: await rect(page, '#spdT'), boost: await rect(page, '#boost') };
+      const pads = await page.evaluate(() => [...document.querySelectorAll('#touch button')].map(b => { const r = b.getBoundingClientRect(); return { k: b.dataset.k, x: r.left, y: r.top, w: r.width, h: r.height }; }));
+      const inV = r => r.x >= -0.5 && r.y >= -0.5 && r.x + r.w <= w + 0.5 && r.y + r.h <= h + 0.5;
+      const hud = [R.tl, R.pos, R.mm, R.spd, R.boost];
+      const road = { x: w * 0.3, y: h * 0.25, w: w * 0.4, h: h * 0.4 };   // centre of the road / car view
+      C(`mobile ${w}x${h}: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)`,
+        hud.every(inV) && (await page.evaluate(() => getComputedStyle(document.querySelector('#tl .row')).display !== 'none' && /\d:\d\d\.\d{3}/.test(document.getElementById('time').textContent))) && R.tl.x < w * 0.3 && R.tl.y < h * 0.3 && R.pos.x > w * 0.6 && R.pos.y < h * 0.3 && R.mm.w <= 90 && R.mm.x > w * 0.6 && Math.abs((R.spd.x + R.spd.w / 2) - w / 2) < w * 0.12 && R.spd.y > h * 0.6,
+        JSON.stringify(R, (k, v) => typeof v === 'number' ? Math.round(v) : v));
+      C(`mobile ${w}x${h}: HUD keeps the road centre clear`, !hud.some(r => ov(r, road)));
+      C(`mobile ${w}x${h}: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap`, pads.every(b => b.w >= 44 && b.h >= 44 && inV(b)) && pads.filter(b => /left|right/.test(b.k)).every(b => b.x < w * 0.35) && pads.filter(b => /down|boost/.test(b.k)).every(b => b.x > w * 0.65) && !pads.some(b => hud.some(r => ov(b, r))), pads.map(b => `${b.k}@${Math.round(b.x)},${Math.round(b.y)}`).join(' '));
+      await page.evaluate(() => __ng.render()); await shot(page, `mobile-hud-${w}x${h}`);
+      if (w === 844) {
+        // rotation mid-race with a held input: pause, release inputs, rotate panel, explicit Resume
+        await page.evaluate(() => document.fullscreenElement && document.exitFullscreen().catch(() => {})); await page.waitForTimeout(300);
+        await page.evaluate(() => { const b = document.querySelector('#touch [data-k=boost]'); b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, pointerId: 7, pointerType: 'touch' })); });
+        const held = await page.evaluate(() => NG_DEBUG.mobile.keys.boost);
+        await page.setViewportSize({ width: 390, height: 844 }); await page.waitForTimeout(300);
+        const p1 = await page.evaluate(() => ({ paused: NG_DEBUG.paused, keys: NG_DEBUG.mobile.keys, rot: getComputedStyle(document.getElementById('rotate')).display, note: document.getElementById('pauseNote').textContent }));
+        C('mobile: rotating to portrait mid-race pauses, shows Rotate panel, releases held inputs', held === 1 && p1.paused && p1.rot === 'flex' && Object.values(p1.keys).every(v => !v), JSON.stringify(p1));
+        await page.evaluate(() => __ng.render()); await shot(page, 'mobile-rotate-portrait');
+        const t0 = await page.evaluate(() => NG_DEBUG.clock.raceTime);
+        await page.evaluate(() => __ng.advance(500));
+        await page.setViewportSize({ width: 844, height: 390 }); await page.waitForTimeout(300);
+        await page.evaluate(() => __ng.advance(500));
+        const p2 = await page.evaluate(() => ({ paused: NG_DEBUG.paused, rot: getComputedStyle(document.getElementById('rotate')).display, resume: getComputedStyle(document.getElementById('resumeBtn')).display, rt: NG_DEBUG.clock.raceTime }));
+        C('mobile: back to landscape stays paused with an explicit Resume button (no auto-resume)', p2.paused && p2.rot === 'none' && p2.resume === 'block' && p2.rt === t0, JSON.stringify(p2));
+        await page.evaluate(() => __ng.render()); await shot(page, 'mobile-resume');
+        await page.tap('#resumeBtn');
+        const p3 = await page.evaluate(() => ({ paused: NG_DEBUG.paused, boost: NG_DEBUG.mobile.keys.boost }));
+        await page.evaluate(() => __ng.advance(100));
+        C('mobile: Resume continues the race with no stuck input', !p3.paused && !p3.boost && (await page.evaluate(() => NG_DEBUG.clock.raceTime)) > t0, JSON.stringify(p3));
+      }
+      C(`mobile ${w}x${h}: no page errors`, realErrors(logs).length === 0, realErrors(logs).slice(0, 2).join(' | '));
+      await ctx.close();
+    }
+    { // portrait at load: rotate panel, no race start
+      const { ctx, page } = await openGame(browser, { width: 390, height: 844, query: '?touch', ctxOpts: { isMobile: true, hasTouch: true } });
+      await waitRaceBtn(page);
+      const vis = await page.evaluate(() => getComputedStyle(document.getElementById('rotate')).display);
+      await page.evaluate(() => document.getElementById('go').click()); await page.waitForTimeout(500);
+      C('mobile portrait 390x844: Rotate panel shown and no new race can start', vis === 'flex' && (await st(page)) === 'title', `rotate=${vis} state=${await st(page)}`);
+      await shot(page, 'mobile-portrait-390x844');
+      await ctx.close();
+    }
+    { // desktop unchanged: no rotate panel, no resume button, full HUD sizes
+      const { ctx, page } = await openGame(browser, { width: 1280, height: 675 });
+      const d = await page.evaluate(() => ({ rot: getComputedStyle(document.getElementById('rotate')).display, res: getComputedStyle(document.getElementById('resumeBtn')).display, mm: document.getElementById('minimap').getBoundingClientRect().width }));
+      C('desktop: no rotate panel / resume button, HUD sizes unchanged', d.rot === 'none' && d.res === 'none' && d.mm === 200, JSON.stringify(d));
+      await ctx.close();
+    }
   }
 
   // ---------------- G. production build: debug gated off ----------------
