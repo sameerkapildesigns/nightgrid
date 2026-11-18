@@ -180,3 +180,36 @@ test('predictor: server pad state overrides the prediction (contested pad), remo
   const x = expandRacer(compactRacer(sim.racers[0], null)); assert.equal(x.pw, 1);
   const pads = [{ readyAt: 0 }, { readyAt: 0 }]; applyPads(pads, [0, 2.5], 10); assert.deepEqual(pads.map(p => p.readyAt), [0, 12.5]);
 });
+
+test('finished (and crashed / airborne) racers cannot collect; tie in one step goes to the earlier seat (documented, not random)', () => {
+  const { sim } = mkSim('velocity', 3); const [A, B, C] = sim.racers; sim.startRace();
+  const p = sim.pads[0];
+  A.finished = true; put(sim, A, p.s - 1, p.d, 30);
+  B.crashed = 1; put(sim, B, p.s - 1, p.d, 30);
+  put(sim, C, p.s - 1, p.d, 30); C.h = 1 + 2.6;
+  sim.step(SIM_DT);
+  for (const r of [A, B, C]) assert.ok(!(r.shieldT > 0) && !(r.surgeT > 0), r.id + ' no claim');
+  assert.ok(!(p.readyAt > sim.time), 'pad still available');
+  // exact same-step tie between seats 1 and 2: seat order decides (host / earlier seat wins)
+  const q = mkSim('velocity', 3).sim; q.startRace(); const pp = q.pads[1];
+  put(q, q.racers[2], pp.s - 1, pp.d, 30); put(q, q.racers[1], pp.s - 1, pp.d, 30); q.step(SIM_DT);
+  const got = q.racers.map(r => r.shieldT > 0 || r.surgeT > 0);
+  assert.deepEqual(got, [false, true, false]);
+});
+
+test('snapshot restore preserves claim cooldowns, power timers, debounce and pad respawn (mid-cooldown resume == uninterrupted)', () => {
+  const { sim } = mkSim('technical', 2); sim.startRace(); const [A] = sim.racers;
+  const p = sim.pads.find(x => x.kind === 'S'); put(sim, A, p.s - 1, p.d, 30); sim.step(SIM_DT);
+  for (let i = 0; i < 100; i++) sim.step(SIM_DT);
+  A.obT = 0.3; A.passT = 0.2; A.surgeT = 0.9;
+  const sn = JSON.parse(JSON.stringify(sim.snapshot()));
+  const t = createSim({ seed: 99 }); t.setTrack('technical'); t.importSnapshot(sn);
+  const a2 = t.racers.find(r => r.id === A.id);
+  for (const k of ['shieldT', 'powCD', 'obT', 'passT', 'surgeT']) assert.equal(a2[k], A[k], k);
+  assert.deepEqual(t.pads.map(x => x.readyAt), sim.pads.map(x => x.readyAt));
+  assert.ok(a2.powCD > 0 && t.pads.some(x => x.readyAt > t.time), 'mid-cooldown state was actually exercised');
+  t.racers.forEach((r, k) => { r.input = sim.racers[k].input === sim.input ? t.input : {}; });
+  for (let i = 0; i < 900; i++) { sim.step(SIM_DT); t.step(SIM_DT); }
+  assert.equal(JSON.stringify(t.snapshot().racers), JSON.stringify(sim.snapshot().racers));
+  assert.deepEqual(t.pads.map(x => x.readyAt), sim.pads.map(x => x.readyAt));
+});
