@@ -1,4 +1,13 @@
-# NIGHTGRID running handoff (M5 local-first sync)
+# NIGHTGRID running handoff
+
+## M8 visual lane (19 Nov, local only, nothing pushed) -> see docs/M8-VISUALS.md
+- Branch claude/m8-visuals on claude/m7-rc20 @ bee26ee. Build id UNCHANGED 0661cad63d2e (client-only: src/client/env/* + tagged hooks H1-H13 in game.js).
+- Themes: Velocity "Neon Heights" (cyan/violet, setbacks/spires/halo rings, edge fins), Kage "Harbour" (dusk sky + sun, warehouses/sawtooth, containers, gantry cranes, bollards, teal ground), Legacy "Neon Rain" (magenta palette, heavier rain, posts).
+- Hover taxi: procedural, 620 tris, 2 materials, instanced: 7 taxis 49 -> 4 draw calls; contact box (core) untouched.
+- Measured (SwiftShader, same poses): calls -27..+11, tris +4.9..+21.0% per view (Kage taxi close-up +21.0/+20.3%; most +5..+14%). Cell-baking perf pass rejected: tris -5.6k..-52.9k but calls +1..+37 (> +10 cap); kept on local branch claude/m8-bake-experiment. (evidence/m8/RENDER-DELTAS.md) No hardware/20-device FPS claimed.
+- Unit (npm test) 158/158. test:e2e not run (no Playwright browser bundle in container); visual-shots run with no page errors.
+
+## (older) M5 local-first sync
 
 Chat counter (M6 chat): big 2, small 0 (rotate at 5 big or 10 small).
 

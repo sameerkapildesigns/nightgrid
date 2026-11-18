@@ -32,6 +32,10 @@ import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isR
 import { MODEL_URLS } from './model-urls.js';
 import { createHazardVis, updateShield } from './hazards-vis.js';
 import { applyPads } from '../core/hazards.js';
+// M8-ENV HOOK H1: environment themes, skyline, edge dressing, hover taxi (visual only, src/client/env/)
+import { themeFor, makeSkyMaterial, windowUniforms } from './env/themes.js';
+import { shapeBuildings, buildSkyline, buildEdgeDressing } from './env/skyline.js';
+import { createTaxiFleet } from './env/taxi.js';
 
 // DEBUG is a build-time constant: true for `vite` dev and `vite build --mode test`,
 // false for the production build (all debug hooks and the QA panel are compiled out).
@@ -107,7 +111,7 @@ const fxPass = new ShaderPass(FXShader);
 composer.addPass(fxPass);
 composer.addPass(new OutputPass());
 
-scene.add(new THREE.HemisphereLight(0x67708f, 0x16141f, 0.5));
+const hemi = new THREE.HemisphereLight(0x67708f, 0x16141f, 0.5); scene.add(hemi);   // M8-ENV HOOK H2: named so applyTheme can tint it
 const moon = new THREE.DirectionalLight(0x8a9cff, 0.35); moon.position.set(-200, 400, 100); scene.add(moon);
 
 /* ============================== textures ============================== */
@@ -150,6 +154,16 @@ const sky = new THREE.Mesh(new THREE.SphereGeometry(2800, 32, 16), new THREE.Sha
 }));
 sky.renderOrder = -10; sky.frustumCulled = false;
 scene.add(sky);
+// M8-ENV HOOK H3: per-map theme (fog/background colour, sky dome, hemi/moon tint, rain tint). Fog DENSITY unchanged.
+let THEME = themeFor('velocity');
+function applyTheme(key) {
+  THEME = themeFor(key);
+  FOGC.copy(THEME.fog); scene.fog.color.copy(THEME.fog); scene.background.copy(THEME.fog);
+  const old = sky.material; sky.material = makeSkyMaterial(THEME); old.dispose();
+  hemi.color.copy(THEME.hemiSky); hemi.groundColor.copy(THEME.hemiGround); hemi.intensity = THEME.hemiI;
+  moon.color.copy(THEME.moon); moon.intensity = THEME.moonI;
+  if (typeof rainMat !== 'undefined') { rainMat.uniforms.uRainC.value.copy(THEME.rain).multiplyScalar(THEME.rainA); }
+}
 
 function buildEnv() {
   const es = new THREE.Scene();
@@ -416,6 +430,8 @@ function buildTrack() {
   for (const [x, y, z] of pil) { setInst(pm, k, x, y / 2, z, 2.4, y, 2.4); setInst(pn, k, x + 1.25, y / 2, z, 0.16, y * 0.92, 0.16); pn.setColorAt(k, NEON.p.clone().multiplyScalar(2.4)); k++; }
   for (const [x, y, z, top] of hang) { const hgt = top - y; setInst(pm, k, x, y + hgt / 2, z, 0.9, hgt, 0.9); setInst(pn, k, x + 0.55, y + hgt / 2, z, 0.12, hgt, 0.12); pn.setColorAt(k, NEON.r.clone().multiplyScalar(2.6)); k++; }
   WORLD.add(pm, pn);
+  // M8-ENV HOOK H9: themed road-edge dressing outside the walls (no road/centreline change)
+  buildEdgeDressing({ THEME, MAIN, BR: HASBR ? BR : null, WB, deckTopAt, isOpen: i => !inTunnel(i) && !(HASBR && i > SA - 6 && i < SB + 6) }, WORLD);
 }
 
 /* ============================== sky decks (hanging skylines) ============================== */
@@ -454,7 +470,10 @@ function makeSign(text, col, vertical) {
 const flickerMats = [];
 function windowMaterial() {
   const bMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.38, metalness: 0.55, envMapIntensity: 0.55 });
+  const WU = windowUniforms(THEME);   // M8-ENV HOOK H4: themed window palette / density / cell size
+  bMat.customProgramCacheKey = () => 'ngwin-m8';
   bMat.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, WU);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vLP; varying vec3 vLN; varying vec2 vSeed; varying vec3 vSc;')
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>
@@ -463,27 +482,28 @@ function windowMaterial() {
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec3 vLP; varying vec3 vLN; varying vec2 vSeed; varying vec3 vSc;
+        uniform vec3 uWA, uWB, uWC; uniform vec2 uWSplit, uWCell; uniform float uWDens, uWInt;
         float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         if (abs(vLN.y) < 0.5) {
           vec2 sd = floor(vSeed + 0.5); vec2 nn = floor(vLN.xz + 0.5);
           vec2 q = abs(vLN.x) > 0.5 ? vec2(vLP.z + vSc.z * 0.5, vLP.y) : vec2(vLP.x + vSc.x * 0.5, vLP.y);
-          vec2 cs = vec2(2.5, 3.4);
+          vec2 cs = uWCell;
           vec2 g = q / cs; vec2 cell = floor(g); vec2 f = fract(g);
           float bs = h21(sd * 0.0137 + 0.3);
-          float dens = 0.1 + 0.48 * bs;
+          float dens = (0.1 + 0.48 * bs) * uWDens;
           float win = smoothstep(0.1, 0.18, f.x) * smoothstep(0.9, 0.82, f.x) * smoothstep(0.2, 0.3, f.y) * smoothstep(0.86, 0.76, f.y);
           float r = h21(cell + sd + nn * 7.0);
           float rowR = h21(vec2(cell.y, bs * 91.0));
           float lit = step(1.0 - dens, r);
           lit = max(lit, step(0.94, rowR) * step(0.25, r));
           float hue = h21(vec2(bs * 17.0, 3.1));
-          vec3 wc = hue < 0.58 ? vec3(1.0, 0.62, 0.3) : (hue < 0.84 ? vec3(0.35, 0.78, 1.0) : vec3(1.0, 0.3, 0.8));
+          vec3 wc = hue < uWSplit.x ? uWA : (hue < uWSplit.y ? uWB : uWC);
           wc *= 0.5 + 0.9 * h21(cell * 1.7 + 3.0);
           float aa = clamp(1.0 - length(fwidth(g)) * 1.3, 0.0, 1.0);
           float val = mix(dens * 0.38, win * lit, aa);
           float ground = smoothstep(1.5, 4.5, vLP.y);
-          totalEmissiveRadiance += wc * val * ground * 1.05;
+          totalEmissiveRadiance += wc * val * ground * 1.05 * uWInt;
           diffuseColor.rgb *= 0.75 + 0.5 * win;
         }`);
   };
@@ -611,10 +631,14 @@ function buildCity() {
       if (rnd() < 0.4) hList.push({ x: px, z: pz, w: w * 0.5, d: dd * 0.5, h: R(8, 30), y0: D.y - len - R(8, 30) * 0.999, rot: 0, spire: 1 });
     }
   }
+  // M8-ENV HOOK H5: themed massing (heights / setback tiers / harbour yards) before the meshes are built; own RNG
+  const ENVCTX = { THEME, MAIN, BR: HASBR ? BR : null, WB, deckTopAt, isOpen: i => !inTunnel(i) && !(HASBR && i > SA - 6 && i < SB + 6) };
+  const ENVANN = shapeBuildings(ENVCTX, bList, [signsV, signsH]);
   const bMat = windowMaterial();
+  const BB = THEME.building.base;   // tint ranges; same number of R() draws as before (city stream unchanged)
   const mkB = (list) => {
     const im = new THREE.InstancedMesh(BOX, bMat, list.length); const bc = new THREE.Color();
-    list.forEach((b, k) => { setInst(im, k, b.x, b.y0 + b.h / 2, b.z, b.w, b.h, b.d, b.rot); bc.setRGB(R(0.035, 0.07), R(0.03, 0.06), R(0.06, 0.11)); im.setColorAt(k, bc); });
+    list.forEach((b, k) => { setInst(im, k, b.x, b.y0 + b.h / 2, b.z, b.w, b.h, b.d, b.rot); bc.setRGB(lerp(BB[0], BB[3], R()), lerp(BB[1], BB[4], R()), lerp(BB[2], BB[5], R())); im.setColorAt(k, bc); });
     WORLD.add(im); return im;
   };
   mkB(bList); mkB(hList);
@@ -633,13 +657,13 @@ function buildCity() {
   const strips = [];
   for (const b of bList) {
     if (b.td > 220 || b.y0 > 0 || rnd() > 0.5) continue;
-    const col = pick([NEON.c, NEON.m, NEON.p, NEON.y, NEON.m, NEON.c]);
+    const col = pick(THEME.strips);   // M8-ENV HOOK H6: themed neon strips (one pick, same RNG draw)
     const cx = rnd() < 0.5 ? -1 : 1, cz = rnd() < 0.5 ? -1 : 1;
     const sh = b.h * R(0.4, 0.95);
     strips.push([b.x + cx * b.w / 2, sh / 2 + R(0, b.h - sh), b.z + cz * b.d / 2, 0.38, sh, 0.38, col]);
     if (rnd() < 0.6) { const y = b.h - R(0.4, 6); strips.push([b.x, y, b.z, b.w + 0.3, 0.35, b.d + 0.3, col]); }
   }
-  for (const b of hList) { if (rnd() > 0.45) continue; const col = pick([NEON.c, NEON.m, NEON.r, NEON.y]); strips.push([b.x, b.y0 + R(0.3, 3), b.z, b.w + 0.3, 0.35, b.d + 0.3, col]); }
+  for (const b of hList) { if (rnd() > 0.45) continue; const col = pick(THEME.strips); strips.push([b.x, b.y0 + R(0.3, 3), b.z, b.w + 0.3, 0.35, b.d + 0.3, col]); }
   const sm = new THREE.InstancedMesh(BOX, new THREE.MeshBasicMaterial({ color: 0xffffff }), strips.length);
   strips.forEach((s, k) => { setInst(sm, k, s[0], s[1], s[2], s[3], s[4], s[5]); sm.setColorAt(k, s[6].clone().multiplyScalar(R(1.8, 3.2))); });
   WORLD.add(sm);
@@ -660,12 +684,14 @@ function buildCity() {
     });
   };
   mk(signsV, SIGN_V, true); mk(signsH, SIGN_H, false);
-  const gtex = canvasTex(256, 256, g => { g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(0,240,255,0.35)'; g.fillRect(0, 0, 256, 2); g.fillRect(0, 0, 2, 256); g.fillStyle = 'rgba(255,43,214,0.18)'; g.fillRect(0, 128, 256, 1); g.fillRect(128, 0, 1, 256); });
+  buildSkyline(ENVCTX, WORLD, ENVANN);   // M8-ENV HOOK H7: themed crowns / landmarks / harbour kit
+  const GT = THEME.ground;   // M8-ENV HOOK H8: themed ground (grid colours, base colour, gloss)
+  const gtex = canvasTex(256, 256, g => { g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256); g.fillStyle = GT.grid1; g.fillRect(0, 0, 256, 2); g.fillRect(0, 0, 2, 256); g.fillStyle = GT.grid2; g.fillRect(0, 128, 256, 1); g.fillRect(128, 0, 1, 256); });
   gtex.wrapS = gtex.wrapT = THREE.RepeatWrapping; gtex.repeat.set(6000 / 50, 6000 / 50);
   // single-sided like v5b (no visible underside). Flat ground: original material. Pit embankments: matte
   // retaining-wall variant of the same material (no mirror streaks on steep faces).
   const gGeo = buildGroundGeometry((minX + maxX) / 2, (minZ + maxZ) / 2);
-  const gMats = [new THREE.MeshStandardMaterial({ color: 0x07060c, roughness: 0.32, metalness: 0.6, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(0.5, 0.5, 0.5) }),
+  const gMats = [new THREE.MeshStandardMaterial({ color: GT.color, roughness: GT.roughness, metalness: GT.metalness, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(GT.emissive, GT.emissive, GT.emissive) }),
     new THREE.MeshStandardMaterial({ color: 0x0c0b12, roughness: 0.88, metalness: 0.15, envMapIntensity: 0.15, emissiveMap: gtex, emissive: new THREE.Color(0.32, 0.32, 0.36) })];
   // M4 perf: the 6 km ground used to be ONE ~410k-triangle mesh, always drawn whole (frustum culling
   // cannot reject part of a mesh). It is split into 750 m tiles that SHARE the same vertex buffers and
@@ -1018,17 +1044,10 @@ function nameTag(text, col) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, color: new THREE.Color(1.1, 1.1, 1.1) }));
   sp.scale.set(3.2, 0.8, 1); sp.position.y = 2.1; return sp;
 }
-function makeDrone() {
-  const g = new THREE.Group();
-  const shell = new THREE.MeshStandardMaterial({ color: 0x24222e, metalness: 0.7, roughness: 0.4 });
-  const b = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.5, 5.2), shell); b.position.y = 0.2; g.add(b);
-  const cab = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.0, 1.4), shell); cab.position.set(0, 0.1, 2.9); g.add(cab);
-  const st = new THREE.Mesh(new THREE.BoxGeometry(2.64, 0.18, 5.24), new THREE.MeshBasicMaterial({ color: new THREE.Color(3.2, 1.6, 0.2) })); st.position.y = -0.2; g.add(st);
-  for (const sx of [-1, 1]) { const tl = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.05), new THREE.MeshBasicMaterial({ color: new THREE.Color(5, 0.3, 0.3) })); tl.position.set(sx * 0.9, 0.5, -2.62); g.add(tl); }
-  const bl = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 2.2, 0.2) })); bl.position.set(0, 1.05, 0); g.add(bl);
-  const ug = new THREE.Mesh(new THREE.PlaneGeometry(4, 7), new THREE.MeshBasicMaterial({ map: radialTex, color: new THREE.Color(1.4, 0.7, 0.1), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); ug.rotation.x = -Math.PI / 2; ug.position.y = -0.95; g.add(ug);
-  scene.add(g); return { root: g, beacon: bl };
-}
+// M8-ENV HOOK H10: road traffic = instanced procedural hover taxi (env/taxi.js). Same { root, beacon } contract;
+// roots are not in the scene, updateDrones() copies them into the instance buffers. Contact box (core) unchanged.
+let TAXI = null;
+function makeDrone() { if (!TAXI) TAXI = createTaxiFleet(scene); return TAXI.acquire(); }
 
 /* ============================== FX ============================== */
 function makeTrail(col, M = 20, near = [6, 20]) {
@@ -1122,7 +1141,7 @@ const rainGeo = new THREE.BufferGeometry();
 const rainMat = new THREE.ShaderMaterial({
   // M3: uShelter = baked topmost-covering-surface height per 4 m cell (core/shelter.js); a streak whose
   // HEAD is below it (under a deck / inverted road / tunnel roof) is hidden entirely. uShelterOn: 0/1.
-  uniforms: { uTime: { value: 0 }, uCam: { value: new V3() }, uVel: { value: new V3() }, uBox: { value: new V3(110, 60, 110) }, uShelter: { value: null }, uShelterO: { value: new THREE.Vector2() }, uShelterS: { value: new THREE.Vector2(1, 1) }, uShelterOn: { value: 0 } },
+  uniforms: { uTime: { value: 0 }, uCam: { value: new V3() }, uVel: { value: new V3() }, uBox: { value: new V3(110, 60, 110) }, uShelter: { value: null }, uShelterO: { value: new THREE.Vector2() }, uShelterS: { value: new THREE.Vector2(1, 1) }, uShelterOn: { value: 0 }, uRainC: { value: new THREE.Color(0.55, 0.68, 1.0) } },   // M8-ENV HOOK H12: uRainC (theme tint)
   vertexShader: `attribute vec3 seed; attribute float endp; uniform float uTime; uniform vec3 uCam, uVel, uBox; uniform sampler2D uShelter; uniform vec2 uShelterO, uShelterS; uniform float uShelterOn; varying float vA;
     void main(){
       float fall = 30.0 + seed.x * 14.0;
@@ -1140,7 +1159,7 @@ const rainMat = new THREE.ShaderMaterial({
       vA = shel * mix(0.32, 0.0, endp) * smoothstep(1.2, 5.0, dist) * (1.0 - smoothstep(32.0, 55.0, dist));
       gl_Position = projectionMatrix * mv;
     }`,
-  fragmentShader: `varying float vA; void main(){ gl_FragColor = vec4(vec3(0.55, 0.68, 1.0) * vA, 1.0); }`,
+  fragmentShader: `varying float vA; uniform vec3 uRainC; void main(){ gl_FragColor = vec4(uRainC * vA, 1.0); }`,
   blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
 });
 const rain = new THREE.LineSegments(rainGeo, rainMat); rain.frustumCulled = false; scene.add(rain);
@@ -1957,6 +1976,7 @@ function updateDrones() {   // drone motion is simulated in core; this only plac
     _L.crossVectors(MAIN.U[d.fi], MAIN.T[d.fi]).normalize(); _mb.makeBasis(_L, MAIN.U[d.fi], MAIN.T[d.fi]); d.root.quaternion.setFromRotationMatrix(_mb);
     d.beacon.material.color.setScalar(Math.sin(gameTime * 6 + d.lane) > 0 ? 4 : 0.3);
   }
+  if (TAXI) TAXI.update(drones);   // M8-ENV HOOK H11
 }
 
 /* ---------- HUD ---------- */
@@ -2464,7 +2484,7 @@ async function switchMap(key, persist = true) {
   mapBusy = true; $('go').disabled = true; $('go').textContent = 'Building…'; renderMapSeg(key); await tick(); await tick();
   const t0 = performance.now();
   lastDispose = disposeWorld();
-  loadTrackData(key);
+  loadTrackData(key); applyTheme(key);   // M8-ENV HOOK H13a
   planDecks(); buildRainShelter(); buildTrack(); planBillboards(); BOUNDS = buildCity(); buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex });
   for (const r of racers) { r.path = MAIN; r.emPrev = null; r.prevS = undefined; for (const t of r.trails) t.n = 0; }
   gridUp(); initHUD(); loadRecord(); hudCache = {};
@@ -2495,6 +2515,7 @@ async function boot() {
   ensureRaceAssets(GAR.sel).then(() => { performance.mark('ng:race-ready'); refreshRacerCars(); updateGarageUI(); });
   try { await Promise.race([Promise.all([document.fonts.load('900 64px Orbitron'), document.fonts.load('700 30px Rajdhani')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
   buildEnv(); await setLoad(0.12, 'MAGNETISING CIRCUIT');
+  applyTheme(MAPKEY);   // M8-ENV HOOK H13b
   scene.add(WORLD); planDecks(); buildRainShelter(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');
   BOUNDS = buildCity(); await setLoad(0.55, 'WIRING NEON');
   buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex }); buildGarage(); performance.mark('ng:world-built'); await setLoad(0.7, `DOWNLOADING ${CARS[GAR.sel].title} (REAL GLB)…`);

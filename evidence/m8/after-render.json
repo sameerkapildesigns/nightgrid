@@ -1,0 +1,308 @@
+{
+ "velocity-desk": {
+  "shots": [
+   {
+    "f": "/tmp/final/after-velocity-desk-chase2.jpg",
+    "t": 2,
+    "calls": 344,
+    "tris": 1454599,
+    "s": 80,
+    "kmh": 173
+   },
+   {
+    "f": "/tmp/final/after-velocity-desk-chase9.jpg",
+    "t": 9,
+    "calls": 326,
+    "tris": 1457231,
+    "s": 510,
+    "kmh": 219
+   },
+   {
+    "f": "/tmp/final/after-velocity-desk-chase17.jpg",
+    "t": 17,
+    "calls": 348,
+    "tris": 1557949,
+    "s": 1017,
+    "kmh": 225
+   }
+  ],
+  "taxi": {
+   "calls": 317,
+   "tris": 1498001
+  },
+  "wide": {
+   "calls": 346,
+   "tris": 1523061
+  },
+  "gfx": {
+   "pr1+bloom": 8.8,
+   "pr1-bloom": 5.3,
+   "pr0.5+bloom": 15.4,
+   "pr0.5-bloom": 11.8,
+   "pr0.35-bloom": 9.9,
+   "calls": 333,
+   "tris": 1523048,
+   "w": 1280,
+   "h": 720
+  },
+  "worldMeshes": 72
+ },
+ "errors-velocity-desk": [
+  "Failed to load resource: net::ERR_FAILED"
+ ],
+ "technical-desk": {
+  "shots": [
+   {
+    "f": "/tmp/final/after-technical-desk-chase2.jpg",
+    "t": 2,
+    "calls": 323,
+    "tris": 1056935,
+    "s": 80,
+    "kmh": 172
+   },
+   {
+    "f": "/tmp/final/after-technical-desk-chase9.jpg",
+    "t": 9,
+    "calls": 361,
+    "tris": 1096274,
+    "s": 405,
+    "kmh": 169
+   },
+   {
+    "f": "/tmp/final/after-technical-desk-chase17.jpg",
+    "t": 17,
+    "calls": 323,
+    "tris": 1098383,
+    "s": 773,
+    "kmh": 174
+   }
+  ],
+  "taxi": {
+   "calls": 130,
+   "tris": 300970
+  },
+  "wide": {
+   "calls": 339,
+   "tris": 1101673
+  },
+  "gfx": {
+   "pr1+bloom": 7.6,
+   "pr1-bloom": 7.8,
+   "pr0.5+bloom": 11.5,
+   "pr0.5-bloom": 8.9,
+   "pr0.35-bloom": 6.9,
+   "calls": 326,
+   "tris": 1101660,
+   "w": 1280,
+   "h": 720
+  },
+  "worldMeshes": 67
+ },
+ "errors-technical-desk": [
+  "Failed to load resource: net::ERR_FAILED"
+ ],
+ "legacy-desk": {
+  "shots": [
+   {
+    "f": "/tmp/final/after-legacy-desk-chase2.jpg",
+    "t": 2,
+    "calls": 352,
+    "tris": 1271105,
+    "s": 80,
+    "kmh": 173
+   },
+   {
+    "f": "/tmp/final/after-legacy-desk-chase9.jpg",
+    "t": 9,
+    "calls": 326,
+    "tris": 1263024,
+    "s": 458,
+    "kmh": 201
+   },
+   {
+    "f": "/tmp/final/after-legacy-desk-chase17.jpg",
+    "t": 17,
+    "calls": 130,
+    "tris": 675682,
+    "s": 914,
+    "kmh": 203
+   }
+  ],
+  "taxi": {
+   "calls": 349,
+   "tris": 1071988
+  },
+  "wide": {
+   "calls": 141,
+   "tris": 692545
+  },
+  "gfx": {
+   "pr1+bloom": 5,
+   "pr1-bloom": 2.3,
+   "pr0.5+bloom": 11.7,
+   "pr0.5-bloom": 9.8,
+   "pr0.35-bloom": 10.6,
+   "calls": 128,
+   "tris": 692532,
+   "w": 1280,
+   "h": 720
+  },
+  "worldMeshes": 86
+ },
+ "errors-legacy-desk": [
+  "Failed to load resource: net::ERR_FAILED"
+ ],
+ "velocity-mob": {
+  "shots": [
+   {
+    "f": "/tmp/final/after-velocity-mob-chase2.jpg",
+    "t": 2,
+    "calls": 344,
+    "tris": 1454599,
+    "s": 80,
+    "kmh": 173
+   },
+   {
+    "f": "/tmp/final/after-velocity-mob-chase9.jpg",
+    "t": 9,
+    "calls": 339,
+    "tris": 1457357,
+    "s": 510,
+    "kmh": 219
+   },
+   {
+    "f": "/tmp/final/after-velocity-mob-chase17.jpg",
+    "t": 17,
+    "calls": 348,
+    "tris": 1557949,
+    "s": 1017,
+    "kmh": 225
+   }
+  ],
+  "taxi": {
+   "calls": 321,
+   "tris": 1545601
+  },
+  "wide": {
+   "calls": 355,
+   "tris": 1567923
+  },
+  "gfx": {
+   "pr1+bloom": 5,
+   "pr1-bloom": 2.9,
+   "pr0.5+bloom": 8.3,
+   "pr0.5-bloom": 8.5,
+   "pr0.35-bloom": 7.6,
+   "calls": 342,
+   "tris": 1567910,
+   "w": 844,
+   "h": 390
+  },
+  "worldMeshes": 72
+ },
+ "errors-velocity-mob": [
+  "Failed to load resource: net::ERR_FAILED"
+ ],
+ "technical-mob": {
+  "shots": [
+   {
+    "f": "/tmp/final/after-technical-mob-chase2.jpg",
+    "t": 2,
+    "calls": 322,
+    "tris": 1057761,
+    "s": 80,
+    "kmh": 173
+   },
+   {
+    "f": "/tmp/final/after-technical-mob-chase9.jpg",
+    "t": 9,
+    "calls": 359,
+    "tris": 1097110,
+    "s": 405,
+    "kmh": 170
+   },
+   {
+    "f": "/tmp/final/after-technical-mob-chase17.jpg",
+    "t": 17,
+    "calls": 327,
+    "tris": 1102419,
+    "s": 773,
+    "kmh": 174
+   }
+  ],
+  "taxi": {
+   "calls": 131,
+   "tris": 301840
+  },
+  "wide": {
+   "calls": 339,
+   "tris": 1102509
+  },
+  "gfx": {
+   "pr0.75+bloom": 9.7,
+   "pr0.75-bloom": 7.1,
+   "pr0.5+bloom": 20.6,
+   "pr0.5-bloom": 14.8,
+   "pr0.35-bloom": 13.2,
+   "calls": 326,
+   "tris": 1102496,
+   "w": 844,
+   "h": 390
+  },
+  "worldMeshes": 66
+ },
+ "errors-technical-mob": [
+  "Failed to load resource: net::ERR_FAILED"
+ ],
+ "legacy-mob": {
+  "shots": [
+   {
+    "f": "/tmp/final/after-legacy-mob-chase2.jpg",
+    "t": 2,
+    "calls": 353,
+    "tris": 1271365,
+    "s": 80,
+    "kmh": 173
+   },
+   {
+    "f": "/tmp/final/after-legacy-mob-chase9.jpg",
+    "t": 9,
+    "calls": 324,
+    "tris": 1263266,
+    "s": 457,
+    "kmh": 202
+   },
+   {
+    "f": "/tmp/final/after-legacy-mob-chase17.jpg",
+    "t": 17,
+    "calls": 131,
+    "tris": 678754,
+    "s": 915,
+    "kmh": 203
+   }
+  ],
+  "taxi": {
+   "calls": 363,
+   "tris": 1077821
+  },
+  "wide": {
+   "calls": 138,
+   "tris": 692769
+  },
+  "gfx": {
+   "pr0.75+bloom": 4.9,
+   "pr0.75-bloom": 3,
+   "pr0.5+bloom": 8.2,
+   "pr0.5-bloom": 3.8,
+   "pr0.35-bloom": 4,
+   "calls": 125,
+   "tris": 692756,
+   "w": 844,
+   "h": 390
+  },
+  "worldMeshes": 86
+ },
+ "errors-legacy-mob": [
+  "Failed to load resource: net::ERR_FAILED"
+ ]
+}
