@@ -14,6 +14,10 @@ import { clamp, lerp, mod, wrapA, damp, smooth, sstep, mulberry32, fmtTime as fm
 import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { NetClient } from '../net/client.js';
+import { WorkerNet } from './net-proxy.js';
+import { Interpolator, VIEW_FIELDS } from '../net/netcode.js';
+import { encodeFrame } from '../net/protocol.js';
+import { driveLine } from '../net/driver.js';
 import { createLobbyUI, errorText } from './lobby.js';
 import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
 import { createRecordStore, memoryStorage, recordKey } from '../core/records.js';
@@ -510,6 +514,37 @@ function buildGroundGeometry(cx, cz) {
   g.addGroup(0, flatIdx, 0); g.addGroup(flatIdx, idx.length - flatIdx, 1);   // 0: flat tiles, 1: pit blocks
   return g;
 }
+let GROUND_TILES = [];
+// split an indexed geometry (with material groups) into square tiles by triangle centroid; tiles share the
+// source attributes (uploaded once) and get exact bounds from their own vertices
+function tileGeometry(g, size) {
+  const P = g.attributes.position.array, I = g.index.array, tiles = new Map();
+  for (const gr of g.groups) for (let k = gr.start; k < gr.start + gr.count; k += 3) {
+    const a = I[k] * 3, b = I[k + 1] * 3, c = I[k + 2] * 3;
+    const key = Math.floor((P[a] + P[b] + P[c]) / 3 / size) + ',' + Math.floor((P[a + 2] + P[b + 2] + P[c + 2]) / 3 / size);
+    let t = tiles.get(key); if (!t) tiles.set(key, t = [[], []]);
+    t[gr.materialIndex].push(I[k], I[k + 1], I[k + 2]);
+  }
+  const out = [];
+  for (const [, [i0, i1]] of tiles) {
+    const geo = new THREE.BufferGeometry();
+    for (const n in g.attributes) geo.setAttribute(n, g.attributes[n]);
+    const idx = i0.concat(i1); geo.setIndex(idx); geo.addGroup(0, i0.length, 0); geo.addGroup(i0.length, i1.length, 1);
+    const box = new THREE.Box3(), v = new THREE.Vector3(); for (const i of idx) box.expandByPoint(v.fromArray(P, i * 3));
+    geo.boundingBox = box; geo.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+    out.push({ geo, rect: [box.min.x, box.min.z, box.max.x, box.max.z] });
+  }
+  return out;
+}
+// ground tiles wholly beyond the fog's visible range are not drawn: FogExp2 transmits exp(-(d*rho)^2),
+// i.e. < 0.012 % beyond d = 3/rho (1,250 m at rho = 0.0024), so skipping them is not visible
+function cullGround(cam) {
+  if (DEBUG && window.__ngNoCull) { for (const m of GROUND_TILES) { m.visible = true; m.frustumCulled = false; } return; }
+  for (const m of GROUND_TILES) m.frustumCulled = true;
+  if (!scene.fog || !scene.fog.density) return;
+  const lim = 3 / scene.fog.density, x = cam.position.x, z = cam.position.z;
+  for (const m of GROUND_TILES) { const [x0, z0, x1, z1] = m.userData.rect; const dx = Math.max(x0 - x, 0, x - x1), dz = Math.max(z0 - z, 0, z - z1); m.visible = dx * dx + dz * dz < lim * lim; }
+}
 function buildCity() {
   // spatial hash of all track samples (with height + width)
   const CELL = 32, grid = new Map();
@@ -623,9 +658,15 @@ function buildCity() {
   // single-sided like v5b (no visible underside). Flat ground: original material. Pit embankments: matte
   // retaining-wall variant of the same material (no mirror streaks on steep faces).
   const gGeo = buildGroundGeometry((minX + maxX) / 2, (minZ + maxZ) / 2);
-  const ground = new THREE.Mesh(gGeo, [new THREE.MeshStandardMaterial({ color: 0x07060c, roughness: 0.32, metalness: 0.6, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(0.5, 0.5, 0.5) }),
-    new THREE.MeshStandardMaterial({ color: 0x0c0b12, roughness: 0.88, metalness: 0.15, envMapIntensity: 0.15, emissiveMap: gtex, emissive: new THREE.Color(0.32, 0.32, 0.36) })]);
-  ground.name = 'ground'; WORLD.add(ground);
+  const gMats = [new THREE.MeshStandardMaterial({ color: 0x07060c, roughness: 0.32, metalness: 0.6, envMapIntensity: 0.6, emissiveMap: gtex, emissive: new THREE.Color(0.5, 0.5, 0.5) }),
+    new THREE.MeshStandardMaterial({ color: 0x0c0b12, roughness: 0.88, metalness: 0.15, envMapIntensity: 0.15, emissiveMap: gtex, emissive: new THREE.Color(0.32, 0.32, 0.36) })];
+  // M4 perf: the 6 km ground used to be ONE ~410k-triangle mesh, always drawn whole (frustum culling
+  // cannot reject part of a mesh). It is split into 750 m tiles that SHARE the same vertex buffers and
+  // materials (identical triangles), each with exact bounds, so off-screen tiles are culled, and tiles
+  // entirely beyond the fog's visible range are skipped (see cullGround).
+  const ground = new THREE.Group(); ground.name = 'ground';
+  for (const t of tileGeometry(gGeo, 750)) { const m = new THREE.Mesh(t.geo, gMats); m.userData.rect = t.rect; ground.add(m); }
+  GROUND_TILES = ground.children; WORLD.add(ground);
   return { minX, maxX, minZ, maxZ };
 }
 
@@ -2112,7 +2153,7 @@ function advanceFrame(now, render = true) {
   // brief slow motion right after the player crosses the line (finish camera)
   const ts = state === 'finished' && FIN.on && FIN.t < 2.2 ? 0.3 : 1;
   applyTilt();
-  if (MP.race) { mpFrame(wall, Math.min(wall, clock.maxCatchUp)); if (render && !(DEBUG && window.__ngRenderEvery > 1 && (++mpRenderN % window.__ngRenderEvery))) renderNow(); return; }
+  if (MP.race) { const tn = performance.now(); if (mpLastRender && mpRenderGaps.length < 50000) mpRenderGaps.push(tn - mpLastRender); mpLastRender = tn; mpRenderN++; if (MP.net && MP.net.isWorker && (mpRenderN & 15) === 0) MP.net.refreshState(); mpFrame(wall, Math.min(wall, clock.maxCatchUp)); if (render && !(DEBUG && window.__ngRenderEvery > 1 && (mpRenderN % window.__ngRenderEvery))) renderNow(); return; }
   const adv = clock.advance(wall, ts);
   if (adv.stalled) onStall(wall);
   for (let i = 0; i < adv.steps; i++) sim.step(adv.h);
@@ -2135,6 +2176,7 @@ function renderNow() {
   // battery for the lobby and the coming race). Race rendering is never throttled.
   if (g && document.body.classList.contains('mpopen')) { const t = performance.now(); if (t - garageLastRender < 250) return; garageLastRender = t; }
   renderPass.scene = g ? GAR.scene : scene; renderPass.camera = g ? GAR.cam : camera;
+  if (!g) cullGround(camera);
   renderer.info.reset();
   if (g) { fxPass.uniforms.uAmt.value = 0; fxPass.uniforms.uBlur.value = 0; }
   bloom.strength = g ? 0.12 : 0.5; bloom.threshold = g ? 1.35 : 1.0; renderer.toneMappingExposure = g ? 0.9 : 1.0;
@@ -2369,7 +2411,7 @@ function disposeWorld() {
   for (const g of geos) g.dispose(); for (const m of mats) m.dispose(); for (const t of texs) if (t !== radialTex && t !== shadowTex) t.dispose();
   WORLD.clear();
   DECKS.length = 0; bList.length = 0; hList.length = 0; exclusions.length = 0; holoAds.length = 0; flickerMats.length = 0; barrierMats.length = 0; adCanvases.length = 0;
-  startLamps = []; searchlights = []; trafficLanes = [];
+  startLamps = []; searchlights = []; trafficLanes = []; GROUND_TILES = [];
   return { geometries: geos.size, materials: mats.size, textures: texs.size };
 }
 let mapBusy = false, lastDispose = null;
@@ -2438,7 +2480,7 @@ async function boot() {
 // Single-player records are never offered from a multiplayer race (no record hooks are attached).
 const BUILD = __NG_BUILD__;
 const MP = { net: null, race: null, ui: null, results: null, preparing: false, autodrive: false, leaveArm: 0, lastErr: null };
-const MP_T = {}; let mpRenderN = 0;
+const MP_T = {}; let mpRenderN = 0, mpLastRender = 0; const mpRenderGaps = [];
 const mpApi = path => new URL('./' + path, location.href).toString();
 const mpWsBase = () => { const u = new URL('./', location.href); return (u.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + u.host + u.pathname.replace(/\/$/, ''); };
 const mpSimEvents = {
@@ -2483,9 +2525,22 @@ function mpRestoreSP() {
   sim.setMode(driveMode); refreshRacerCars(); gridUp();
   for (const r of racers) updateVisual(r, 0);
 }
+// The connection + input timeline + prediction run in a Web Worker when available, so a slow render
+// thread cannot starve the server of input. Fallback (no Worker, or ?mpworker=0): same code on this thread.
+const MP_USE_WORKER = typeof Worker !== 'undefined' && !/[?&]mpworker=0\b/.test(location.search);
 function mpNet(name) {
-  if (!MP.net) MP.net = new NetClient({ wsUrl: mpWsBase(), WebSocketImpl: WebSocket, now: () => performance.now(), build: BUILD, name, events: mpSimEvents, onEvent: mpOnEvent });
-  MP.net.name = name; return MP.net;
+  if (!MP.net) MP.net = MP_USE_WORKER
+    ? new WorkerNet({ wsUrl: mpWsBase(), build: BUILD, name, onEvent: mpOnEvent, onFx: mpFx })
+    : new NetClient({ wsUrl: mpWsBase(), WebSocketImpl: WebSocket, now: () => performance.now(), build: BUILD, name, events: mpSimEvents, onEvent: mpOnEvent });
+  MP.net.name = name; if (DEBUG && MP.autodrive && MP.net.isWorker) MP.net.autodrive(true); return MP.net;
+}
+// presentation events forwarded from the worker's predictor (plain data)
+function mpFx(list) {
+  for (const [name, ...a] of list) {
+    if (name === 'wallHit') onWallHit(...a);
+    else if (name === 'crash' || name === 'respawn' || name === 'droneHit') mpSimEvents[name]();
+    else if (mpSimEvents[name]) mpSimEvents[name](...a);
+  }
 }
 async function mpCreate(name) {
   MP.ui.setError('');
@@ -2556,41 +2611,43 @@ async function mpBeginRace(m) {
     try { await renderer.compileAsync(scene, camera); } catch (e) { }
   } finally { MP.preparing = false; }
 }
-const MP_COPY = ['s', 'd', 'h', 'vh', 'psi', 'va', 'vd', 'yawV', 'steer', 'speed', 'dv', 'prog', 'lastRd', 'lap', 'lapStart', 'lapTimes', 'finished', 'finishTime', 'boost', 'meter', 'drift', 'air', 'airT', 'thr', 'vf', 'vl', 'acc', 'scrape', 'scrapeSide', 'sector', 'draftT', 'tow', 'wrongWayT', 'bestLap', 'curSplits', 'autopilot', 'rollAI', 'edgeAssist', 'cornerAssist'];
+const MP_COPY = VIEW_FIELDS;
 function mpFrame(wall, dt0) {
   const net = MP.net, RC = net && net.race;
   if (!RC || MP.preparing) { update(0, dt0); return; }
-  if (DEBUG && MP.autodrive) mpAutodrive(RC.pred);
-  const steps = net.frame(keys);
+  let V;
+  if (net.isWorker) { if (!RC.interp) RC.interp = new Interpolator(sim.track); net.setKeys(encodeFrame(keys)); V = RC.view; }
+  else { if (DEBUG && MP.autodrive) Object.assign(keys, driveLine(RC.pred)); net.frame(keys); RC.pred.decay(dt0); V = net.view(); }
   const sn = net.serverNow();
   if (state === 'countdown') cdT = (MP.race.startAt - sn) / 1000 + dt0;
-  // local car <- predictor
-  const pred = RC.pred, me = pred.me, trk = pred.sim.track, mapPath = p => (p && p === trk.BR ? BR : MAIN);
-  const wasCr = player.crashed > 0;
+  if (!V) { update(0, dt0); return; }   // worker has not published a view yet (first frames)
+  // local car <- predicted view (+ blended visual correction)
+  const me = V.me, wasCr = player.crashed > 0;
   for (const k of MP_COPY) player[k] = me[k];
-  player.path = mapPath(me.path);
-  if (me.crashed > 0) { if (!wasCr) { player.world.copy(me.world); player.crashVel = me.crashVel ? me.crashVel.clone() : new V3(); player.crashSpin = me.crashSpin ? me.crashSpin.clone() : new V3(); } player.crashed = me.crashed; }
-  else { player.crashed = 0; sim.pose(player); player.world.add(pred.decay(dt0)); }
-  sim.time = pred.sim.time; sim.raceStart = pred.sim.raceStart; sim.phase = state === 'countdown' ? 'grid' : (me.finished ? 'finished' : 'race'); sim.bestLap = me.bestLap;
+  player.path = me.br ? BR : MAIN;
+  if (me.crashed > 0) { if (!wasCr && me.world) { player.world.set(me.world.x, me.world.y, me.world.z); player.crashVel = me.crashVel ? new V3(me.crashVel.x, me.crashVel.y, me.crashVel.z) : new V3(); player.crashSpin = me.crashSpin ? new V3(me.crashSpin.x, me.crashSpin.y, me.crashSpin.z) : new V3(); } player.crashed = me.crashed; }
+  else { player.crashed = 0; sim.pose(player); player.world.x += V.corr.x; player.world.y += V.corr.y; player.world.z += V.corr.z; }
+  sim.time = V.time; sim.raceStart = V.raceStart; sim.phase = state === 'countdown' ? 'grid' : (me.finished ? 'finished' : 'race'); sim.bestLap = me.bestLap;
   // remote cars <- interpolation (~120 ms in the past)
+  const IP = RC.interp;
   for (const r of racers) {
-    if (r === player || !RC.interp.sample(r.id, sn, MP_T)) continue;
-    r.path = mapPath(MP_T.path); r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;
+    if (r === player || !IP || !IP.sample(r.id, sn, MP_T)) continue;
+    r.path = MP_T.path === IP.td.BR ? BR : MAIN; r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;
     r.lap = MP_T.lap; r.prog = MP_T.prog; r.boost = MP_T.boost; r.finished = MP_T.finished; r.steer = MP_T.steer; r.drift = MP_T.drift; r.thr = MP_T.thr; r.rollAI = MP_T.rollNet; r.autopilot = true;
     if (MP_T.netCrashed) { if (!(r.crashed > 0)) { sim.pose(r); r.crashed = 1.7; r.crashVel = r.F.clone().multiplyScalar(r.speed * 0.8).addScaledVector(r.Uw, 6); r.crashSpin = new V3(R(-4, 4), R(-6, 6), R(-4, 4)); } }
     else { r.crashed = 0; sim.pose(r); }
   }
-  pred.sim.drones.forEach((pd, k) => { const d = drones[k]; if (!d) return; d.s = pd.s; d.d = pd.d; d.h = pd.h; d.world.copy(pd.world); d.fi = pd.fi; });
-  const fo = RC.last ? RC.last.fo : []; sim.finishOrder = fo.map(id => racers.find(r => r.id === id)).filter(Boolean);
+  V.drones.forEach((pd, k) => { const d = drones[k]; if (!d) return; d.s = pd[0]; d.d = pd[1]; d.h = pd[2]; d.world.set(pd[3], pd[4], pd[5]); d.fi = pd[6]; });
+  const fo = RC.last ? RC.last.fo : V.fo; sim.finishOrder = fo.map(id => racers.find(r => r.id === id)).filter(Boolean);
   if (state === 'race' && me.finished) mpLocalFinish(false);
   gameTime = sim.time;
   update(dt0, dt0);
   mpStatus(sn);
-  void steps;
 }
 function mpInputTick() {
   const net = MP.net; if (!MP.race || MP.preparing || !net || !net.race) return;
-  if (DEBUG && MP.autodrive) mpAutodrive(net.race.pred);
+  if (net.isWorker) { net.setKeys(encodeFrame(keys)); return; }   // the worker steps on its own timer
+  if (DEBUG && MP.autodrive) Object.assign(keys, driveLine(net.race.pred));
   net.frame(keys);
 }
 function mpLocalFinish(byServer) {
@@ -2635,12 +2692,6 @@ function mpStatus(sn) {
   const n = MP.net; if (!n) return;
   $('mpStat').textContent = n.status === 'reconnecting' ? 'Reconnecting…' : `Room ${n.code} · ${Math.round(n.clock.rtt)} ms`;
 }
-// test builds only: scripted driving through the real input path (keys -> frames -> server)
-function mpAutodrive(pred) {
-  const r = pred.me; if (!r) return; const kg = pred.sim.kgAt(r.path, r.s + 10 + r.speed * 0.3);
-  const st = Math.max(-1, Math.min(1, r.d * 0.03 + r.psi * 3 - 30 * kg));
-  keys.up = 1; keys.down = 0; keys.right = st > 0 ? st : 0; keys.left = st < 0 ? -st : 0; keys.boost = r.meter > 0.6 ? 1 : 0;
-}
 $('mpLeave').addEventListener('click', () => {
   const b = $('mpLeave');
   if (performance.now() - MP.leaveArm > 3000) { MP.leaveArm = performance.now(); b.textContent = 'Tap again to leave'; setTimeout(() => { b.textContent = 'Leave race'; }, 3000); return; }
@@ -2681,10 +2732,18 @@ if (DEBUG) {
     get rain() { return { shelterOn: rainMat.uniforms.uShelterOn.value, cells: SHELTER_MAP ? SHELTER_MAP.nx * SHELTER_MAP.nz : 0, camSheltered: SHELTER_MAP ? camera.position.y < shelterTop(SHELTER_MAP, camera.position.x, camera.position.z) - 0.15 : null }; },
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },
-    get mp() { const n = MP.net, R = n && n.race; return { inRoom: !!(n && n.room), code: n && n.code, you: n && n.you, status: n && n.status, room: n && n.room, race: !!MP.race, state, lastErr: MP.lastErr, results: MP.results && MP.results.order.map(o => [o.pos, o.id, o.time, o.dnf]),
-      net: n ? (q => ({ recvDelayP50: q(n.stats.recvDelay, .5), recvDelayP95: q(n.stats.recvDelay, .95), frameGapP50: q(n.stats.frameGaps, .5), frameGapP95: q(n.stats.frameGaps, .95), behindMax: n.stats.behindMax, resyncSteps: n.stats.resyncSteps, stallsOver250ms: n.stats.frameGaps.filter(g => g > 250).length, stallsOver1s: n.stats.frameGaps.filter(g => g > 1000).length, aheadRejections: (n.stats.ahead || []).slice(-3), frames: n.stats.frameGaps.length }))((a, p) => { if (!a.length) return null; const b = a.slice(-3000).sort((x, y) => x - y); return Math.round(b[Math.floor(b.length * p)]); }) : null,
-      rtt: n ? +n.clock.rtt.toFixed(1) : null, lead: n && n.lead, pending: R ? R.pred.pending : null, corrections: R ? R.pred.stats.corrections.length : 0, mispredictP95: R ? (a => a.length ? a[Math.floor(a.length * 0.95)] : 0)(R.pred.stats.corrections.slice(10).sort((x, y) => x - y)) : null, hard: R ? R.pred.stats.hard : 0,
-      me: player ? { lap: player.lap, prog: +player.prog.toFixed(1), finished: player.finished, speed: +player.speed.toFixed(1) } : null, racers: racers.map(r => ({ id: r.id, name: r.name, lap: r.lap, prog: +r.prog.toFixed(1), body: r.ship ? (r.ship.fallback ? 'FALLBACK' : 'glTF:' + r.ship.key) : null })), recordsOffered: records.rejected.length + (lastRecordOffer ? 1 : 0) }; },
+    get mp() {
+      const n = MP.net, R = n && n.race, W = n && n.isWorker, st = W ? n.st : null;
+      const q = (a, p) => { if (!a || !a.length) return null; const b = a.slice(-3000).sort((x, y) => x - y); return Math.round(b[Math.floor(b.length * p)]); };
+      const corr = W ? (st && st.pstats ? st.pstats.corrections : []) : (R ? R.pred.stats.corrections : []);
+      const cs = corr.slice(W ? 0 : 10).sort((x, y) => x - y);
+      return { worker: !!W, inRoom: !!(n && n.room), code: n && n.code, you: n && n.you, status: n && n.status, room: n && n.room, race: !!MP.race, state, lastErr: MP.lastErr, results: MP.results && MP.results.order.map(o => [o.pos, o.id, o.time, o.dnf]),
+        renderGaps: { p50: q(mpRenderGaps, .5), p95: q(mpRenderGaps, .95), over250ms: mpRenderGaps.filter(g => g > 250).length, over1s: mpRenderGaps.filter(g => g > 1000).length, frames: mpRenderGaps.length },
+        net: W ? (st ? { loop: st.loop, ...st.netStats } : null) : (n ? { frameGapP50: q(n.stats.frameGaps, .5), frameGapP95: q(n.stats.frameGaps, .95), behindMax: n.stats.behindMax, resyncSteps: n.stats.resyncSteps, aheadRejections: (n.stats.ahead || []).slice(-3) } : null),
+        rtt: n ? +(n.clock.rtt || 0).toFixed(1) : null, lead: n && n.lead, pending: W ? (st && st.pending) : (R ? R.pred.pending : null), mispredictP95: cs.length ? cs[Math.floor(cs.length * 0.95)] : null,
+        hard: W ? (st && st.pstats ? st.pstats.hard : 0) : (R ? R.pred.stats.hard : 0),
+        me: player ? { lap: player.lap, prog: +player.prog.toFixed(1), finished: player.finished, speed: +player.speed.toFixed(1) } : null, racers: racers.map(r => ({ id: r.id, name: r.name, lap: r.lap, prog: +r.prog.toFixed(1), body: r.ship ? (r.ship.fallback ? 'FALLBACK' : 'glTF:' + r.ship.key) : null })), recordsOffered: records.rejected.length + (lastRecordOffer ? 1 : 0) };
+    },
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
     qa: { open: qaOpen, garageNext: qaGarageNext, boostDemo: () => { touch(); qaBoostDemo(false); }, invertedDemo: () => { touch(); qaBoostDemo(true); }, exit: toGarage, select: (k, p) => { if (p != null) GAR.paint = p; selectCar(k); } }
   };
@@ -2694,7 +2753,35 @@ if (DEBUG) {
     // manual wall clock: drive the real frame path with synthetic frame gaps (low FPS / stalls)
     manualClock(on) { manualClock = !!on; last = performance.now(); },
     advance(ms, render = false) { const now = last + ms; advanceFrame(now, render); return clockInfo(); },
-    render() { renderNow(); }, start() { startRace(); }, mpAutodrive(on) { MP.autodrive = !!on; }, mpUI: () => MP.ui };
+    render() { renderNow(); }, start() { startRace(); },
+    // test builds: measure render cost for render-scale / bloom variants (restores the original afterwards)
+    gfxProbe(n = 6) {
+      const pr0 = PR, b0 = bloom.enabled, out = {};
+      const time = () => { renderNow(); const t = performance.now(); for (let i = 0; i < n; i++) renderNow(); return +((performance.now() - t) / n).toFixed(1); };
+      for (const [k, pr, bl] of [['pr' + pr0 + '+bloom', pr0, true], ['pr' + pr0 + '-bloom', pr0, false], ['pr0.5+bloom', 0.5, true], ['pr0.5-bloom', 0.5, false], ['pr0.35-bloom', 0.35, false]]) {
+        renderer.setPixelRatio(pr); composer.setPixelRatio(pr); resize(); bloom.enabled = bl; out[k] = time();
+      }
+      renderer.setPixelRatio(pr0); composer.setPixelRatio(pr0); resize(); bloom.enabled = b0;
+      return { ...out, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, w: innerWidth, h: innerHeight };
+    },
+    gfxSet({ pr, bloom: bl, hideWorld, hideCars } = {}) {   // test builds only: render-cost experiments
+      if (pr != null) { PR = pr; renderer.setPixelRatio(pr); composer.setPixelRatio(pr); resize(); }
+      if (bl != null) bloom.enabled = bl;
+      if (hideWorld != null) WORLD.visible = !hideWorld;
+      if (hideCars != null) for (const r of racers) if (r.ship) r.ship.root.visible = !hideCars;
+      return { pr: PR, bloom: bloom.enabled };
+    },
+    triBreakdown() {   // test builds: triangles per top-level scene child (visible meshes only), largest first
+      const out = [];
+      for (const c of scene.children) { let t = 0, m = 0; c.traverseVisible(o => { if (o.isMesh && o.geometry) { const g = o.geometry, n = (g.index ? g.index.count : g.attributes.position.count) / 3; t += n * (o.isInstancedMesh ? o.count : 1); m++; } }); if (t) out.push([c.name || c.type, Math.round(t), m]); }
+      return out.sort((a, b) => b[1] - a[1]).slice(0, 15);
+    },
+    worldMeshes() {   // test builds: WORLD meshes by triangles with bounding radius
+      const w = scene.children.find(c => c.name === 'WORLD'), out = [];
+      w.traverseVisible(o => { if (o.isMesh) { const g = o.geometry; if (!g.boundingSphere) g.computeBoundingSphere(); out.push([o.name || (o.material && o.material.type) || '?', Math.round((g.index ? g.index.count : g.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : 1)), Math.round(g.boundingSphere.radius), o.isInstancedMesh ? o.count : 0, o.frustumCulled]); } });
+      return { fog: scene.fog ? [scene.fog.near, scene.fog.far, scene.fog.density] : null, far: camera.far, top: out.sort((a, b) => b[1] - a[1]).slice(0, 14) };
+    },
+    mpAutodrive(on) { MP.autodrive = !!on; if (MP.net && MP.net.isWorker) MP.net.autodrive(on); }, mpUI: () => MP.ui };
   $('qaBtn').addEventListener('click', () => { $('qaBtn').blur(); qaOpen(); });
 } else {
   $('qaBtn').remove();   // the QA panel markup stays (hidden, never openable): garage UI writes diagnostics into it

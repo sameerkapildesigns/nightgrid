@@ -6,7 +6,7 @@
 // steps, so that frame k reaches the server just before the server needs it. The server reports how
 // many of our frames are queued (q); lead adapts to keep a small queue (jitter buffer). Local input is
 // therefore applied to the local car immediately, never delayed by the round trip.
-import { Predictor, Interpolator, ClockSync, MAX_CATCHUP } from './netcode.js';
+import { Predictor, Interpolator, ClockSync, MAX_CATCHUP, VIEW_FIELDS } from './netcode.js';
 import { SIM_DT } from '../core/clock.js';
 import { PROTOCOL, NET_HZ, encodeFrame, MAX_FRAMES_PER_MSG, MAX_LEAD_FRAMES, normalizeCode, validCode } from './protocol.js';
 
@@ -116,6 +116,18 @@ export class NetClient {
     }
     if (this.outbox.length && (n - this.lastSend >= 1000 / NET_HZ || this.outbox.length >= 12)) this.flush(n);
     return steps;
+  }
+  // Plain-data view of the race for rendering (structured-clone safe: crosses the worker boundary).
+  // Local car = predicted state + current visual correction; remote cars are NOT included (the renderer
+  // interpolates them from forwarded snapshots).
+  view() {
+    const R = this.race; if (!R) return null;
+    const P = R.pred, me = P.me, br = P.sim.track.BR, v = {};
+    for (const k of VIEW_FIELDS) { const x = me[k]; v[k] = Array.isArray(x) ? x.slice() : x; }
+    v.br = me.path === br; v.crashed = me.crashed;
+    if (me.crashed > 0) { v.crashVel = me.crashVel ? { x: me.crashVel.x, y: me.crashVel.y, z: me.crashVel.z } : null; v.crashSpin = me.crashSpin ? { x: me.crashSpin.x, y: me.crashSpin.y, z: me.crashSpin.z } : null; v.world = { x: me.world.x, y: me.world.y, z: me.world.z }; }
+    return { me: v, corr: { x: P.correction.x, y: P.correction.y, z: P.correction.z }, time: P.sim.time, raceStart: P.sim.raceStart,
+      drones: P.sim.drones.map(d => [d.s, d.d, d.h, d.world.x, d.world.y, d.world.z, d.fi]), fo: R.last ? R.last.fo : [], ended: !!R.ended };
   }
   flush(n = this.now()) {
     while (this.outbox.length) { const f = this.outbox.splice(0, MAX_FRAMES_PER_MSG); this.sendRaw({ t: 'in', q: this.outSeq, f }); this.outSeq += f.length; }

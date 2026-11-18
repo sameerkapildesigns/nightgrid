@@ -16,6 +16,8 @@ import { wrapA, mod } from '../core/math.js';
 import { Vec3 } from '../core/vec.js';
 import { decodeFrame, INTERP_DELAY_MS, EXTRAP_MAX_MS } from './protocol.js';
 
+// local-car fields the renderer needs (sim.pose recomputes world/frame from these)
+export const VIEW_FIELDS = ['s', 'd', 'h', 'vh', 'psi', 'va', 'vd', 'yawV', 'steer', 'speed', 'dv', 'prog', 'lastRd', 'lap', 'lapStart', 'lapTimes', 'finished', 'finishTime', 'boost', 'meter', 'drift', 'air', 'airT', 'thr', 'vf', 'vl', 'acc', 'scrape', 'scrapeSide', 'sector', 'draftT', 'tow', 'wrongWayT', 'bestLap', 'curSplits', 'autopilot', 'rollAI', 'edgeAssist', 'cornerAssist'];
 export const HARD_SNAP_M = 6, SMOOTH_RATE = 12, MAX_PENDING = 360, MAX_CATCHUP_STEPS = 120;   // prediction steps are cheap (one car): up to 1 s per call
 
 export class Predictor {
