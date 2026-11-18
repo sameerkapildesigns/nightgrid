@@ -16,6 +16,7 @@ import { createSim, PERS } from '../core/sim.js';
 import { NetClient } from '../net/client.js';
 import { WorkerNet } from './net-proxy.js';
 import { finishAnnounce } from './finish-pos.js';
+import { planCrowd } from './crowd.js';
 import { RemotePresenter, OwnSmoother, stepAt } from './present.js';
 import { VIEW_FIELDS } from '../net/netcode.js';
 import { encodeFrame } from '../net/protocol.js';
@@ -1740,7 +1741,7 @@ function setRivalCar(r) {
   if (r.carKey === want) return;
   if (r.ship) scene.remove(r.ship.root);
   r.ship = buildCar(L.car, L, 'race'); scene.add(r.ship.root); r.carKey = want; r.emPrev = null;
-  const tag = nameTag(L.name, PERS[r.name].css); tag.position.y = 1.5; r.ship.root.add(tag);
+  const tag = nameTag(L.name, PERS[r.name].css); tag.position.y = 1.5; r.ship.root.add(tag); r.tag = tag;
   makeTrailsFor(r);
 }
 function refreshRacerCars() { if (!player) return; if (MP.race) return mpRefreshCars(); setPlayerCar(); for (const r of racers) if (r !== player) setRivalCar(r); }
@@ -1879,7 +1880,7 @@ function updateVisual(r, dt) {
   _mb.makeBasis(_L, r.Uw, r.F); _qa.setFromRotationMatrix(_mb);
   const sp = r.speed;
   const car = !sh.fallback && sh.kind === 'car';
-  if (sh.mixer) sh.mixer.update(dt);
+  if (sh.mixer && !(r.lod && r.lod !== 'full' && r !== player)) sh.mixer.update(dt);
   const rollT = (r.autopilot ? r.rollAI : r.steer * 0.34 * Math.min(1, sp / 40) - r.vl * 0.008) * (car ? 0.45 : 1);
   const pitchT = ((r.autopilot ? 0 : -r.acc * 0.0022) + r.vh * 0.02) * (car ? 0.6 : 1);
   r.roll = lerp(r.roll, rollT, damp(8, dt)); r.pitch = lerp(r.pitch, pitchT, damp(8, dt));
@@ -1894,7 +1895,7 @@ function updateVisual(r, dt) {
   if (S.finL) S.finL.rotation.y = -r.flapK * 0.45; if (S.finR) S.finR.rotation.y = -r.flapK * 0.45;
   if (S.canL) S.canL.rotation.x = r.flapK * 0.35; if (S.canR) S.canR.rotation.x = -r.flapK * 0.35;
   // real wheels: roll with ground speed, front wheels steer, suspension follows the magnetic hover height
-  if (sh.wheels && sh.wheels.length) {
+  if (sh.wheels && sh.wheels.length && !(r.lod && r.lod !== 'full' && r !== player)) {
     const sgn = r.va >= 0 ? 1 : -1, sus = clamp(H0 - r.h, -0.14, 0.3) / sh.scale;
     for (const w of sh.wheels) {
       w.spin.rotation.x = (w.spin.rotation.x + sgn * sp / w.rad * dt) % (Math.PI * 2);
@@ -1904,6 +1905,7 @@ function updateVisual(r, dt) {
   }
   sh.ug.material.opacity = 0.75 + Math.sin(gameTime * 9 + r.phase) * 0.08;
   sh.root.updateMatrixWorld();
+  if (r.lod && r.lod !== 'full' && r !== player) return;   // M7 crowd budget: lite/far remotes skip trails, exhaust, sparks
   const tw = 0.06 + Math.min(1, sp / 90) * 0.06;
   if (sh.tails && sh.tails.length >= 2) { sh.tails[0].getWorldPosition(_tp); updateTrail(r.trails[0], _tp, tw * 0.7); sh.tails[1].getWorldPosition(_tp); updateTrail(r.trails[1], _tp, tw * 0.7); }
   const em = sh.emitters;
@@ -1926,6 +1928,39 @@ function updateVisual(r, dt) {
     for (let k = 0; k < 3; k++) spark(_tp.x, _tp.y, _tp.z, r.F.x * sp * 0.3 + R(-4, 4), R(1, 6), r.F.z * sp * 0.3 + R(-4, 4), SPARK_HOT, R(0.2, 0.6));
   }
   if (r.h < 0.5 && sp > 30 && Math.random() < 0.5) { _tp.set(R(-1, 1), gy, R(-1.5, 1.5)); sh.root.localToWorld(_tp); spark(_tp.x, _tp.y, _tp.z, R(-3, 3), R(0, 3), R(-3, 3), SPARK_HOT, R(0.2, 0.4)); }
+}
+// M7 crowd budget (src/client/crowd.js): name-tag declutter + remote detail levels for big grids.
+const crowdPrev = new Map(); let crowdStats = { labels: 0, full: 0, lite: 0, far: 0, remotes: 0 };
+const _cw = new V3();
+function setDetail(r, lvl) {
+  const sh = r.ship; if (!sh) return;
+  if (r.lodShip !== sh) { r.lodShip = sh; r.lod = 'full'; }   // a swapped-in model starts at full detail
+  if (r.lod === lvl) return;
+  const was = r.lod || 'full'; r.lod = lvl;
+  if (lvl === 'far' && !sh.proxy && sh.dims) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sh.dims.W * 0.92, Math.max(0.5, sh.dims.H * 0.55), sh.dims.L * 0.95), new THREE.MeshBasicMaterial({ color: sh.neonA ? sh.neonA.clone().multiplyScalar(0.55) : 0x334455 }));
+    m.position.y = sh.groundY != null ? sh.groundY + Math.max(0.5, sh.dims.H * 0.55) / 2 : 0; sh.root.add(m); sh.proxy = m;
+  }
+  if (sh.body) sh.body.visible = lvl !== 'far' || !sh.proxy; if (sh.proxy) sh.proxy.visible = lvl === 'far';
+  const ne = sh.emitters ? sh.emitters.length : 0;
+  if (r.trails) r.trails.forEach((t, k) => { const on = lvl === 'full' && (k < 2 || k < 2 + ne); if (on && was !== 'full') t.n = 0; t.mesh.visible = on; });
+  if (lvl === 'full') r.emPrev = null;
+}
+function applyCrowd() {
+  const items = [], W = innerWidth, H = innerHeight;
+  for (const r of racers) {
+    if (r === player || !r.ship) continue;
+    _cw.copy(r.world); const dist = _cw.distanceTo(camera.position); _cw.y += 2.2; _cw.project(camera);
+    items.push({ id: r.id || r.name, r, dist, sx: (_cw.x + 1) / 2 * W, sy: (1 - _cw.y) / 2 * H, onScreen: _cw.z < 1 && Math.abs(_cw.x) < 1.05 && Math.abs(_cw.y) < 1.05 });
+  }
+  const plan = planCrowd(items, crowdPrev);
+  const st = { labels: 0, full: 0, lite: 0, far: 0, remotes: items.length };
+  for (const it of items) {
+    const p = plan.get(it.id); crowdPrev.set(it.id, p.detail);
+    if (it.r.tag) it.r.tag.visible = p.label; if (p.label) st.labels++;
+    setDetail(it.r, p.detail); st[p.detail]++;
+  }
+  crowdStats = st;
 }
 const EX_SPARK_A = new THREE.Color(0.55, 1.4, 1.8), EX_SPARK_B = new THREE.Color(0.9, 0.45, 1.8);
 function updateDrones() {   // drone motion is simulated in core; this only places the meshes
@@ -2221,6 +2256,7 @@ function update(dt, dt0) {
   }
   if (state === 'finished') { cineUI(FIN.on && FIN.t < 3.4, false, FIN.on && FIN.t < 3.4); finishT += dt; if ((FIN.on ? FIN.t > 3.4 : finishT > 2.6) && !shownResults) { shownResults = true; $('results').classList.remove('hide'); } if (shownResults) showResults(); }
   for (const r of racers) updateVisual(r, dt);
+  applyCrowd();
   const s01 = Math.min(player.speed / 92, 1.4);
   const boosting = player.boost && state === 'race' && !player.crashed;
   if (boosting && !prevBoost.v) { AU.whoosh(); CC.kick = 5; CC.shake += 0.12; }
@@ -2538,7 +2574,7 @@ function mpRefreshCars() {
     const want = st.car + ':' + (st.paint || 0) + ':' + assetStatus(st.car); if (r.carKey === want) continue;
     if (r.ship) scene.remove(r.ship.root);
     const liv = seatLivery(st); r.ship = buildCar(st.car, liv, 'race', r === player); scene.add(r.ship.root); r.carKey = want; r.emPrev = null;
-    if (r !== player) { const tag = nameTag(st.name.toUpperCase().slice(0, 12), liv.neon); tag.position.y = 1.5; r.ship.root.add(tag); }
+    if (r !== player) { const tag = nameTag(st.name.toUpperCase().slice(0, 12), liv.neon); tag.position.y = 1.5; r.ship.root.add(tag); r.tag = tag; }
     else { $('carTag').className = ''; $('carTag').textContent = `${CARS[st.car].nick} · ROOM ${MP.net && MP.net.code || ''}`; }
     makeTrailsFor(r);
   }
@@ -2761,6 +2797,7 @@ if (DEBUG) {
     get selectedCar() { return { key: GAR.sel, paint: PAINTS[GAR.paint].name, raceBody: player && player.ship ? (player.ship.fallback ? 'PROCEDURAL FALLBACK' : 'glTF:' + player.ship.key) : null }; },
     get fleet() { return racers.map(r => ({ name: r.name, body: !r.ship ? null : r.ship.fallback ? 'PROCEDURAL FALLBACK (' + r.ship.key + ')' : 'glTF:' + r.ship.key, tris: r.ship ? r.ship.tris : 0, wheels: r.ship ? (r.ship.wheels || []).length : 0, emitters: r.ship ? (r.ship.emitters || []).length : 0 })); },
     get speedFx() { return { kmh: player ? Math.round(player.speed * 3.6) : 0, boostAmt: +boostAmt.toFixed(2), blur: +MB.blur.toFixed(4), fov: +camera.fov.toFixed(1), setting: SETTINGS }; },
+    get crowd() { return Object.assign({}, crowdStats, { levels: racers.filter(r => r !== player).map(r => [r.id || r.name, r.lod || 'full', !!(r.tag && r.tag.visible)]) }); },
     get boost() { return player ? { meter: +player.meter.toFixed(3), active: !!player.boost, qaInfinite: !!player.qaBoost, exhaustParticlesLive: exLive } : null; },
     get state() { return state; },
     get paused() { return paused; },
