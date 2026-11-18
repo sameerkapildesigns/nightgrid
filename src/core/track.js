@@ -219,7 +219,12 @@ export const TRK = (() => {
       [250, { roll: 2 * PI }, 2],                     // BARREL ROLL
       [150, {}, 2],
       [400, { yaw: H, roll: 0.5 }, 2],                // C4
-      [300, {}, 2],                                   // final straight
+      // final straight (300 m): unwind the +2.3 rad of corner bank that C1-C4 accumulate (v5b left it, so the road sat at
+      // ~132 deg bank here and snapped upright across the seam at 21 deg/m). Roll changes U only: positions,
+      // lap length and closure are unchanged. M7 fix; tests/unit/track-continuity.test.mjs.
+      // unwind (peak 1.2 deg/m), then 80 m level into the line. shift closes v5b's 0.142 m lateral closure residual
+      // (was a 4 deg/m heading kink at the line that made Assisted/AI lift ~40-70 km/h before the finish).
+      [220, { roll: -2.3 }, 2], [80, { shift: -0.1417 }, 2],
     ], 14),
     // TECHNICAL: narrow, heavy brake zones, chicanes, a 180° hairpin complex, esses. Deliberately slow rhythm.
     technical: () => mk([
@@ -239,7 +244,7 @@ export const TRK = (() => {
       [34, { yaw: 0.85 }, 2], [16, {}, 2], [34, { yaw: -0.85 }, 2],   // last chicane
       [90, {}, 2],
       [84, { yaw: H }, 2],                            // T-last onto main straight
-      [100, {}, 2],
+      [100, { shift: -0.2695 }, 2],                   // M7: closes v5b's 0.27 m lateral closure residual (7.9 deg/m kink at the line)
     ], 10.5),
   };
   
