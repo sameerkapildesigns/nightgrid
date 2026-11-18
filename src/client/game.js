@@ -15,7 +15,8 @@ import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { NetClient } from '../net/client.js';
 import { WorkerNet } from './net-proxy.js';
-import { Interpolator, VIEW_FIELDS } from '../net/netcode.js';
+import { RemotePresenter, stepOf } from './present.js';
+import { VIEW_FIELDS } from '../net/netcode.js';
 import { encodeFrame } from '../net/protocol.js';
 import { driveLine } from '../net/driver.js';
 import { resolveMpConfig } from '../net/mp-config.js';
@@ -1969,7 +1970,12 @@ function updateHUD(dt) {
   setT('laptime', fmt(state === 'race' ? rt - player.lapStart : (player.lapTimes.length ? player.lapTimes[player.lapTimes.length - 1] : 0)));
   setT('best', fmt(sim.bestLap));
   setH('lapbig', `${Math.min(player.lap + 1, LAPS)}<span>/${LAPS}</span>`);
-  const ranks = sim.ranks(); const p = ranks.indexOf(player) + 1;
+  let ranks = sim.ranks(), p = ranks.indexOf(player) + 1;
+  const MPR = MP.race && MP.net && MP.net.race && MP.net.race.pres;
+  if (MPR) {   // multiplayer: sticky position in the local timeline (src/client/present.js); results stay server-side
+    p = MPR.rank(MP.net.you, player.prog, player.finished);
+    ranks = ranks.filter(r => r !== player); p = Math.min(p, ranks.length + 1); ranks.splice(p - 1, 0, player);
+  }
   setH('pos', `P${p}<small>/${racers.length}</small>`);
   // gaps (seconds, from distance and the chaser's speed)
   const ahead = ranks[p - 2], behind = ranks[p];
@@ -2604,6 +2610,7 @@ function mpOnEvent(type, m) {
       MP.ui.render(); break;
     }
     case 'race': mpBeginRace(m); break;
+    case 'snap': if (net.race && MP.race && !MP.preparing && m && m.k != null) mpPresenter(net.race).push(m); break;   // not while the circuit may still be switching
     case 'results': MP.results = m; if (MP.race && state !== 'finished') mpLocalFinish(true); break;
     case 'error': MP.lastErr = m.error; if (m.fatal) mpReset(m.error); else MP.ui.setError(m.error); break;
     case 'roomClosed': MP.lastErr = 'room-closed:' + m.reason; mpReset('room-closed:' + m.reason); break;
@@ -2639,7 +2646,7 @@ function mpFrame(wall, dt0) {
   const net = MP.net, RC = net && net.race;
   if (!RC || MP.preparing) { update(0, dt0); return; }
   let V;
-  if (net.isWorker) { if (!RC.interp) RC.interp = new Interpolator(sim.track); net.setKeys(encodeFrame(keys)); V = RC.view; }
+  if (net.isWorker) { net.setKeys(encodeFrame(keys)); V = RC.view; }
   else { if (DEBUG && MP.autodrive) Object.assign(keys, driveLine(RC.pred)); net.frame(keys); RC.pred.decay(dt0); V = net.view(); }
   const sn = net.serverNow();
   if (state === 'countdown') cdT = (MP.race.startAt - sn) / 1000 + dt0;
@@ -2651,11 +2658,11 @@ function mpFrame(wall, dt0) {
   if (me.crashed > 0) { if (!wasCr && me.world) { player.world.set(me.world.x, me.world.y, me.world.z); player.crashVel = me.crashVel ? new V3(me.crashVel.x, me.crashVel.y, me.crashVel.z) : new V3(); player.crashSpin = me.crashSpin ? new V3(me.crashSpin.x, me.crashSpin.y, me.crashSpin.z) : new V3(); } player.crashed = me.crashed; }
   else { player.crashed = 0; sim.pose(player); player.world.x += V.corr.x; player.world.y += V.corr.y; player.world.z += V.corr.z; }
   sim.time = V.time; sim.raceStart = V.raceStart; sim.phase = state === 'countdown' ? 'grid' : (me.finished ? 'finished' : 'race'); sim.bestLap = me.bestLap;
-  // remote cars <- interpolation (~120 ms in the past)
-  const IP = RC.interp;
+  // remote cars <- dead-reckoned into the local car's timeline with soft correction (src/client/present.js)
+  const PR = mpPresenter(RC), ownStep = stepOf(V.time, MP.race.msg);
   for (const r of racers) {
-    if (r === player || !IP || !IP.sample(r.id, sn, MP_T)) continue;
-    r.path = MP_T.path === IP.td.BR ? BR : MAIN; r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;
+    if (r === player || !PR.sample(r.id, sn, MP_T, { ownStep })) continue;
+    r.path = MP_T.path === PR.td.BR ? BR : MAIN; r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;
     r.lap = MP_T.lap; r.prog = MP_T.prog; r.boost = MP_T.boost; r.finished = MP_T.finished; r.steer = MP_T.steer; r.drift = MP_T.drift; r.thr = MP_T.thr; r.rollAI = MP_T.rollNet; r.autopilot = true;
     if (MP_T.netCrashed) { if (!(r.crashed > 0)) { sim.pose(r); r.crashed = 1.7; r.crashVel = r.F.clone().multiplyScalar(r.speed * 0.8).addScaledVector(r.Uw, 6); r.crashSpin = new V3(R(-4, 4), R(-6, 6), R(-4, 4)); } }
     else { r.crashed = 0; sim.pose(r); }
@@ -2667,6 +2674,8 @@ function mpFrame(wall, dt0) {
   update(dt0, dt0);
   mpStatus(sn);
 }
+// one presenter per race; fed from every authoritative snapshot (worker or main-thread client)
+function mpPresenter(RC) { if (!RC.pres) RC.pres = new RemotePresenter(sim.track); return RC.pres; }
 function mpInputTick() {
   const net = MP.net; if (!MP.race || MP.preparing || !net || !net.race) return;
   if (net.isWorker) { net.setKeys(encodeFrame(keys)); return; }   // the worker steps on its own timer

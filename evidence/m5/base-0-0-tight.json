@@ -1,0 +1,169 @@
+{
+ "clients": [
+  {
+   "you": "p1",
+   "rttMs": 1.6,
+   "lead": 15,
+   "leadMs": 125,
+   "snapGapMs": {
+    "n": 846,
+    "p50": 50.201,
+    "p95": 51.396,
+    "p99": 52.244,
+    "max": 53.909
+   },
+   "snapAgeMs": {
+    "n": 827,
+    "p50": 2.22,
+    "p95": 3.156,
+    "p99": 4.055,
+    "max": 6.073
+   },
+   "ownCorrectionM": {
+    "n": 791,
+    "p50": 0,
+    "p95": 0,
+    "p99": 0,
+    "max": 0
+   },
+   "ownCorrOver1m": 0,
+   "ownHardSnaps": 0,
+   "ownVisualM": {
+    "n": 791,
+    "p50": 0,
+    "p95": 0,
+    "p99": 0,
+    "max": 0
+   },
+   "remoteFrameJumpM": {
+    "n": 7302,
+    "p50": 0.018,
+    "p95": 0.128,
+    "p99": 0.173,
+    "max": 0.365
+   },
+   "remoteJumpsOver1m": 0,
+   "remoteJumpsOver3m": 0,
+   "remoteDvPerFrame": {
+    "n": 7299,
+    "p50": 0.606,
+    "p95": 4.222,
+    "p99": 11.093,
+    "max": 26.372
+   },
+   "remoteDvOver20": 7,
+   "interpUnderruns": 0,
+   "displayedGapErrM": {
+    "n": 7269,
+    "p50": 13.794,
+    "p95": 17.098,
+    "p99": 19.4,
+    "max": 20.853
+   },
+   "closePassGapErrM": {
+    "n": 1370,
+    "p50": 13.918,
+    "p95": 16.383,
+    "p99": 18.823,
+    "max": 19.445
+   },
+   "closeFrames": 1370,
+   "hudRankFlips": 26,
+   "trueRankFlips": 8,
+   "wrongRankFrames": 489,
+   "rankFrames": 2423,
+   "results": null
+  },
+  {
+   "you": "p2",
+   "rttMs": 2.2,
+   "lead": 16,
+   "leadMs": 133,
+   "snapGapMs": {
+    "n": 846,
+    "p50": 50.191,
+    "p95": 51.514,
+    "p99": 52.368,
+    "max": 53.893
+   },
+   "snapAgeMs": {
+    "n": 827,
+    "p50": 2.513,
+    "p95": 3.571,
+    "p99": 4.613,
+    "max": 6.388
+   },
+   "ownCorrectionM": {
+    "n": 791,
+    "p50": 0,
+    "p95": 0,
+    "p99": 0,
+    "max": 0
+   },
+   "ownCorrOver1m": 0,
+   "ownHardSnaps": 0,
+   "ownVisualM": {
+    "n": 791,
+    "p50": 0,
+    "p95": 0,
+    "p99": 0,
+    "max": 0
+   },
+   "remoteFrameJumpM": {
+    "n": 7302,
+    "p50": 0.018,
+    "p95": 0.135,
+    "p99": 0.182,
+    "max": 0.374
+   },
+   "remoteJumpsOver1m": 0,
+   "remoteJumpsOver3m": 0,
+   "remoteDvPerFrame": {
+    "n": 7299,
+    "p50": 0.766,
+    "p95": 4.647,
+    "p99": 11.598,
+    "max": 27.247
+   },
+   "remoteDvOver20": 11,
+   "interpUnderruns": 0,
+   "displayedGapErrM": {
+    "n": 7269,
+    "p50": 12.739,
+    "p95": 16.227,
+    "p99": 18.479,
+    "max": 20.187
+   },
+   "closePassGapErrM": {
+    "n": 607,
+    "p50": 11.928,
+    "p95": 16.553,
+    "p99": 17.9,
+    "max": 18.774
+   },
+   "closeFrames": 607,
+   "hudRankFlips": 9,
+   "trueRankFlips": 4,
+   "wrongRankFrames": 299,
+   "rankFrames": 2423,
+   "results": null
+  }
+ ],
+ "cfg": {
+  "mode": "base",
+  "lagMs": 0,
+  "jitterMs": 0,
+  "bots": 2,
+  "secs": 40,
+  "tight": true,
+  "outageAtS": null,
+  "full": false
+ },
+ "server": {
+  "ticks": 847,
+  "lateTicks": 0,
+  "starved": 0,
+  "skipped": 0
+ },
+ "resultsAgree": null
+}
