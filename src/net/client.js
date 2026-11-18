@@ -23,12 +23,16 @@ export class NetClient {
   }
   connect(code, token = null) {
     code = normalizeCode(code); if (!validCode(code)) { this.onEvent('error', { error: 'bad-code', fatal: true }); return false; }
-    this.code = code; if (token) this.token = token; this.closedByUser = false; this.open(); return true;
+    // a new connect() replaces any socket still connecting/open (double Create/Join, room change): the old
+    // one is detached first so its late messages/close cannot touch this session, and its seat is released
+    const old = this.ws; if (old) { this.ws = null; old.onopen = old.onmessage = old.onclose = null; try { if (old.readyState === 1) old.send(JSON.stringify({ t: 'leave' })); old.close(1000, 'switch'); } catch (e) { } }
+    if (code !== this.code) { this.room = null; this.you = null; this.token = null; this.race = null; this.results = null; }
+    this.code = code; if (token) this.token = token; this.closedByUser = false; this.fatal = false; this.fatalReason = null; this.retry = 0; this.open(); return true;
   }
   open() {
     this.status = this.retry ? 'reconnecting' : 'connecting';
     const ws = this.ws = new this.WS(`${this.wsUrl}/api/rooms/${this.code}/ws`);
-    ws.onopen = () => { this.status = 'open'; this.retry = 0; this.sendRaw({ t: 'hello', p: PROTOCOL, build: this.build, name: this.name, token: this.token || undefined }); this.ping(true); };
+    ws.onopen = () => { this.status = 'open'; this.sendRaw({ t: 'hello', p: PROTOCOL, build: this.build, name: this.name, token: this.token || undefined }); this.ping(true); };
     // e.timeStamp = when the browser received the message (same clock as performance.now()), so a slow
     // render frame that delays this handler does not inflate the measured round trip
     ws.onmessage = e => this.recv(typeof e.data === 'string' ? e.data : String(e.data), e.timeStamp > 0 && this.useEventTime ? e.timeStamp : this.now());
@@ -60,7 +64,7 @@ export class NetClient {
     let m; try { m = JSON.parse(text); } catch (e) { return; }
     switch (m.t) {
       case 'pong': this.clock.sample(m.c, m.s, Math.min(at, this.now())); break;
-      case 'welcome': this.you = m.id; this.token = m.token; this.onEvent('welcome', m); break;
+      case 'welcome': this.retry = 0; this.you = m.id; this.token = m.token; this.onEvent('welcome', m); break;
       case 'lobby': this.room = m.room; if (m.room.phase === 'lobby' && this.race) { this.race = null; } this.onEvent('lobby', m); break;
       case 'race': this.beginRace(m); break;
       case 's': this.onSnap(m); break;
