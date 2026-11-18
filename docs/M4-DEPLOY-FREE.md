@@ -28,6 +28,26 @@ players' phones/laptops
 * Rollback: M3 production stays at **53af096** on Vercel's production branch
   `claude/admiring-meitner-db4ejz`. That branch is not pushed until a separate release approval.
 
+## Live deployment record
+
+| Item | Value | Source |
+|---|---|---|
+| Staging backend | `https://nightgrid-mp-staging.sameerkapildesigns.workers.dev` | deployed by Sameer from his Mac, 18 Nov 2026 11:54 IST |
+| Commit / build id | f29795d / `572c37df8548` | `/` and `/api/health` report it (independently checked) |
+| Staging `ALLOWED_ORIGINS` | `https://nightgrid.sameerkapil.com`, `https://nightgrid-n7ywtk36c-sameerkapildesigns-9405s-projects.vercel.app` | persisted in `wrangler.toml` `[env.staging.vars]` |
+| Vercel preview (hosted test) | `https://nightgrid-n7ywtk36c-sameerkapildesigns-9405s-projects.vercel.app` | Preview env `VITE_MP_API_BASE` = staging URL |
+| Production backend | not deployed | separate release gate |
+| Production frontend | M3, 53af096 (public build hashes match a rebuild) | unchanged |
+| M3 rollback candidate | `nightgrid-h9edolozq-sameerkapildesigns-9405s-projects.vercel.app` (protected) | **source commit still to be confirmed** in Vercel → Deployments → that deployment → Source (expected 53af096) |
+
+The first staging deploy passed `--var ALLOWED_ORIGINS:…` on the command line. That value now lives in
+`wrangler.toml`, so a plain redeploy from this branch keeps it:
+`sh scripts/deploy-backend.sh staging --deploy`.
+
+**Every new Vercel preview deployment has a new per-deployment URL.** Its exact origin must be added to
+`[env.staging.vars] ALLOWED_ORIGINS` (no wildcards), then staging redeployed. Otherwise "Create room" is
+blocked by CORS.
+
 ## Who does what
 
 | Step | Who | Notes |

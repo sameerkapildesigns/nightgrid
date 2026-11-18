@@ -51,7 +51,11 @@ tag = "v1"
 new_sqlite_classes = ["Room", "Registry"]
 
 [env.staging.vars]
-ALLOWED_ORIGINS = "https://nightgrid.sameerkapil.com"   # + ",https://<branch-preview>.vercel.app" (exact URL from Vercel)
+# Live staging (deployed by Sameer from his Mac, 18 Nov 2026 11:54 IST, commit f29795d, build 572c37df8548):
+#   https://nightgrid-mp-staging.sameerkapildesigns.workers.dev
+# Exact origins: production frontend + the Vercel preview of claude/m4-multiplayer used for the hosted test.
+# A NEW Vercel preview deployment gets a NEW per-deployment URL: add its exact origin here (no wildcards).
+ALLOWED_ORIGINS = "https://nightgrid.sameerkapil.com,https://nightgrid-n7ywtk36c-sameerkapildesigns-9405s-projects.vercel.app"
 DAILY_ROOM_MINUTES = "120"
 MAX_ACTIVE_ROOMS = "2"
 ROOM_MAX_MINUTES = "45"
