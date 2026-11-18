@@ -32,6 +32,7 @@ import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isR
 import { MODEL_URLS } from './model-urls.js';
 import { createHazardVis, updateShield } from './hazards-vis.js';
 import { applyPads } from '../core/hazards.js';
+import { createPowerGate, ownFlags, PW_SHIELD, PW_SURGE } from './power-gate.js';
 // M8-ENV HOOK H1: environment themes, skyline, edge dressing, hover taxi (visual only, src/client/env/)
 import { themeFor, makeSkyMaterial, windowUniforms } from './env/themes.js';
 import { shapeBuildings, buildSkyline, buildEdgeDressing } from './env/skyline.js';
@@ -1816,8 +1817,9 @@ let pwCache = '';
 function updatePowerHUD() {
   const p = player; if (!p) return;
   const parts = [];
-  if (p.shieldT > 0) parts.push(`<span class="pw s">⬢ SHIELD ${Math.ceil(p.shieldT)}</span>`);
-  if (p.surgeT > 0) parts.push('<span class="pw b">▲ OVERDRIVE</span>');
+  const cf = MP.race ? mpPw() : PW_SHIELD | PW_SURGE;   // rooms: only server-confirmed powers (prediction can lose a contest)
+  if (p.shieldT > 0 && (cf & PW_SHIELD)) parts.push(`<span class="pw s">⬢ SHIELD ${Math.ceil(p.shieldT)}</span>`);
+  if (p.surgeT > 0 && (cf & PW_SURGE)) parts.push('<span class="pw b">▲ OVERDRIVE</span>');
   const h = parts.join(''); if (h !== pwCache) { pwCache = h; $('pwr').innerHTML = h; }
 }
 /* ---------- simulation events -> presentation ---------- */
@@ -1957,7 +1959,7 @@ function updateVisual(r, dt) {
     updateTrail(t, _tp, (r.boost ? 0.11 : 0.045 + 0.02 * r.thr) * esz);
   }
   emitExhaust(r, dt);
-  updateShield(sh, r.shieldT > 0, gameTime);
+  updateShield(sh, r.shieldT > 0 && (r !== player || !MP.race || (mpPw() & PW_SHIELD)), gameTime);   // own bubble in rooms: confirmed only
   const gy = sh.groundY != null ? sh.groundY : -0.5, hw = sh.halfW || 1.1;
   if (r.drift && sp > 20 && Math.random() < 0.85) {
     for (const sx of [-1, 1]) { _tp.set(sx * hw * 0.9, gy, -(sh.halfL || 2.3) * 0.6); sh.root.localToWorld(_tp); spark(_tp.x, _tp.y, _tp.z, -r.F.x * sp * 0.15 + R(-3, 3), R(0.5, 4), -r.F.z * sp * 0.15 + R(-3, 3), Math.random() < 0.5 ? SPARK_HOT : sh.neonA, R(0.2, 0.5)); }
@@ -2556,7 +2558,9 @@ const mpSimEvents = {
   shake: x => { CC.shake += x; }, kick: x => { CC.kick += x; },
   flash: (t, c) => { if (t !== 'VICTORY' && t !== 'FINISH') flash(t, c); },   // finishing is announced from the server state
   wallHit: (r, vn, s, Rw) => onWallHit(vn, s, Rw), crash: () => sim.events.crash(player), respawn: () => sim.events.respawn(player),
-  droneHit: () => sim.events.droneHit(player), sector: sec => sim.events.sector(sec), ...hazardEvents(() => player), racerReset: () => { }, lap: () => { }, playerFinish: () => { }, bump: () => { }
+  droneHit: () => sim.events.droneHit(player), sector: sec => sim.events.sector(sec), ...hazardEvents(() => player),
+  pickup: () => { },   // predicted claim: no feedback until the server confirms it (mpPowerSnap)
+  shieldPop: (r, what) => { if (mpPw() & PW_SHIELD) hazardEvents(() => player).shieldPop(r, what); }, racerReset: () => { }, lap: () => { }, playerFinish: () => { }, bump: () => { }
 };
 function disposeRacerVis(r) {
   if (r.ship) scene.remove(r.ship.root);
@@ -2657,7 +2661,7 @@ function mpOnEvent(type, m) {
       MP.ui.render(); break;
     }
     case 'race': mpBeginRace(m); break;
-    case 'snap': if (net.race && MP.race && !MP.preparing && m && m.k != null) mpPresenter(net.race).push(m); break;   // not while the circuit may still be switching
+    case 'snap': if (net.race && MP.race && !MP.preparing && m && m.k != null) { mpPresenter(net.race).push(m); mpPowerSnap(m); } break;   // not while the circuit may still be switching
     case 'results': MP.results = m; if (MP.race && state !== 'finished') mpLocalFinish(true); break;
     case 'error': MP.lastErr = m.error; if (m.fatal) mpReset(m.error); else MP.ui.setError(m.error); break;
     case 'roomClosed': MP.lastErr = 'room-closed:' + m.reason; mpReset('room-closed:' + m.reason); break;
@@ -2665,6 +2669,13 @@ function mpOnEvent(type, m) {
     case 'reconnecting': MP.ui.render(); break;
   }
 }
+// M8: positive pickup feedback in rooms only from SERVER-CONFIRMED own power flags (src/client/power-gate.js)
+function mpPowerSnap(m) {
+  const f = ownFlags(m, MP.net.you); if (f == null) return;
+  const G = MP.race.pwGate || (MP.race.pwGate = createPowerGate());
+  for (const k of G.snap(f)) hazardEvents(() => player).pickup(k);
+}
+const mpPw = () => (MP.race && MP.race.pwGate ? MP.race.pwGate.flags : 0);
 async function mpBeginRace(m) {
   if (MP.race && MP.race.msg.seed === m.seed) { MP.race.msg = m; return; }   // reconnect into the same race
   if (MP.preparing) return; MP.preparing = true;

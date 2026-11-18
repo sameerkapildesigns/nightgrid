@@ -13,6 +13,7 @@ import WebSocket from 'ws';
 import { startLocalServer } from '../../server/local.mjs';
 import { NetClient } from '../../src/net/client.js';
 import { waitFor, summarize } from './scenario.mjs';
+import { createPowerGate, ownFlags } from '../../src/client/power-gate.js';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // target lateral offset by along-track position (Velocity layout from src/core/hazards.js)
@@ -36,7 +37,16 @@ test('contested shield + boost pads, shield vs obstacle, reconnect and rematch o
   try {
     const code = (await (await fetch(srv.url + '/api/rooms', { method: 'POST' })).json()).code;
     const cl = [];
-    for (let i = 0; i < 2; i++) { const c = new NetClient({ wsUrl: srv.url.replace('http', 'ws'), WebSocketImpl: WebSocket, now: () => performance.now(), build: srv.build, name: 'H' + i, onEvent: () => { } }); c.drive = lineTo(PLAN[i]); c.connect(code); cl.push(c); await waitFor(() => c.you, 10000, 'welcome'); }
+    // page-side feedback gate (same module game.js uses): one per race, kept across the reconnect like MP.race
+    const fires = [[], []], gates = [createPowerGate(), createPowerGate()], reloadGate = { g: null, fires: [] };
+    const onSnap = k => (type, m) => {
+      if (type !== 'snap' || !cl[k] || !cl[k].you) return;
+      const f = ownFlags(m, cl[k].you); if (f == null) return;
+      const lap = cl[k].race && cl[k].race.pred ? cl[k].race.pred.me.lap : 0;
+      for (const kind of gates[k].snap(f)) fires[k].push([kind, lap]);
+      if (k === 1 && reloadGate.g) for (const kind of reloadGate.g.snap(f)) reloadGate.fires.push(kind);
+    };
+    for (let i = 0; i < 2; i++) { const c = new NetClient({ wsUrl: srv.url.replace('http', 'ws'), WebSocketImpl: WebSocket, now: () => performance.now(), build: srv.build, name: 'H' + i, onEvent: onSnap(i) }); c.drive = lineTo(PLAN[i]); c.connect(code); cl.push(c); await waitFor(() => c.you, 10000, 'welcome'); }
     const [h0, h1] = cl, rs = srv.rooms.get(code);
     h0.config({ map: 'velocity', mode: 'expert' }); await waitFor(() => h0.room.map === 'velocity' && h0.room.mode === 'expert', 5000, 'config');
     for (const c of cl) c.ready(true); await waitFor(() => h0.room.canStart, 5000, 'canStart'); h0.start();
@@ -78,7 +88,7 @@ test('contested shield + boost pads, shield vs obstacle, reconnect and rematch o
           if (r.passT > (p.passT || 0) + 0.1) T.srvShieldUsed[r.id] = (T.srvShieldUsed[r.id] || 0) + 1;
           prevSrv.set(r.id, { shieldT: r.shieldT, surgeT: r.surgeT, obT: r.obT, passT: r.passT });
         }
-        if (dropT == null && rs.sim && rs.sim.racers.find(r => r.id === ids[1]).s > 2100) { dropT = now; h1.ws.terminate(); }   // after the boost row
+        if (dropT == null && rs.sim && rs.sim.racers.find(r => r.id === ids[1]).s > 2100) { dropT = now; h1.ws.terminate(); reloadGate.g = createPowerGate(); }   // + a fresh gate = page reload mid-race   // after the boost row
         await sleep(16);
       }
     })();
@@ -99,7 +109,14 @@ test('contested shield + boost pads, shield vs obstacle, reconnect and rematch o
     const sClaims = ids.map(id => T.srvClaim['S:' + id] || 0), bClaims = ids.map(id => T.srvClaim['B:' + id] || 0);
     const report = { ids, sClaims, bClaims, predClaimed: T.predClaim.map(p => Object.keys(p).filter(x => x.length === 1)), flipMs: T.flipMs, padDiffMaxDuringRace: +T.padDiffMax.toFixed(3),
       srvHits: T.srvHits, srvShieldUsed: T.srvShieldUsed, predHits: T.predHits, corrM: cl.map((c, k) => summarize(T.corrWindow[k])), hardSnaps: cl.map(c => c.race.pred.stats.hard), lead: summarize(T.leads), results: h0.results.order.map(o => [o.name, o.pos, o.dnf ? 'DNF' : +o.time.toFixed(2)]) };
+    report.feedback = { fires, reloadFires: reloadGate.fires, reloadSeed: reloadGate.g ? reloadGate.g.flags : null };
     console.log('M8-CONTESTED', JSON.stringify(report));
+    // ---- positive pickup feedback only from server-confirmed powers ----
+    const all = (k, kind) => (T.srvClaim[kind + ':' + ids[k]] || 0) + (T.srvClaim['L2' + kind + ':' + ids[k]] || 0);
+    for (const k of [0, 1]) for (const kind of ['S', 'B']) assert.equal(fires[k].filter(f => f[0] === kind).length, all(k, kind), `H${k} ${kind}: one confirmed message per server claim (no false, no duplicate after reconnect)`);
+    assert.equal(fires[1].filter(f => f[0] === 'S' && f[1] === 0).length, 0, 'contest loser H1: zero positive SHIELD feedback on lap 1 although it predicted the shield');
+    assert.equal(fires[0].filter(f => f[0] === 'S' && f[1] === 0).length, 1, 'contest winner H0: exactly one SHIELD message on lap 1');
+    const bL = bClaims[0] ? 1 : 0; assert.equal(fires[bL].filter(f => f[0] === 'B' && f[1] === 0).length, 0, 'boost loser: zero OVERDRIVE feedback on lap 1');
     assert.equal(sClaims[0] + sClaims[1] >= 1, true, 'the shield pad was claimed');
     assert.equal(sClaims[1], 0, 'tie goes to the earlier seat (H0): H1 never got the contested shield');
     assert.ok(T.predClaim[1].S, 'H1 PREDICTED the shield (lead) before the server said no');
