@@ -1,0 +1,94 @@
+TAP version 13
+# Subtest: room cap is 20
+ok 1 - room cap is 20
+  ---
+  duration_ms: 0.68823
+  type: 'test'
+  ...
+# Subtest: velocity: 20-car grid is compact (back row <= 32 m behind the front), inside the walls, no overlap, level
+not ok 2 - velocity: 20-car grid is compact (back row <= 32 m behind the front), inside the walls, no overlap, level
+  ---
+  duration_ms: 148.633466
+  type: 'test'
+  location: '/home/claude/ng-cap/tests/unit/grid20.test.mjs:21:3'
+  failureType: 'testCodeFailure'
+  error: 'back row 126 m behind the front row'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/claude/ng-cap/tests/unit/grid20.test.mjs:24:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: technical: 20-car grid is compact (back row <= 32 m behind the front), inside the walls, no overlap, level
+not ok 3 - technical: 20-car grid is compact (back row <= 32 m behind the front), inside the walls, no overlap, level
+  ---
+  duration_ms: 79.169067
+  type: 'test'
+  location: '/home/claude/ng-cap/tests/unit/grid20.test.mjs:21:3'
+  failureType: 'testCodeFailure'
+  error: 'back row 126 m behind the front row'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/claude/ng-cap/tests/unit/grid20.test.mjs:24:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: legacy: 20-car grid is compact (back row <= 32 m behind the front), inside the walls, no overlap, level
+not ok 4 - legacy: 20-car grid is compact (back row <= 32 m behind the front), inside the walls, no overlap, level
+  ---
+  duration_ms: 123.489205
+  type: 'test'
+  location: '/home/claude/ng-cap/tests/unit/grid20.test.mjs:21:3'
+  failureType: 'testCodeFailure'
+  error: 'back row 126 m behind the front row'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///home/claude/ng-cap/tests/unit/grid20.test.mjs:24:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: <= 4 racers keep the v5b grid exactly (single-player parity)
+ok 5 - <= 4 racers keep the v5b grid exactly (single-player parity)
+  ---
+  duration_ms: 211.298351
+  type: 'test'
+  ...
+# Subtest: 20 racers (ghost) launch cleanly: 6 s of racing, everyone moving, no crash, lap state sane
+ok 6 - 20 racers (ghost) launch cleanly: 6 s of racing, everyone moving, no crash, lap state sane
+  ---
+  duration_ms: 1165.761919
+  type: 'test'
+  ...
+1..6
+# tests 6
+# suites 0
+# pass 3
+# fail 3
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1823.115655

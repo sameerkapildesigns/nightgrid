@@ -1,0 +1,57 @@
+
+> nightgrid@0.6.0-m4 test:worker
+> vite build && node --test --test-concurrency=1 tests/worker/wrangler.test.mjs
+
+vite v6.4.6 building for production...
+transforming...
+✓ 43 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/ng-build.json                         0.04 kB │ gzip:   0.06 kB
+dist/index.html                           10.80 kB │ gzip:   3.89 kB
+dist/assets/net-worker-89B21RHL.js        49.06 kB
+dist/assets/wedge-C-VsnBAW.glb         1,819.19 kB
+dist/assets/hypercar-D8KQ6tSD.glb      3,759.14 kB
+dist/assets/rally-1A8zpP2x.glb         4,450.16 kB
+dist/assets/endurance-D8VLZ_el.glb     5,032.15 kB
+dist/assets/streamliner-BMB0LlLO.glb   8,997.32 kB
+dist/assets/wipeout-Ba93A-72.glb      10,202.70 kB
+dist/assets/index-4ZX8eI6v.css            33.80 kB │ gzip:   8.02 kB
+dist/assets/index-BQnqR6YW.js            812.00 kB │ gzip: 235.21 kB
+✓ built in 2.38s
+TAP version 13
+# Subtest: worker: API only (no game pages on workers.dev); health reports this build; unknown room 404
+ok 1 - worker: API only (no game pages on workers.dev); health reports this build; unknown room 404
+  ---
+  duration_ms: 2118.846048
+  type: 'test'
+  ...
+# Subtest: worker CORS: strict allow-list, OPTIONS preflight, exact origin echo, no wildcard/credentials; WS Origin enforced
+ok 2 - worker CORS: strict allow-list, OPTIONS preflight, exact origin echo, no wildcard/credentials; WS Origin enforced
+  ---
+  duration_ms: 163.90657
+  type: 'test'
+  ...
+# \# DO race: p1 mispredict p95 0 m, rtt 1.5 ms, snaps 272
+# Subtest: worker: 2 humans + 1 bot race 14 s in a Room DO through the shipping NetClient (both cars move, host-only enforced; no finish/results in this test); Registry capacity refuses a 3rd room
+ok 3 - worker: 2 humans + 1 bot race 14 s in a Room DO through the shipping NetClient (both cars move, host-only enforced; no finish/results in this test); Registry capacity refuses a 3rd room
+  ---
+  duration_ms: 14620.711442
+  type: 'test'
+  ...
+# \# rooms released by alarms: {"day":"2026-11-18","usedMin":2.2,"budgetMin":240,"limitMin":204,"active":0,"maxActive":2,"creates":2}
+# Subtest: worker: workerd restart -> Room DO restores the lobby from storage; the session token reconnects to the same seat (ready kept)
+ok 4 - worker: workerd restart -> Room DO restores the lobby from storage; the session token reconnects to the same seat (ready kept)
+  ---
+  duration_ms: 64515.759421
+  type: 'test'
+  ...
+1..4
+# tests 4
+# suites 0
+# pass 4
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 83040.093616
