@@ -16,7 +16,7 @@ npm run preview      # serve dist/
 
 ## Multiplayer (M4, branch `claude/m4-multiplayer`; not deployed)
 
-Private rooms, 2–4 racers (bots fill seats), server-authoritative. Local play needs no account:
+Private rooms, 2–20 racers (bots fill seats; cap = src/core/room.js MAX_SEATS), server-authoritative. Local play needs no account:
 
 ```bash
 npm run mp           # localmp build + local room server: http://127.0.0.1:8787 (open it in 2+ browsers)

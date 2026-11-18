@@ -7,6 +7,9 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 import { launch, realErrors, check } from './harness.mjs';
 import { startLocalServer } from '../../server/local.mjs';
+import { MAX_SEATS } from '../../src/core/room.js';   // M7: capacity checks follow the real cap (20), not a literal 4
+import { NetClient } from '../../src/net/client.js';
+import WebSocket from 'ws';
 
 const OUT = 'test-results/mp'; mkdirSync(OUT, { recursive: true });
 if (!existsSync('dist-test/index.html') || process.env.NG_REBUILD) execSync('npx vite build --mode test --outDir dist-test', { stdio: 'inherit' });
@@ -118,25 +121,42 @@ try {
     C('A: guest leave frees the seat', true);
     await close([a, b]);
   }
-  if (run('B')) {   // 4 humans (3 desktop + 1 phone); a 5th human is refused without breaking the room
+  if (run('B')) {   // 4 humans (3 desktop + 1 phone) full race. Capacity (seat MAX_SEATS+1 refused) is scenario K.
     // boot + create/join one browser at a time (an open room panel throttles that page's garage rendering)
     const ps = [await player('Cy')]; const code = await create(ps[0]);
     for (const [n, k] of [['Di', 'desk'], ['Ed', 'desk'], ['Fay', 'phone']]) { const p = await player(n, k); await joinByCode(p, code); ps.push(p); }
     await waitMp(ps[0], 'm => m.room.seats.length === 4');
-    const fifth = await player('Gus');
-    await fifth.page.click('#mpBtn'); await fifth.page.fill('#mpName', 'Gus'); await fifth.page.fill('#mpCode', code); await fifth.page.click('[data-act=join]');
-    await fifth.page.waitForFunction(() => document.querySelector('#mpPanel .err'), null, { timeout: 15000 });
-    const errTxt = await fifth.page.textContent('#mpPanel .err'); await shot(fifth, 'B-fifth-refused-desk');
-    C('B: 5th human sees a readable "room is full" error', /full/i.test(errTxt), errTxt);
-    C('B: room still has 4 seats after the refusal', (await mp(ps[0])).room.seats.length === 4);
-    await fifth.ctx.close();
+    C(`B: 4 humans seated, room shows 4/${MAX_SEATS}`, (await mp(ps[0])).room.maxSeats === MAX_SEATS);
     await readyAll(ps); await raceAndFinish(ps, { label: 'B-4h' });
     await close(ps);
+  }
+  if (run('K')) {   // capacity at the REAL cap: ONE software browser at a time + Node peers (never MAX_SEATS browsers)
+    const peers = [], mkPeer = (code, i) => { const c = new NetClient({ wsUrl: srv.url.replace('http', 'ws'), WebSocketImpl: WebSocket, now: () => performance.now(), build: srv.build, name: 'Peer' + i, onEvent: () => { } }); c.connect(code); peers.push(c); return c; };
+    const until = async (f, ms = 20000) => { const t = Date.now(); while (!f()) { if (Date.now() - t > ms) throw new Error('timeout'); await sleep(50); } };
+    // K1: browser host + (MAX_SEATS-1) Node peers -> full room: Add bot disabled, count MAX_SEATS/MAX_SEATS
+    const h = await player('Kay', 'l667'); const code1 = await create(h);
+    for (let i = 1; i < MAX_SEATS; i++) { const c = mkPeer(code1, i); await until(() => c.you); }
+    await waitMp(h, `m => m.room.seats.length === ${MAX_SEATS}`); await sleep(800); await shot(h, `K-full-${MAX_SEATS}-host-667`);
+    C(`K: Add bot disabled at ${MAX_SEATS} seats`, await h.page.locator('[data-act=addbot]').isDisabled());
+    C(`K: seat count reads ${MAX_SEATS}/${MAX_SEATS}`, (await h.page.textContent('#mpCount')).startsWith(`${MAX_SEATS}/${MAX_SEATS}`), await h.page.textContent('#mpCount'));
+    await close([h]); for (const c of peers.splice(0)) c.leave();
+    // K2: MAX_SEATS Node peers fill a room; the ONE browser is seat MAX_SEATS+1 -> readable, truthful full error
+    const code2 = (await (await fetch(srv.url + '/api/rooms', { method: 'POST' })).json()).code;
+    for (let i = 0; i < MAX_SEATS; i++) { const c = mkPeer(code2, i); await until(() => c.you); }
+    const x = await player('Xtra', 'l667');
+    const lead = await x.page.evaluate(() => { document.getElementById('mpBtn').click(); return new Promise(r => setTimeout(() => r((document.querySelector('#mpPanel .lead') || {}).textContent || ''), 500)); });
+    C(`K: entry text states 2 to ${MAX_SEATS} racers`, lead.includes(`to ${MAX_SEATS} racers`), lead);
+    await x.page.fill('#mpName', 'Xtra'); await x.page.fill('#mpCode', code2); await x.page.click('[data-act=join]');
+    await x.page.waitForFunction(() => document.querySelector('#mpPanel .err'), null, { timeout: 15000 });
+    const errTxt = await x.page.textContent('#mpPanel .err'); await shot(x, `K-seat${MAX_SEATS + 1}-refused-667`);
+    C(`K: seat ${MAX_SEATS + 1} sees a readable "room is full (${MAX_SEATS} seats)" error`, /full/i.test(errTxt) && errTxt.includes(String(MAX_SEATS)), errTxt);
+    C(`K: room still has ${MAX_SEATS} seats after the refusal`, peers[0].room && peers[0].room.seats.length === MAX_SEATS);
+    await x.ctx.close(); for (const c of peers.splice(0)) c.leave();
   }
   if (run('C')) {   // 1 human + 3 bots, full race, Kage; portrait lobby screenshot on a phone
     const a = await player('Hal'); const code = await create(a);
     for (let i = 0; i < 3; i++) await click(a, '[data-act=addbot]');
-    C('C: Add bot disabled at 4 seats', await a.page.locator('[data-act=addbot]').isDisabled());
+    C(`C: Add bot still enabled at 4 seats (cap ${MAX_SEATS}; full-room UI is scenario K)`, MAX_SEATS > 4 ? !(await a.page.locator('[data-act=addbot]').isDisabled()) : await a.page.locator('[data-act=addbot]').isDisabled());
     await click(a, '[data-act=map][data-map=technical]'); await readyAll([a]);
     const pp = await player('Ivy', 'portrait', '?room=' + code);
     await sleep(800); await shot(pp, 'C-portrait-invite-phone');

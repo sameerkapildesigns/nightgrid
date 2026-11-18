@@ -5,10 +5,14 @@ import { ERROR_TEXT, normalizeCode, validCode, CODE_LEN } from '../net/protocol.
 import { inviteLink } from '../net/mp-config.js';
 import { MAPS, MAP_KEYS } from '../core/maps.js';
 import { SHORT, PAINTS, RIVAL_LIV } from '../core/roster.js';
+import { MAX_SEATS, MIN_RACERS } from '../core/room.js';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const NAME_KEY = 'nightgrid_mp_name';
-const LOCAL_TEXT = { 'server-timeout': 'The race server did not answer within 10 s. Check your connection and try again.' };
+// Seat-count copy is derived from the room cap here (client, not build-hashed). protocol.js ERROR_TEXT['room-full']
+// still says 4: it is build-hashed, so it is overridden here instead of edited (no build-id drift).
+export const ROOM_LEAD = `Private room for ${MIN_RACERS} to ${MAX_SEATS} racers. Bots can fill empty seats.`;
+const LOCAL_TEXT = { 'server-timeout': 'The race server did not answer within 10 s. Check your connection and try again.', 'room-full': `That room is full (${MAX_SEATS} seats).` };
 export const errorText = code => { const c = String(code || ''); if (LOCAL_TEXT[c]) return LOCAL_TEXT[c]; if (ERROR_TEXT[c]) return ERROR_TEXT[c]; if (/^http-\d+$/.test(c)) return 'The race server answered with an error (' + c.slice(5) + '). Try again in a minute.'; if (c.startsWith('room-closed')) { const why = c.split(':')[1]; return why === 'daily-budget' ? ERROR_TEXT['daily-budget'] : why === 'budget-unavailable' ? ERROR_TEXT['budget-unavailable'] : ERROR_TEXT['room-closed']; } return 'Something went wrong (' + c + ').'; };
 
 export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenChange }) {
@@ -33,7 +37,7 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
       // busy until the room's welcome (or a failure clears the connection), not just until the HTTP create:
       // a second tap in that window used to allocate a second room and leave a socket in the first
       const busy = ui.busy || !!(net && net.status !== 'closed' && net.status !== 'idle');
-      h += `<p class="lead">Private room for 2 to 4 racers. Bots can fill empty seats.</p>
+      h += `<p class="lead">${ROOM_LEAD}</p>
         <label class="glbl" for="mpName">Your name</label><input id="mpName" class="tin" maxlength="16" autocomplete="nickname" placeholder="Player" value="${esc(name)}">
         <button class="btn mpbtn" data-act="create" ${busy ? 'disabled' : ''}>${busy ? 'Connecting…' : 'Create room'}</button>
         <div class="or">or join with a code</div>
