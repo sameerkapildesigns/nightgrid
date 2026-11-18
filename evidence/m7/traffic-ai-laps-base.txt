@@ -1,0 +1,6 @@
+velocity assisted GHOST 92.66 contact 0.0s | VEX 93.10 contact 0.0s | BLITZ 94.35 contact 0.0s
+velocity expert GHOST 73.32 contact 0.0s | VEX 73.46 contact 0.0s | BLITZ 75.30 contact 0.0s
+technical assisted GHOST 58.56 contact 0.0s | VEX 57.89 contact 0.0s | BLITZ 59.67 contact 2.4s
+technical expert GHOST 44.70 contact 0.0s | VEX 43.71 contact 0.0s | BLITZ 46.17 contact 0.0s
+legacy assisted GHOST 97.59 contact 0.0s | VEX 98.68 contact 0.0s | BLITZ 99.64 contact 0.0s
+legacy expert GHOST 74.43 contact 0.0s | VEX 75.20 contact 0.0s | BLITZ 76.37 contact 0.0s

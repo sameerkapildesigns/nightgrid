@@ -78,7 +78,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       name, isAI, pers, css, path: MAIN, s: 0, d: 0, h: H0, vh: 0, psi: 0, va: 0, vd: 0, yawV: 0, steer: 0,
       speed: 0, dv: 0, prog: 0, lastRd: 0, lap: 0, lapStart: 0, lapTimes: [], lapValid: [], finished: false, finishTime: 0,
       boost: false, meter: 0.35, drift: false, air: false, airT: 0, thr: 0, roll: 0, pitch: 0, rollAI: 0, autopilot: isAI,
-      vf: 0, vl: 0, acc: 0, phase: R(0, 10), scrape: false, scrapeSide: 0, sector: 0, takeShort: false,
+      vf: 0, vl: 0, acc: 0, phase: R(0, 10), scrape: false, scrapeSide: 0, droneT: 0, sector: 0, takeShort: false,
       draftT: 0, tow: 0, slingT: 0, crashed: 0, phA: R(0, 10), phB: R(0, 10), aiBoostT: 0, aiBoostCD: R(4, 10), blockD: 0,
       world: new Vec3(), F: new Vec3(), Uw: new Vec3(), lastSign: {}, nearRail: 0, flapK: 0,
       carMods: null, wallLim: 1.2, lapIntegrity: { teleport: false, autopilot: false, debug: false },
@@ -116,7 +116,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     r.path = MAIN; r.s = mod(S0 - back, MAIN.L); r.d = d; r.h = H0; r.vh = 0; r.psi = 0; r.va = 0; r.vd = 0; r.speed = 0; r.dv = 0;
     r.lastRd = rdist(MAIN, r.s); r.prog = r.lastRd - LAPLEN; r.prevS = undefined;
     r.lap = 0; r.lapTimes = []; r.lapValid = []; r.finished = false; r.finishTime = 0; r.lapStart = 0; r.boost = false; r.drift = false; r.thr = 0;
-    r.autopilot = r.isAI; r.vf = 0; r.vl = 0; r.acc = 0; r.yawV = 0; r.steer = 0; r.draftT = 0; r.tow = 0; r.slingT = 0; r.crashed = 0;
+    r.autopilot = r.isAI; r.vf = 0; r.vl = 0; r.acc = 0; r.yawV = 0; r.steer = 0; r.draftT = 0; r.tow = 0; r.slingT = 0; r.crashed = 0; r.droneT = 0;
     r.sector = MAIN.sec[Math.round(r.s / MAIN.ds) % MAIN.N]; r.takeShort = false; r.air = false; r.airT = 0; r.aiBoostT = 0;
     r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
     ev.racerReset(r);
@@ -374,7 +374,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   // sim.ghost (multiplayer rooms, approved 18 Nov 2026): racers pass through each other: no car-to-car
   // position push, no impulse, no bump event, for humans AND bots. Track walls, drones (road traffic),
   // slipstream and near-miss scoring are unchanged. Single-player keeps contact (ghost defaults to false).
-  function collideRacers() {
+  function collideRacers(h) {
     const all = sim.racers;
     if (!sim.ghost) for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) {
       const A = all[a], B = all[b]; if (A.path !== B.path || A.crashed || B.crashed) continue;
@@ -392,18 +392,39 @@ export function createSim({ seed = 4242, events = null } = {}) {
       if ((isFocus(A) || isFocus(B)) && hit > 2) ev.bump(A, B, hit);
     }
     for (const r of all) {
+      if (r.droneT > 0) r.droneT = Math.max(0, r.droneT - h);
       if (r.path !== MAIN || r.crashed) continue;
-      for (const dr of sim.drones) {
-        let gs = dr.s - r.s; if (gs > MAIN.L / 2) gs -= MAIN.L; if (gs < -MAIN.L / 2) gs += MAIN.L;
-        const gd = dr.d - r.d;
-        if (Math.abs(gs) < 5.2 && Math.abs(gd) < 2.9) {
-          const ovS = 5.2 - Math.abs(gs), ovD = 2.9 - Math.abs(gd);
-          if (ovD < ovS) bumpRacer(r, 0, -ovD * Math.sign(gd || 1), 0, -Math.sign(gd || 1) * 6);
-          else { bumpRacer(r, -ovS * Math.sign(gs || 1), 0, 0, 0); const v = r.autopilot ? r.speed : r.va; if (gs > 0 && v > dr.speed) bumpRacer(r, 0, 0, -(v - dr.speed) * 0.7, R(-3, 3)); }
-          if (isFocus(r)) ev.droneHit(r);
-        }
+      for (const dr of sim.drones) droneContact(r, dr);
+    }
+  }
+  // Road traffic (drones) is kinematic: it never yields. M7 contact model (user report 18 Nov 5:59):
+  // box = drone mesh 2.6 x 5.2 + racer 2.8 x 5.2 (lateral sum 2.7, longitudinal 5.2), vertical gate 1.5 m so an
+  // airborne car clears traffic; penetration resolved along the least-overlap axis; velocity response only while
+  // closing, along that normal: lateral restitution 0.3, longitudinal inelastic (match the drone), plus a
+  // deterministic glance (<= 3 m/s, away from the drone's centre line) so a tail hit slides off without the
+  // sim RNG. One droneHit event per contact (0.35 s debounce, closing speed >= 1.5 m/s); state rides in r.droneT.
+  const DR_L = 5.2, DR_W = 2.7, DR_H = 1.5, DR_E = 0.3, DR_GLANCE = 3, DR_DEBOUNCE = 0.35, DR_MIN_HIT = 1.5;
+  function droneContact(r, dr) {
+    let gs = dr.s - r.s; if (gs > MAIN.L / 2) gs -= MAIN.L; if (gs < -MAIN.L / 2) gs += MAIN.L;
+    const gd = dr.d - r.d;
+    if (Math.abs(gs) >= DR_L || Math.abs(gd) >= DR_W || Math.abs(r.h - dr.h) >= DR_H) return;
+    const ovS = DR_L - Math.abs(gs), ovD = DR_W - Math.abs(gd), sgS = gs < 0 ? -1 : 1, sgD = gd < 0 ? -1 : 1;
+    const ai = !!r.autopilot, vS = ai ? r.speed : r.va, vD = ai ? r.dv : r.vd;
+    let closing = 0;
+    if (ovD < ovS) {   // side contact: normal is lateral
+      bumpRacer(r, 0, -ovD * sgD, 0, 0);
+      const vn = vD * sgD;   // > 0: moving into the drone (drone has no lateral velocity)
+      if (vn > 0) { closing = vn; bumpRacer(r, 0, 0, 0, -(1 + DR_E) * vn * sgD); }
+    } else {           // nose/tail contact: normal is longitudinal
+      bumpRacer(r, -ovS * sgS, 0, 0, 0);
+      const vn = (vS - dr.speed) * sgS;   // > 0: closing on the drone
+      if (vn > 0) {
+        closing = vn; bumpRacer(r, 0, 0, -vn * sgS, 0);
+        const away = gd === 0 ? (r.d <= 0 ? -1 : 1) : -sgD;
+        bumpRacer(r, 0, 0, 0, away * Math.min(DR_GLANCE, vn * 0.08));
       }
     }
+    if (closing >= DR_MIN_HIT && !(r.droneT > 0)) { r.droneT = DR_DEBOUNCE; if (isFocus(r)) ev.droneHit(r, closing); }
   }
   function nearMisses() { for (const h of sim.racers) if (!h.isAI) nearMiss(h); }
   function nearMiss(p) {
@@ -526,7 +547,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const racing = sim.phase === 'race' || sim.phase === 'finished';
     if (racing) {
       for (const r of sim.racers) { if (r.crashed > 0) continue; r.autopilot ? stepAI(r, h) : stepPlayer(r, h); }
-      collideRacers();
+      collideRacers(h);
       for (const r of sim.racers) { if (!r.crashed) { slipstream(r, h); checkLaps(r, h); } }
       nearMisses();
       // Assisted: ceiling re-applied after slingshot/collision impulses (AI uses r.speed; player uses va/vd)

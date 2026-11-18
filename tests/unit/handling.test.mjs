@@ -19,7 +19,10 @@ function drive(map, mode, { laps = 1, boost = false } = {}) {
   const st = { aiT: [], pT: [], pMax: 0, aiMax: 0, crashes: 0, laps: [] }; sim.events = { crash: () => st.crashes++, lap: l => st.laps.push(l) };
   sim.input.up = 1; sim.startRace();
   for (let n = 0; n < 500 / SIM_DT && !(p.lap >= laps && sim.racers.slice(1).every(r => r.lap >= 1)); n++) {
-    const f = sim.frameAt(p.path, p.s + 10, mkF()); const e = Math.asin(Math.max(-0.5, Math.min(0.5, p.d * 0.05))) + f.path.KG[f.i] * 8 - p.psi;
+    // M7: steer around road traffic like a person would (base passed only because drone contact added random
+    // lateral kicks every tick that shook the centred bot off a lane-0 drone; contact is deterministic now).
+    let aim = 0; for (const dr of sim.drones) { let g = dr.s - p.s; if (g < -M.L / 2) g += M.L; if (p.path === M && g > -3 && g < 45 && Math.abs(dr.d - p.d) < 4) aim = dr.d + (dr.d > 0 ? -4.5 : 4.5); }
+    const f = sim.frameAt(p.path, p.s + 10, mkF()); const e = Math.asin(Math.max(-0.5, Math.min(0.5, (p.d - aim) * 0.05))) + f.path.KG[f.i] * 8 - p.psi;
     sim.input.left = e > 0.03 ? 1 : 0; sim.input.right = e < -0.03 ? 1 : 0; sim.input.boost = boost ? 1 : 0; if (boost) p.meter = 1;
     sim.step(SIM_DT);
     if (p.lap === 0 && p.path === M) { st.pMax = Math.max(st.pMax, p.speed); if (tight(Math.round(p.s / M.ds) % M.N)) st.pT.push(p.speed); }
