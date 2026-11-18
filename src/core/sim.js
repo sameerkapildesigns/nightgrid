@@ -36,6 +36,7 @@ export function gridSlots(n, W0) {
   return out;
 }
 
+export const BOOST_REGEN_RATE = 0.04, BOOST_REGEN_DELAY = 1.5, BOOST_RELOCK = 0.05;
 export function createSim({ seed = 4242, events = null } = {}) {
   // mulberry32 with exportable state (snapshot/import parity)
   const rng = { a: seed | 0 };
@@ -90,7 +91,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     return {
       name, isAI, pers, css, path: MAIN, s: 0, d: 0, h: H0, vh: 0, psi: 0, va: 0, vd: 0, yawV: 0, steer: 0,
       speed: 0, dv: 0, prog: 0, lastRd: 0, lap: 0, lapStart: 0, lapTimes: [], lapValid: [], finished: false, finishTime: 0,
-      boost: false, meter: 0.35, drift: false, air: false, airT: 0, thr: 0, roll: 0, pitch: 0, rollAI: 0, autopilot: isAI,
+      boost: false, meter: 0.35, boostRelT: 0, boostLock: false, drift: false, air: false, airT: 0, thr: 0, roll: 0, pitch: 0, rollAI: 0, autopilot: isAI,
       vf: 0, vl: 0, acc: 0, phase: R(0, 10), scrape: false, scrapeSide: 0, droneT: 0, sector: 0, takeShort: false,
       draftT: 0, tow: 0, slingT: 0, crashed: 0, phA: R(0, 10), phB: R(0, 10), aiBoostT: 0, aiBoostCD: R(4, 10), blockD: 0,
       world: new Vec3(), F: new Vec3(), Uw: new Vec3(), lastSign: {}, nearRail: 0, flapK: 0,
@@ -128,7 +129,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function placeRacer(r, back, d) {
     r.path = MAIN; r.s = mod(S0 - back, MAIN.L); r.d = d; r.h = H0; r.vh = 0; r.psi = 0; r.va = 0; r.vd = 0; r.speed = 0; r.dv = 0;
     r.lastRd = rdist(MAIN, r.s); r.prog = r.lastRd - LAPLEN; r.prevS = undefined;
-    r.lap = 0; r.lapTimes = []; r.lapValid = []; r.finished = false; r.finishTime = 0; r.lapStart = 0; r.boost = false; r.drift = false; r.thr = 0;
+    r.lap = 0; r.lapTimes = []; r.lapValid = []; r.finished = false; r.finishTime = 0; r.lapStart = 0; r.boost = false; r.boostRelT = 0; r.boostLock = false; r.drift = false; r.thr = 0;
     r.autopilot = r.isAI; r.vf = 0; r.vl = 0; r.acc = 0; r.yawV = 0; r.steer = 0; r.draftT = 0; r.tow = 0; r.slingT = 0; r.crashed = 0; r.droneT = 0;
     r.sector = MAIN.sec[Math.round(r.s / MAIN.ds) % MAIN.N]; r.takeShort = false; r.air = false; r.airT = 0; r.aiBoostT = 0;
     r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
@@ -204,8 +205,14 @@ export function createSim({ seed = 4242, events = null } = {}) {
     }
     r.thr = lerp(r.thr, thr, Math.min(1, dt * 8));
     r.steer += (st - r.steer) * Math.min(1, dt * (st === 0 ? MD.steerNeutral : MD.steerRise));
-    const wantB = keys.boost && r.meter > 0.01;
+    // M6 boost: drain while held; once emptied while held it stays off until released or refilled to
+    // BOOST_RELOCK (no micro-boost flicker from small skill earns). Passive regen BOOST_REGEN_RATE /s only
+    // after the button has been released for BOOST_REGEN_DELAY s and not after finishing; skill earns unchanged.
+    if (keys.boost) { r.boostRelT = 0; if (r.meter <= 0.01) r.boostLock = true; else if (r.meter >= BOOST_RELOCK) r.boostLock = false; }
+    else { r.boostRelT += dt; r.boostLock = false; }
+    const wantB = keys.boost && r.meter > 0.01 && !r.boostLock;
     r.boost = wantB; if (wantB) r.meter = Math.max(0, r.meter - dt * 0.32);
+    else if (!keys.boost && !r.finished && r.boostRelT >= BOOST_REGEN_DELAY) r.meter = Math.min(1, r.meter + dt * BOOST_REGEN_RATE);
     const air = r.air;
     let vf = r.va * Math.cos(r.psi) - r.vd * Math.sin(r.psi);
     const avf = Math.abs(vf);
