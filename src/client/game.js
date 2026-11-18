@@ -15,6 +15,7 @@ import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { NetClient } from '../net/client.js';
 import { WorkerNet } from './net-proxy.js';
+import { finishAnnounce } from './finish-pos.js';
 import { RemotePresenter, OwnSmoother, stepAt } from './present.js';
 import { VIEW_FIELDS } from '../net/netcode.js';
 import { encodeFrame } from '../net/protocol.js';
@@ -2565,6 +2566,7 @@ function mpFx(list) {
   }
 }
 async function mpCreate(name) {
+  if (MP.net && !MP.net.room && MP.net.status !== 'closed') return;   // already connecting to a room (lobby also disables the button)
   MP.ui.setError('');
   // bounded: a stuck request must not leave "Create room" spinning; errors say what failed
   const ac = new AbortController(), to = setTimeout(() => ac.abort(), 10000), t0 = performance.now();
@@ -2677,6 +2679,7 @@ function mpFrame(wall, dt0, nowMs = performance.now()) {
   V.drones.forEach((pd, k) => { const d = drones[k]; if (!d) return; d.s = pd[0]; d.d = pd[1]; d.h = pd[2]; d.world.set(pd[3], pd[4], pd[5]); d.fi = pd[6]; });
   const fo = RC.last ? RC.last.fo : V.fo; sim.finishOrder = fo.map(id => racers.find(r => r.id === id)).filter(Boolean);
   if (state === 'race' && me.finished) mpLocalFinish(false);
+  else if (state === 'finished' && MP.finAnn && !MP.finAnn.done) { const a = finishAnnounce(fo, MP.net.you); if (a) { MP.finAnn.done = true; if (a === 'VICTORY') flash('VICTORY', '#ffc23f'); } }
   gameTime = sim.time;
   update(dt0, dt0);
   mpStatus(sn);
@@ -2692,8 +2695,10 @@ function mpInputTick() {
 function mpLocalFinish(byServer) {
   state = 'finished'; finishT = 0; orbitA = 0; FIN.on = CINE.on && !byServer; FIN.t = byServer ? 99 : 0;
   const f = frameAt(MAIN, raceS(player.path, player.s) + 34, _fci); FIN.pos.copy(f.P).addScaledVector(f.R, MAIN.WR[f.i] - 2.2).addScaledVector(f.U, 3.4); FIN.up.copy(f.U);
-  const p = sim.finishOrder.indexOf(player) + 1;
-  if (!byServer) { flash(p === 1 ? 'VICTORY' : 'FINISH', p === 1 ? '#ffc23f' : '#00f0ff'); AU.chime(); }
+  // the server's finish order lags our prediction (lead + half RTT), so the place is not known yet here:
+  // announce FINISH now, VICTORY only once the server lists us first (mpFrame -> finishAnnounce)
+  MP.finAnn = byServer ? null : { done: false };
+  if (!byServer) { flash('FINISH', '#00f0ff'); AU.chime(); }
   else { flash('RACE OVER', '#8a5cff'); shownResults = true; $('results').classList.remove('hide'); }
 }
 function mpShowResults() {

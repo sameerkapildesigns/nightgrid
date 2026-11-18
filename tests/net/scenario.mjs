@@ -24,7 +24,7 @@ const pct = (a, p) => { if (!a.length) return null; const s = a.slice().sort((x,
 export const summarize = a => ({ n: a.length, median: pct(a, 0.5), p95: pct(a, 0.95), max: a.length ? Math.max(...a) : null });
 
 export async function scenario({ humans = 2, bots = 0, map = 'velocity', mode = 'assisted', lagMs = 0, jitterMs = 0, raceSeconds = 20, full = false,
-  outageAtS = null, outageMs = 500, disconnectAtS = null, reconnect = true, server = null, room = {}, log = false } = {}) {
+  outageAtS = null, outageMs = 500, disconnectAtS = null, reconnect = true, server = null, room = {}, log = false, onFrame = null } = {}) {
   const srv = server || await startLocalServer({ port: 0, netsim: true, lagMs, jitterMs, log, room: { countdownMs: 2500, ...room } });
   if (server) srv.setNet({ lagMs, jitterMs });
   const res = await fetch(srv.url + '/api/rooms', { method: 'POST' }).then(r => r.json());
@@ -49,7 +49,7 @@ export async function scenario({ humans = 2, bots = 0, map = 'velocity', mode = 
   let stop = false, outageDone = false, dcDone = false; const t0 = pnow();
   const loop = (async () => {
     while (!stop) {
-      for (const c of clients) if (c.race) { c.frame(c.drive(c.race.pred)); c.race.pred.decay(0.016); }
+      for (const c of clients) if (c.race) { c.frame(c.drive(c.race.pred)); c.race.pred.decay(0.016); if (onFrame) onFrame(c); }
       const el = (pnow() - t0) / 1000 - 2.5;
       if (outageAtS != null && !outageDone && el >= outageAtS) { outageDone = true; srv.outage(outageMs); }
       if (disconnectAtS != null && !dcDone && el >= disconnectAtS) { dcDone = true; const c = clients[clients.length - 1]; c.ws.terminate ? c.ws.terminate() : c.ws.close(); }

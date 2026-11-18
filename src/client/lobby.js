@@ -30,11 +30,14 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
     if (!ui.open) return;
     let h = `<div class="sh"><span>Race friends</span><button class="chip" data-act="close" aria-label="Close multiplayer">Close</button></div>`;
     if (!room) {
+      // busy until the room's welcome (or a failure clears the connection), not just until the HTTP create:
+      // a second tap in that window used to allocate a second room and leave a socket in the first
+      const busy = ui.busy || !!(net && net.status !== 'closed' && net.status !== 'idle');
       h += `<p class="lead">Private room for 2 to 4 racers. Bots can fill empty seats.</p>
         <label class="glbl" for="mpName">Your name</label><input id="mpName" class="tin" maxlength="16" autocomplete="nickname" placeholder="Player" value="${esc(name)}">
-        <button class="btn mpbtn" data-act="create" ${ui.busy ? 'disabled' : ''}>Create room</button>
+        <button class="btn mpbtn" data-act="create" ${busy ? 'disabled' : ''}>${busy ? 'Connecting…' : 'Create room'}</button>
         <div class="or">or join with a code</div>
-        <div class="joinrow"><input id="mpCode" class="tin code" maxlength="${CODE_LEN + 2}" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABC123" value="${esc(ui.codeIn)}" aria-label="Room code"><button class="btn mpbtn sm" data-act="join" ${ui.busy ? 'disabled' : ''}>Join</button></div>`;
+        <div class="joinrow"><input id="mpCode" class="tin code" maxlength="${CODE_LEN + 2}" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABC123" value="${esc(ui.codeIn)}" aria-label="Room code"><button class="btn mpbtn sm" data-act="join" ${busy ? 'disabled' : ''}>Join</button></div>`;
     } else {
       // in a room: sticky header (code, seats, copy, close) / scrolling body / sticky footer (ready, start, status)
       // so the code, seats and the main action stay visible on 390 px tall phones
@@ -87,7 +90,7 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
       case 'create': ui.busy = true; render(); try { await onCreate(name || 'Player'); } finally { ui.busy = false; } break;
       case 'join': { const c = normalizeCode(ui.codeIn); if (!validCode(c)) { ui.err = errorText('bad-code'); break; } ui.busy = true; render(); try { await onJoin(c, name || 'Player'); } finally { ui.busy = false; } break; }
       case 'copylink': if (net && net.room) { const ok = await copy(joinLink(net.room.code)); if (ok) ui.copied = Date.now(); else ui.note = joinLink(net.room.code); } break;
-      case 'copycode': if (net && net.room) { await copy(net.room.code); ui.note = 'Code copied: ' + net.room.code; } break;
+      case 'copycode': if (net && net.room) { const ok = await copy(net.room.code); ui.note = ok ? 'Code copied: ' + net.room.code : 'Copy failed. Room code: ' + net.room.code; } break;
       case 'addbot': net.addBot(); break;
       case 'rmbot': net.removeBot(d.bot); break;
       case 'rmlastbot': { const b = net.room.seats.filter(s => s.kind === 'bot').pop(); if (b) net.removeBot(b.id); break; }
