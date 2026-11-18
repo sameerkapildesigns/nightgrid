@@ -3,6 +3,7 @@
 // batches at ~20 Hz; the server consumes exactly one frame per racer per simulation step and sends
 // one snapshot per network tick (20 Hz). Frames carry sequence numbers so the client can replay
 // un-acknowledged input after an authoritative correction (prediction / reconciliation).
+import { MAX_SEATS } from '../core/room.js';   // room-full text states the real cap
 export const PROTOCOL = 2;
 export const NET_HZ = 20, SIM_HZ = 120, STEPS_PER_TICK = SIM_HZ / NET_HZ;
 export const MAX_MSG_BYTES = 1024;          // client -> server text frame cap
@@ -84,7 +85,7 @@ export function compactRacer(r, branch) {
 export function expandRacer(a) { const o = {}; COMPACT_FIELDS.forEach((k, i) => { o[k] = a[i]; }); return o; }
 // human-readable error text for the lobby UI
 export const ERROR_TEXT = {
-  'room-full': 'That room is full (4 seats).', 'race-in-progress': 'That room is already racing. Wait for it to finish.',
+  'room-full': `That room is full (${MAX_SEATS} seats).`, 'race-in-progress': 'That room is already racing. Wait for it to finish.',
   'build-mismatch': 'Your game version differs from the room server. Reload the page to update.', 'protocol-mismatch': 'Your game version differs from the room server. Reload the page to update.',
   'no-room': 'No room with that code. Check the code or create a new room.', 'bad-code': 'Room codes are 6 letters/numbers.',
   'capacity': 'All race servers are busy right now. Try again in a few minutes.', 'daily-budget': "Today's free race time is used up. Try again tomorrow.",

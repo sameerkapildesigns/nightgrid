@@ -9,10 +9,9 @@ import { MAX_SEATS, MIN_RACERS } from '../core/room.js';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const NAME_KEY = 'nightgrid_mp_name';
-// Seat-count copy is derived from the room cap here (client, not build-hashed). protocol.js ERROR_TEXT['room-full']
-// still says 4: it is build-hashed, so it is overridden here instead of edited (no build-id drift).
+// Lobby lead derived from the room cap; room-full text comes from protocol.js ERROR_TEXT (also cap-derived).
 export const ROOM_LEAD = `Private room for ${MIN_RACERS} to ${MAX_SEATS} racers. Bots can fill empty seats.`;
-const LOCAL_TEXT = { 'server-timeout': 'The race server did not answer within 10 s. Check your connection and try again.', 'room-full': `That room is full (${MAX_SEATS} seats).` };
+const LOCAL_TEXT = { 'server-timeout': 'The race server did not answer within 10 s. Check your connection and try again.' };
 export const errorText = code => { const c = String(code || ''); if (LOCAL_TEXT[c]) return LOCAL_TEXT[c]; if (ERROR_TEXT[c]) return ERROR_TEXT[c]; if (/^http-\d+$/.test(c)) return 'The race server answered with an error (' + c.slice(5) + '). Try again in a minute.'; if (c.startsWith('room-closed')) { const why = c.split(':')[1]; return why === 'daily-budget' ? ERROR_TEXT['daily-budget'] : why === 'budget-unavailable' ? ERROR_TEXT['budget-unavailable'] : ERROR_TEXT['room-closed']; } return 'Something went wrong (' + c + ').'; };
 
 export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenChange }) {
