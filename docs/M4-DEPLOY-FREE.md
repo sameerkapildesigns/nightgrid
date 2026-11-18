@@ -34,7 +34,7 @@ players' phones/laptops
 |---|---|---|
 | Staging backend | `https://nightgrid-mp-staging.sameerkapildesigns.workers.dev` | deployed by Sameer from his Mac, 18 Nov 2026 11:54 IST |
 | Commit / build id | f29795d / `572c37df8548` | `/` and `/api/health` report it (independently checked) |
-| Staging `ALLOWED_ORIGINS` | `https://nightgrid.sameerkapil.com`, `https://nightgrid-n7ywtk36c-sameerkapildesigns-9405s-projects.vercel.app` | persisted in `wrangler.toml` `[env.staging.vars]` |
+| Staging `ALLOWED_ORIGINS` | `https://nightgrid.sameerkapil.com`, `https://nightgrid-n7ywtk36c-sameerkapildesigns-9405s-projects.vercel.app`, `https://nightgrid-57mwkma51-sameerkapildesigns-9405s-projects.vercel.app` (the preview Sameer actually opened; its 403 was the "create room" failure) | persisted in `wrangler.toml` `[env.staging.vars]` |
 | Vercel preview (hosted test) | `https://nightgrid-n7ywtk36c-sameerkapildesigns-9405s-projects.vercel.app` | Preview env `VITE_MP_API_BASE` = staging URL |
 | Production backend | not deployed | separate release gate |
 | Production frontend | M3, 53af096 (public build hashes match a rebuild) | unchanged |
