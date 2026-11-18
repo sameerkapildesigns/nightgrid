@@ -174,7 +174,7 @@ export function buildEdgeDressing(ctx, world) {
   const lit = new THREE.MeshBasicMaterial({ color: 0xffffff });
   if (E.kind === 'fins') {   // slim light blades, alternating cyan / violet
     const g = new THREE.BoxGeometry(1, 1, 1); const im = inst(g, lit, pts.length, 'env-edge-fin');
-    pts.forEach(([i, s], k) => { im.setMatrixAt(k, mat(M, i, side(i, s), 1.7, 0.08, 3.2, 0.22, _m)); im.setColorAt(k, (Math.floor(k / 2) % 2 ? E.b : E.a).clone().multiplyScalar(0.55)); });
+    pts.forEach(([i, s], k) => { im.setMatrixAt(k, mat(M, i, side(i, s) + Math.sign(side(i, s)) * 0.6, 1.25, 0.06, 2.0, 0.16, _m)); im.setColorAt(k, (Math.floor(k / 2) % 2 ? E.b : E.a).clone().multiplyScalar(0.32)); });
     out.push(im);
   } else if (E.kind === 'bollards') {   // harbour bollards with amber / teal caps
     const body = inst(new THREE.CylinderGeometry(0.32, 0.4, 1.1, 8), new THREE.MeshStandardMaterial({ color: 0x24221f, metalness: 0.6, roughness: 0.5 }), pts.length, 'env-edge-bollard');

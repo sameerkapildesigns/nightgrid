@@ -23,9 +23,9 @@ SwiftShader software GL in a container. Draw calls and triangles come from rende
 | legacy-desk | elevated wide | 130 → 141 (+11) | 610061 → 692545 (13.5%) |
 | legacy-desk | WORLD meshes | 81 → 86 | |
 | velocity-mob | chase t=2s | 342 → 344 (+2) | 1345711 → 1454599 (8.1%) |
-| velocity-mob | chase t=9s | 342 → 334 (-8) | 1348587 → 1457317 (8.1%) |
+| velocity-mob | chase t=9s | 342 → 339 (-3) | 1348587 → 1457357 (8.1%) |
 | velocity-mob | chase t=17s | 367 → 348 (-19) | 1449487 → 1557949 (7.5%) |
-| velocity-mob | taxi close-up | 334 → 322 (-12) | 1437617 → 1546221 (7.6%) |
+| velocity-mob | taxi close-up | 334 → 321 (-13) | 1437617 → 1545601 (7.5%) |
 | velocity-mob | elevated wide | 374 → 355 (-19) | 1459461 → 1567923 (7.4%) |
 | velocity-mob | WORLD meshes | 67 → 72 | |
 | technical-mob | chase t=2s | 321 → 322 (+1) | 1006519 → 1057761 (5.1%) |
@@ -42,3 +42,4 @@ SwiftShader software GL in a container. Draw calls and triangles come from rende
 | legacy-mob | WORLD meshes | 81 → 86 | |
 
 Summary: draw calls -27..+11 per view (taxis 49 -> 4 calls; new themed families +5..+7 instanced meshes); triangles +5..+14% (+52k Kage, +80k Legacy, +108k Velocity), mostly whole-city instanced families (setback tiers, crowns, edge dressing) that are not frustum-split. Taxi model 620 tris x 7 instances.
+Velocity rows re-measured after the edge-fin tone-down (single-map run, pixelRatio 1 on both viewports).

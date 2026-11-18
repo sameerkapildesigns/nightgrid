@@ -35,11 +35,11 @@
    "tris": 1523061
   },
   "gfx": {
-   "pr1+bloom": 8.1,
-   "pr1-bloom": 8.4,
-   "pr0.5+bloom": 16.7,
-   "pr0.5-bloom": 9.5,
-   "pr0.35-bloom": 8,
+   "pr1+bloom": 8.8,
+   "pr1-bloom": 5.3,
+   "pr0.5+bloom": 15.4,
+   "pr0.5-bloom": 11.8,
+   "pr0.35-bloom": 9.9,
    "calls": 333,
    "tris": 1523048,
    "w": 1280,
@@ -165,10 +165,10 @@
    {
     "f": "/tmp/final/after-velocity-mob-chase9.jpg",
     "t": 9,
-    "calls": 334,
-    "tris": 1457317,
-    "s": 509,
-    "kmh": 220
+    "calls": 339,
+    "tris": 1457357,
+    "s": 510,
+    "kmh": 219
    },
    {
     "f": "/tmp/final/after-velocity-mob-chase17.jpg",
@@ -180,19 +180,19 @@
    }
   ],
   "taxi": {
-   "calls": 322,
-   "tris": 1546221
+   "calls": 321,
+   "tris": 1545601
   },
   "wide": {
    "calls": 355,
    "tris": 1567923
   },
   "gfx": {
-   "pr0.75+bloom": 7.8,
-   "pr0.75-bloom": 6.2,
-   "pr0.5+bloom": 18.4,
-   "pr0.5-bloom": 20.3,
-   "pr0.35-bloom": 11.6,
+   "pr1+bloom": 5,
+   "pr1-bloom": 2.9,
+   "pr0.5+bloom": 8.3,
+   "pr0.5-bloom": 8.5,
+   "pr0.35-bloom": 7.6,
    "calls": 342,
    "tris": 1567910,
    "w": 844,
