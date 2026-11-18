@@ -10,7 +10,7 @@ not ok 2 - velocity: 20-car grid is compact (back row <= 32 m behind the front),
   ---
   duration_ms: 148.633466
   type: 'test'
-  location: '/home/claude/ng-cap/tests/unit/grid20.test.mjs:21:3'
+  location: '<repo>/tests/unit/grid20.test.mjs:21:3'
   failureType: 'testCodeFailure'
   error: 'back row 126 m behind the front row'
   code: 'ERR_ASSERTION'
@@ -19,7 +19,7 @@ not ok 2 - velocity: 20-car grid is compact (back row <= 32 m behind the front),
   actual: false
   operator: '=='
   stack: |-
-    TestContext.<anonymous> (file:///home/claude/ng-cap/tests/unit/grid20.test.mjs:24:12)
+    TestContext.<anonymous> (file://<repo>/tests/unit/grid20.test.mjs:24:12)
     Test.runInAsyncScope (node:async_hooks:214:14)
     Test.run (node:internal/test_runner/test:1047:25)
     Test.processPendingSubtests (node:internal/test_runner/test:744:18)
@@ -32,7 +32,7 @@ not ok 3 - technical: 20-car grid is compact (back row <= 32 m behind the front)
   ---
   duration_ms: 79.169067
   type: 'test'
-  location: '/home/claude/ng-cap/tests/unit/grid20.test.mjs:21:3'
+  location: '<repo>/tests/unit/grid20.test.mjs:21:3'
   failureType: 'testCodeFailure'
   error: 'back row 126 m behind the front row'
   code: 'ERR_ASSERTION'
@@ -41,7 +41,7 @@ not ok 3 - technical: 20-car grid is compact (back row <= 32 m behind the front)
   actual: false
   operator: '=='
   stack: |-
-    TestContext.<anonymous> (file:///home/claude/ng-cap/tests/unit/grid20.test.mjs:24:12)
+    TestContext.<anonymous> (file://<repo>/tests/unit/grid20.test.mjs:24:12)
     Test.runInAsyncScope (node:async_hooks:214:14)
     Test.run (node:internal/test_runner/test:1047:25)
     Test.processPendingSubtests (node:internal/test_runner/test:744:18)
@@ -54,7 +54,7 @@ not ok 4 - legacy: 20-car grid is compact (back row <= 32 m behind the front), i
   ---
   duration_ms: 123.489205
   type: 'test'
-  location: '/home/claude/ng-cap/tests/unit/grid20.test.mjs:21:3'
+  location: '<repo>/tests/unit/grid20.test.mjs:21:3'
   failureType: 'testCodeFailure'
   error: 'back row 126 m behind the front row'
   code: 'ERR_ASSERTION'
@@ -63,7 +63,7 @@ not ok 4 - legacy: 20-car grid is compact (back row <= 32 m behind the front), i
   actual: false
   operator: '=='
   stack: |-
-    TestContext.<anonymous> (file:///home/claude/ng-cap/tests/unit/grid20.test.mjs:24:12)
+    TestContext.<anonymous> (file://<repo>/tests/unit/grid20.test.mjs:24:12)
     Test.runInAsyncScope (node:async_hooks:214:14)
     Test.run (node:internal/test_runner/test:1047:25)
     Test.processPendingSubtests (node:internal/test_runner/test:744:18)

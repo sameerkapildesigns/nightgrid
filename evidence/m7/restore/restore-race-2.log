@@ -19,7 +19,7 @@ not ok 3 - abrupt runtime death (sockets still open): observed ready=true before
   ---
   duration_ms: 3709.016314
   type: 'test'
-  location: '/home/claude/repo/tests/worker/restore-race.test.mjs:75:1'
+  location: '<repo>/tests/worker/restore-race.test.mjs:75:1'
   failureType: 'testCodeFailure'
   error: |-
     last persisted (observed) ready state survives a runtime death
@@ -32,7 +32,7 @@ not ok 3 - abrupt runtime death (sockets still open): observed ready=true before
   actual: false
   operator: 'strictEqual'
   stack: |-
-    TestContext.<anonymous> (file:///home/claude/repo/tests/worker/restore-race.test.mjs:82:10)
+    TestContext.<anonymous> (file://<repo>/tests/worker/restore-race.test.mjs:82:10)
     async Test.run (node:internal/test_runner/test:1054:7)
     async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
   ...

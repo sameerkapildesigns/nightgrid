@@ -25,7 +25,7 @@ await page.evaluate(() => __ng.mpAutodrive(true));
 await page.waitForFunction(k => NG_DEBUG.mp.room && NG_DEBUG.mp.room.seats.length === k, N); await page.click('[data-act=ready]');
 await waitFor(() => cl[0].room && cl[0].room.canStart, 30000); cl[0].start();
 let stop = false; const loop = (async () => { while (!stop) { for (const c of cl) if (c.race) { c.frame(c.drive(c.race.pred)); c.race.pred.decay(0.033); } await sleep(33); } })();
-const grab = async label => { await sleep(4000); const r = await page.evaluate(() => ({ state: NG_DEBUG.state, render: NG_DEBUG.render, crowd: NG_DEBUG.crowd || null, racers: NG_DEBUG.mp.racers.length })); await page.screenshot({ path: `/home/claude/m7-export/probe-${tag}-${label}.jpg`, type: 'jpeg', quality: 72 }); return { label, state: r.state, calls: r.render.calls, tris: r.render.triangles, racers: r.racers, crowd: r.crowd && { labels: r.crowd.labels, full: r.crowd.full, lite: r.crowd.lite, far: r.crowd.far } }; };
+const grab = async label => { await sleep(4000); const r = await page.evaluate(() => ({ state: NG_DEBUG.state, render: NG_DEBUG.render, crowd: NG_DEBUG.crowd || null, racers: NG_DEBUG.mp.racers.length })); await page.screenshot({ path: `test-results/probe-${tag}-${label}.jpg`, type: 'jpeg', quality: 72 }); return { label, state: r.state, calls: r.render.calls, tris: r.render.triangles, racers: r.racers, crowd: r.crowd && { labels: r.crowd.labels, full: r.crowd.full, lite: r.crowd.lite, far: r.crowd.far } }; };
 await page.waitForFunction(() => NG_DEBUG.state === 'countdown' || NG_DEBUG.state === 'intro', null, { timeout: 120000 });
 await page.waitForFunction(() => NG_DEBUG.state === 'countdown', null, { timeout: 120000 }).catch(() => {});
 const out = [await grab('grid')];

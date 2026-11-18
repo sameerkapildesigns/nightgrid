@@ -49,7 +49,7 @@ const tDownNode = performance.now() / 1000; if (MODE === 'keys') await page.keyb
 const t0 = performance.now(); await page.waitForFunction(() => NG_DEBUG.state === 'race', null, { timeout: 120000 }); const raceAt = (performance.now() - t0) / 1000;
 for (let k = 0; k < 4; k++) { await sleep(2000); pinfo.push({ when: 'held+' + (2 * (k + 1)) + 's', ...(await pageInfo()) }); }
 if (MODE === 'keys') await page.keyboard.up('ArrowUp'); await sleep(1500); pinfo.push({ when: 'released', ...(await pageInfo()) });
-await page.screenshot({ path: `/home/claude/m7-export/backrow-diag-${slot}-${MODE}.jpg`, type: 'jpeg', quality: 72 });
+await page.screenshot({ path: `test-results/backrow-diag-${slot}-${MODE}.jpg`, type: 'jpeg', quality: 72 });
 tr = false; await tracer; stop = true; await loop;
 const raceTrace = trace.filter(x => x.phase === 'race');
 const kd = await page.evaluate(() => window.__kd);
