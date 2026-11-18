@@ -4,10 +4,11 @@
 // Works on builds without hazards too (RC20 "before"): spots then fall back to the same track metres.
 import { preview } from 'vite';
 import { launch, openGame, realErrors } from './harness.mjs';
-const [dir, prefix, port = '4174', only = 'velocity,technical,legacy', kinds = 'obstacle,pad,taxi'] = process.argv.slice(2);
+const [dir, prefix, port = '4174', only = 'velocity,technical,legacy', kinds = 'obstacle,pad,taxi', vp = '1280x720'] = process.argv.slice(2);
+const [VW, VH] = vp.split('x').map(Number), TOUCH = VH < 500;
 const srv = await preview({ root: process.cwd(), build: { outDir: dir }, preview: { port: +port, strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
 const b = await launch();
-const { page, logs } = await openGame(b, { width: 1280, height: 720 });
+const { page, logs } = await openGame(b, { width: VW, height: VH, query: TOUCH ? '?touch' : '', ctxOpts: TOUCH ? { isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : {} });
 await page.waitForFunction(() => document.getElementById('go').textContent === 'Race' && !document.getElementById('go').disabled, null, { timeout: 180000 });
 // fixed track spots so before/after builds frame the same metres (taken from the M8 layout)
 const SPOTS = { velocity: { obstacle: 794, pad: 363, taxi: 1100 }, technical: { obstacle: 463, pad: 826, taxi: 1000 }, legacy: { obstacle: 832, pad: 2287, taxi: 600 } };

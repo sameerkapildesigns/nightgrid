@@ -10,7 +10,7 @@ import { NetClient } from '../../src/net/client.js';
 import { driver, waitFor, summarize } from './scenario.mjs';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const arg = process.argv.indexOf('--only'), only = arg > 0 ? process.argv[arg + 1].split(',').map(Number) : [2, 3, 4, 8];
-const MIX = { 2: [2, 0], 3: [2, 1], 4: [3, 1], 8: [4, 4] };
+const MIX = { 2: [2, 0], 3: [2, 1], 4: [3, 1], 8: [4, 4], 20: [10, 10] };
 const srv = await startLocalServer({ port: 0, netsim: true, lagMs: 60, jitterMs: 10, log: false, createPerMin: 1000, budget: { maxActiveRooms: 4 }, room: { countdownMs: 2500, maxRaceMs: 600000 } });
 const all = [];
 let failed = 0;
