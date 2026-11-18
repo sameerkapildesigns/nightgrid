@@ -27,7 +27,8 @@ for (const n of only) {
     host.config({ map, mode: 'expert' });
     await waitFor(() => host.room.map === map && host.room.phase === 'lobby', 10000, 'config');
     for (const c of cl) c.ready(true);
-    await waitFor(() => host.room.canStart, 10000, 'canStart'); host.start();
+    try { await waitFor(() => host.room.canStart, 10000, 'canStart'); } catch (e) { console.log('ROOM', JSON.stringify({ phase: host.room.phase, seats: host.room.seats.map(s => [s.id, s.kind, s.ready, s.connected]), err: cl.map(c => c.status) })); throw e; }
+    host.start();
     await waitFor(() => cl.every(c => c.race && c.race.pred), 15000, 'race');
     const rs = srv.rooms.get(code);
     const tel = { hits: 0, claims: { S: 0, B: 0 }, shieldsUsed: 0, byBot: { hits: 0, claims: 0 } }, prev = new Map();

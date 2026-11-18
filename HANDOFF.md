@@ -1,5 +1,22 @@
 # NIGHTGRID running handoff
 
+## M8 Friday (19 Nov 03:5x IST) — CHECKPOINT, NOT AN RC. Local only, nothing pushed/deployed.
+Chat counter (M8 gameplay chat): big 5 (A1 core, B1 visuals, C1 contested test, visual merge, MP feedback gate), small ~4 -> ROTATE NOW.
+- Branch claude/m8-friday, base bee26ee (frozen fallback claude/m7-rc20 untouched, build 0661cad63d2e).
+- Build id f3edabcf36a8 (core/net/server changed by M8-A1 -> paired Worker+frontend release only after approval). wrangler.toml byte-identical (sha256 f411d961...).
+- Visual lane C m8-visual-r2 7a87497 merged (env/* byte-identical, hooks H1-H13 identical). Design: docs/M8-HAZARDS.md, docs/M8-VISUALS.md.
+### Gates on the current head
+- PASS: unit 170/170 (unit-M2); net 20/20 (net-C1, core identical since); contested real-WS incl. feedback gate (contested-M2);
+  e2e 116/116 + rain 6/6 (e2e-M1, merged head before gate commit); prod build ng-build.json f3edabcf36a8; worker dry-run EXIT 0 (bundle f3edabcf36a8);
+  rematch/leave two-round matrix n=2,3,4 (rounds-C1, rounds-M1-4-8), n=8 (rounds-M1-8, run alone), n=20 10h+10b (rounds-M1-20).
+- FAIL (unclassified, not hidden): rounds-M1-4-8: n=8 'canStart' timeout as the 2nd room after n=4 in the same server; n=8 alone passed. Root cause not found (suspect test-side ordering of config vs ready across sockets).
+- FAIL test:mp (mp-M1): 28/30. 'B-4h: every player is racing' (2 of 4 browser clients never left the grid: prog -14/-28) and 'suite crashed (page closed)' late in the run. Host 2 cores, SwiftShader ~1 fps. Same suite NOT yet re-run on bee26ee for A/B -> classify before release.
+- NOT RUN yet: test:worker (local workerd) on merged head (was queued after test:mp).
+### Next (bounded)
+1. Run test:mp on bee26ee and on head, same host, to classify B-4h + crash (~30 min each). 2. test:worker on head (~10 min). 3. n=2,8 back-to-back repro of canStart (~10 min).
+
+# NIGHTGRID running handoff
+
 ## M8 visual lane (19 Nov, local only, nothing pushed) -> see docs/M8-VISUALS.md
 - Branch claude/m8-visuals on claude/m7-rc20 @ bee26ee. Build id UNCHANGED 0661cad63d2e (client-only: src/client/env/* + tagged hooks H1-H13 in game.js).
 - Themes: Velocity "Neon Heights" (cyan/violet, setbacks/spires/halo rings, edge fins), Kage "Harbour" (dusk sky + sun, warehouses/sawtooth, containers, gantry cranes, bollards, teal ground), Legacy "Neon Rain" (magenta palette, heavier rain, posts).
