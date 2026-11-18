@@ -48,7 +48,7 @@ New files: `src/client/env/{themes,skyline,taxi}.js`, `tests/e2e/visual-shots.mj
 **Gameplay-lane note.** Obstacles, pickups and HUD are untouched. If the gameplay lane also edits `makeDrone`, `updateDrones` or `buildTrack()`'s tail, keep both changes: H9 and H11 are single appended lines.
 
 ## Measured render deltas
-See `evidence/m8/RENDER-DELTAS.md` (generated from `before-render.json` / `after-render.json`, same seeds, same viewpoints).
+Per view: draw calls -27..+11, triangles +4.9..+21.0% (most views +5..+14%; Kage taxi close-up +21.0% desk / +20.3% mobile). A cell-baking perf pass was measured and rejected (calls +1..+37); details in the same file. See `evidence/m8/RENDER-DELTAS.md` (generated from `before-render.json` / `after-render.json`, same seeds, same viewpoints).
 These are SwiftShader (software GL) counts. Draw calls and triangles are comparable. **No hardware FPS is claimed, and actual 20-device FPS was not measured.**
 The adaptive perf safeguards (pixel ratio, bloom fallbacks, ground culling) are untouched.
 
