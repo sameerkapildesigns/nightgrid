@@ -22,6 +22,28 @@ browser (src/client)            src/net (pure, shared)             server/
 | `src/client/lobby.js` | lobby DOM | net/protocol, core data |
 | `src/client/game.js` | rendering; MP race view uses NetClient state (render sim not stepped) | everything client |
 
+## Input worker (since 0cdfc72)
+
+The browser runs the connection, input timeline and prediction in a **Web Worker**:
+* `src/net/net-worker.js` wires `self`;
+* the logic is in `src/net/worker-host.js` and `src/net/input-loop.js`, tested in Node;
+* `src/client/net-proxy.js` is the page side, with the same API as `NetClient`.
+
+How it works:
+* The page pushes its current input frame on every input event (keys, touch, auto-throttle). It forces a
+  neutral frame on blur, hidden, pagehide and touch/pointer cancel.
+* The worker samples the latest frame on its own 8 ms timer, steps prediction, sends 20 Hz batches and
+  publishes a plain-data render view (~12 ms) plus state (500 ms).
+* The page renders the latest view and interpolates remote cars from forwarded snapshots.
+
+Why: on a slow or stalled render thread, input used to arrive late and was counted as missed, so the car
+coasted. Now the worker keeps delivering the last input on time.
+* Single phone at ~1.3 FPS: 93.7 % → 0.0 % missed.
+* 1.8 s page stall with steer held: 0 frames missed.
+
+Safety net: input not re-confirmed by the page for 10 s is released. Fallback when Worker is unavailable,
+or with `?mpworker=0`: the same NetClient on the page thread.
+
 ## Timing
 
 * Server: race step `k` happens at `countdownAt + k/120 s` (server clock). A 50 ms interval advances

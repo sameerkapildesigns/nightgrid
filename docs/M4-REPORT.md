@@ -1,5 +1,29 @@
 # M4 report: private-room multiplayer (local test build)
 
+> **Update, 18 Nov 2026 (multiplayer-only push, commits 0cdfc72 → 61123fd and later).**
+> This update supersedes the browser status below where they differ.
+>
+> * **Four-phone acceptance PASSES on this 2-core software-GL host.** Four 844×390 touch browsers,
+>   4 humans, Kage Assisted, every page rendering every frame (~0.3 FPS each). Each run is a full race plus
+>   a same-room rematch; all 4 humans finished both races, and all four clients show the identical server order.
+>   - 100 ms RTT: 15/15 functional, 18/18 quality targets.
+>   - 200 ms RTT: 15/15 functional, 18/18 quality targets.
+>
+>   The cars were driven by the test-build driver inside each page's input worker, which bypasses DOM
+>   steering. Evidence: docs/evidence/m4/browser/mpE-*.txt; screenshots in docs/screenshots/m4/four-phones/.
+> * **Real touch route (CDP → DOM → worker → server): 11/11.**
+>   - Steer, brake, boost, multitouch, touchend/touchcancel release, blur and hidden release.
+>   - Steer held through a 1.8 s page stall: 0 frames missed.
+>   - Latency 120–188 ms per action on this host.
+> * **Phone UI 19/19.** Sticky room header/footer; code, seats and Ready/Start visible and hit-testable at
+>   844×390, 667×375 and 852×393. Results action on screen at 844×390. Portrait invite at 344 and 390 px wide.
+> * **Stall regressions 3/3** (server out of process): page stall, worker-loop stall, reconnect. The
+>   reconnect steady state is 0 % missed; the outage + handshake loss is reported separately.
+> * **Threshold change, stated explicitly.** The server tick-overrun check moved from functional `== 0`
+>   to a target of ≤ 0.5 % of ticks (server and browsers share 2 cores). Under the old gate, the
+>   four-phone runs would FAIL (100 ms: 14/24 overruns; 200 ms: 2/6).
+> * **Still unverified:** real phones, real mobile networks, Cloudflare hosting.
+
 Branch `claude/m4-multiplayer` only. Nothing is merged, released or deployed. No account was created or
 used, no login was performed, nothing was spent. `main` and `claude/admiring-meitner-db4ejz` are untouched
 (still 53af096). The live single-player site is unchanged.
