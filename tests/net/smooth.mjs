@@ -43,8 +43,10 @@ function driver(seed, tight, target = null) {
 export async function run({ botsOnto = 0, contactOn = false, shove = 0, ram = false, mode = 'base', lagMs = 0, jitterMs = 0, bots = 2, secs = 40, tight = false, outageAtS = null, outageMs = 800, full = false } = {}) {
   const P = mode === 'new' ? await import('../../src/client/present.js') : null;
   const srv = await startLocalServer({ port: 0, netsim: true, lagMs, jitterMs, log: false, room: { countdownMs: 2500 } });
-  const res = await fetch(srv.url + '/api/rooms', { method: 'POST' }).then(r => r.json());
   const clients = [];
+  try { return await body(); } finally { for (const c of clients) { try { c.leave(); } catch (e) { } } await srv.close().catch(() => { }); }
+  async function body() {
+  const res = await fetch(srv.url + '/api/rooms', { method: 'POST' }).then(r => r.json());
   for (let i = 0; i < 2; i++) {
     const c = new NetClient({ wsUrl: srv.url.replace('http', 'ws'), WebSocketImpl: WebSocket, now: pnow, build: srv.build, name: 'H' + (i + 1), onEvent: () => { } });
     c.useEventTime = false; c.drive = driver(i, tight); c.connect(res.code); clients.push(c);
@@ -53,8 +55,11 @@ export async function run({ botsOnto = 0, contactOn = false, shove = 0, ram = fa
   const host = clients[0];
   await waitFor(() => host.room && host.room.seats.length === 2, 5000, 'joined');
   for (let b = 0; b < bots; b++) host.addBot();
-  host.config({ map: 'velocity', mode: 'assisted' });
   await waitFor(() => host.room.seats.length === 2 + bots, 5000, 'bots');
+  host.config({ map: 'velocity', mode: 'assisted' });
+  // wait for the server's acknowledged config on EVERY client before readying (a config change after
+  // ready clears ready flags -> canStart never arrives; seen once at 200/60)
+  await waitFor(() => clients.every(c => c.room && c.room.map === 'velocity' && c.room.mode === 'assisted' && c.room.seats.length === 2 + bots), 8000, 'config ack');
   for (const c of clients) c.ready(true);
   await waitFor(() => host.room.canStart, 5000, 'canStart');
   host.start();
@@ -176,9 +181,8 @@ export async function run({ botsOnto = 0, contactOn = false, shove = 0, ram = fa
   out.cfg = { ram, mode, lagMs, jitterMs, bots, secs, tight, outageAtS, full };
   out.seed = rs.room.seed; out.humanContactSteps = contacts; out.injectedShoves = shoves; out.botTeleportsOntoP1 = botOverlap; out.ghost = rs.sim ? rs.sim.ghost : null; out.server = { ticks: rs.stats.ticks, lateTicks: rs.stats.lateTicks, starved: rs.stats.starved, skipped: rs.stats.skippedFrames };
   out.resultsAgree = full ? new Set(out.clients.map(x => x.results)).size === 1 : null;
-  for (const c of clients) c.leave();
-  await srv.close();
   return out;
+  }
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

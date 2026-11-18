@@ -1,6 +1,6 @@
 # NIGHTGRID running handoff (M5 local-first sync)
 
-Chat counter: big 1, small 4 (rotate at 5 big or 10 small).
+Chat counter: big 1, small 5 (rotate at 5 big or 10 small).
 
 ## Verified state (git remote read 13:2x 18 Nov)
 - origin/main, origin/claude/admiring-meitner-db4ejz: 53af096 (M3). Do NOT push either. Production-linked branch is UNRESOLVED.
@@ -33,6 +33,12 @@ No pushes to main/production candidates; no micro-pushes (Vercel previews). No C
 - ghost-200-60-fullrace.json: full 4-car race 200/60, results identical on both clients; server starved 0.
 - evidence/m5/test-net-ghost.log: test:net 17/17 incl. same-room rematch, after ghost.
 - Interrupted/not produced: base vs new full race with wrongRank split (rerun pending); drawn-jerk metric (inconclusive on main-thread path, superseded by cadence bench).
+
+## Review fixes (small 5)
+- Finished remote cars no longer dead-reckoned (held + glide); remotes sampled at fractional stepAt(OwnSmoother.t) -> no repeats at 120 Hz; own HUD prog advanced with smoothed s; OwnSmoother resets on any backwards view time.
+- tests/unit/present.test.mjs (13): wrap, branch, crash, finished, out-of-order/missing k, horizon, snap, soft cap, rank band + server finish order + rematch, stepOf/stepAt, OwnSmoother cadence/bounds/reset/wrap, softCorr; asserts WORKER_CORR_RATE == netcode SMOOTH_RATE.
+- smooth.mjs: config ack on all clients before ready; try/finally cleanup. cadence.mjs: remote cars at 120 Hz (cadence2-*.json).
+- Unit 124/124, build id ff3815343186. Headline numbers are per-run (seed/noise differ), not paired guarantees.
 
 ## Next
 - 120 Hz worker->page cadence bench (own car), injected-contact own-correction tuning (client-only), full race + same-room rematch, unit/net/e2e/browser tests, build.

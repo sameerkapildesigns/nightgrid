@@ -1,0 +1,57 @@
+{
+ "cfg": {
+  "mode": "smooth",
+  "hz": 120,
+  "secs": 15,
+  "lagMs": 100,
+  "jitterMs": 30,
+  "seed": 3993292638
+ },
+ "frames": 1832,
+ "renderFrameMs": {
+  "n": 1831,
+  "p50": 8.3333,
+  "p95": 8.3343,
+  "p99": 8.6301,
+  "max": 13.6552
+ },
+ "viewGapMs": {
+  "n": 1048,
+  "p50": 16.6674,
+  "p95": 17.3684,
+  "p99": 17.9792,
+  "max": 25.7377
+ },
+ "ownFrameErrM": {
+  "n": 1831,
+  "p50": 0.0078,
+  "p95": 0.0604,
+  "p99": 0.0679,
+  "max": 0.2194
+ },
+ "ownFrameErrOver02m": 1,
+ "ownFrameErrOver05m": 0,
+ "remoteFrameErrM": {
+  "n": 3435,
+  "p50": 0.0134,
+  "p95": 0.0701,
+  "p99": 0.0948,
+  "max": 0.1256
+ },
+ "remoteFrameErrOver05m": 0,
+ "remoteRepeatedFrames": 0,
+ "remoteFrames": 3435,
+ "repeatedFrames": 0,
+ "stepsPerFrameHist": {
+  "0": 917,
+  "1": 25,
+  "2": 856,
+  "3": 29,
+  "4": 4
+ },
+ "smoother": {
+  "views": 916,
+  "resyncs": 26,
+  "holds": 268
+ }
+}

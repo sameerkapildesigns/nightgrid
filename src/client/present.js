@@ -60,7 +60,9 @@ export class RemotePresenter {
   extrap(c, T) {
     const x = c.b, br = x[1] === 1, L = this.L;
     const h = Math.max(0, Math.min(HORIZON_MAX_S, (T - c.kb) * SIM_DT));
-    const moving = !x[11];
+    // crashed or FINISHED (server autopilots finished cars slowly; the old Interpolator also never
+    // extrapolated them): hold at the newest snapshot, the soft offset glides between snapshots
+    const moving = !x[11] && !x[10];
     const vs = moving ? x[6] * Math.cos(x[5]) : 0;
     let vd = 0;
     if (moving && c.a && c.a[1] === x[1] && c.kb > c.ka) vd = Math.max(-LAT_V_MAX, Math.min(LAT_V_MAX, (x[3] - c.a[3]) / ((c.kb - c.ka) * SIM_DT)));
@@ -135,7 +137,7 @@ export class OwnSmoother {
   }
   frame(v, nowMs) {
     const me = v.me;
-    if (!this.b || v.time > this.b.time || v.time < this.b.time - 1) {   // new view (a large backwards jump = new race)
+    if (!this.b || v.time !== this.b.time) {   // new view; view time never goes backwards within a race, so backwards = new race
       if (this.b && v.time < this.b.time) this.reset();
       const c = this.softCorr(v);
       this.a = this.b; this.b = { time: v.time, s: me.s, d: me.d, h: me.h, psi: me.psi, br: !!me.br, cx: c.x, cy: c.y, cz: c.z, at: nowMs, crashed: me.crashed > 0 }; this.stats.views++;
@@ -145,7 +147,8 @@ export class OwnSmoother {
     if (this.P == null || Math.abs(target - this.P) > OWN_RESYNC_S) { if (this.P != null) this.stats.resyncs++; this.P = target; }
     else { this.P += dtw; this.P += (target - this.P) * Math.min(1, dtw * 8); }
     const h = Math.max(-OWN_EXTRAP_MAX_S, Math.min(OWN_EXTRAP_MAX_S, this.P - b.time));
-    const out = { s: b.s, d: b.d, h: b.h, psi: b.psi, br: b.br, va: 0, corr: { x: b.cx, y: b.cy, z: b.cz } };
+    // t: presentation sim time of this frame (continuous); remote cars are sampled at the same instant
+    const out = { s: b.s, d: b.d, h: b.h, psi: b.psi, br: b.br, va: 0, corr: { x: b.cx, y: b.cy, z: b.cz }, t: b.time + h };
     if (!a || a.br !== b.br || a.crashed || b.crashed || !(b.time > a.time)) { this.stats.holds++; return out; }
     const k = h / (b.time - a.time);
     let ds = b.s - a.s; if (!b.br) { if (ds > this.L / 2) ds -= this.L; if (ds < -this.L / 2) ds += this.L; }
@@ -161,4 +164,6 @@ export class OwnSmoother {
 // step/time and adds SIM_DT per step; reconciliation copies the server's time, so this is exact up to
 // float rounding (verified against Predictor.seq in tests/net/smooth.mjs). Keeps src/net unchanged.
 export function stepOf(viewTime, raceMsg) { return raceMsg.step + Math.round((viewTime - raceMsg.snap.time) / SIM_DT); }
+// fractional local step for a presentation time (remote cars between worker views at any display rate)
+export function stepAt(simTime, raceMsg) { return raceMsg.step + (simTime - raceMsg.snap.time) / SIM_DT; }
 export { wrapA };

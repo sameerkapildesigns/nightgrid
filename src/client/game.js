@@ -15,7 +15,7 @@ import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { NetClient } from '../net/client.js';
 import { WorkerNet } from './net-proxy.js';
-import { RemotePresenter, OwnSmoother, stepOf } from './present.js';
+import { RemotePresenter, OwnSmoother, stepAt } from './present.js';
 import { VIEW_FIELDS } from '../net/netcode.js';
 import { encodeFrame } from '../net/protocol.js';
 import { driveLine } from '../net/driver.js';
@@ -2656,15 +2656,17 @@ function mpFrame(wall, dt0, nowMs = performance.now()) {
   for (const k of MP_COPY) player[k] = me[k];
   player.path = me.br ? BR : MAIN;
   if (me.crashed > 0) { if (!wasCr && me.world) { player.world.set(me.world.x, me.world.y, me.world.z); player.crashVel = me.crashVel ? new V3(me.crashVel.x, me.crashVel.y, me.crashVel.z) : new V3(); player.crashSpin = me.crashSpin ? new V3(me.crashSpin.x, me.crashSpin.y, me.crashSpin.z) : new V3(); } player.crashed = me.crashed; }
-  else {   // own car: smoothed between worker views (60 Hz) for any display rate (src/client/present.js OwnSmoother)
+  let presT = V.time;   // presentation sim time shared by the local car and remote cars this frame
+  if (!(me.crashed > 0)) {   // own car: smoothed between worker views (60 Hz) for any display rate (src/client/present.js OwnSmoother)
     player.crashed = 0;
-    const O = (RC.own || (RC.own = new OwnSmoother(MAIN.L))).frame(V, nowMs);
+    const O = (RC.own || (RC.own = new OwnSmoother(MAIN.L))).frame(V, nowMs); presT = O.t;
+    if (O.br === !!me.br) { let ds = O.s - me.s; if (!O.br) { if (ds > MAIN.L / 2) ds -= MAIN.L; if (ds < -MAIN.L / 2) ds += MAIN.L; } player.prog = me.prog + ds; }   // HUD rank at the same instant as remotes
     player.s = O.s; player.d = O.d; player.h = O.h; player.psi = O.psi; player.path = O.br ? BR : MAIN;
     sim.pose(player); player.world.x += O.corr.x; player.world.y += O.corr.y; player.world.z += O.corr.z;
   }
   sim.time = V.time; sim.raceStart = V.raceStart; sim.phase = state === 'countdown' ? 'grid' : (me.finished ? 'finished' : 'race'); sim.bestLap = me.bestLap;
   // remote cars <- dead-reckoned into the local car's timeline with soft correction (src/client/present.js)
-  const PR = mpPresenter(RC), ownStep = stepOf(V.time, MP.race.msg);
+  const PR = mpPresenter(RC), ownStep = stepAt(presT, MP.race.msg);
   for (const r of racers) {
     if (r === player || !PR.sample(r.id, sn, MP_T, { ownStep })) continue;
     r.path = MP_T.path === PR.td.BR ? BR : MAIN; r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;

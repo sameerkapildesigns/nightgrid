@@ -18,13 +18,15 @@ const pct = (a, p) => { if (!a.length) return null; const s = Float64Array.from(
 const sum = a => ({ n: a.length, p50: pct(a, 0.5), p95: pct(a, 0.95), p99: pct(a, 0.99), max: a.length ? +Math.max(...a).toFixed(4) : null });
 async function waitFor(fn, ms, what) { const t = pnow(); while (!fn()) { if (pnow() - t > ms) throw new Error('timeout: ' + what); await sleep(10); } }
 
+const snapsSeen = [];
 export async function run({ mode = 'base', hz = 120, secs = 20, lagMs = 0, jitterMs = 0 } = {}) {
   const P = mode === 'smooth' ? await import('../../src/client/present.js') : null;
   const srv = await startLocalServer({ port: 0, netsim: true, lagMs, jitterMs, log: false, room: { countdownMs: 2500 } });
   const res = await fetch(srv.url + '/api/rooms', { method: 'POST' }).then(r => r.json());
-  let view = null, views = 0, viewGaps = [], lastViewAt = 0, st = null, race = null;
+  let view = null, views = 0, viewGaps = [], lastViewAt = 0, st = null, race = null, pres = null, PRm = null;
   const host = createWorkerHost({ post: m => {
-    if (m.t === 'view') { const t = pnow(); if (lastViewAt) viewGaps.push(t - lastViewAt); lastViewAt = t; view = m.v; views++; }
+    if (m.t === 'snap') { if (PRm && pres) pres.push(m.s); else snapsSeen.push(m.s); }
+    else if (m.t === 'view') { const t = pnow(); if (lastViewAt) viewGaps.push(t - lastViewAt); lastViewAt = t; view = m.v; views++; }
     else if (m.t === 'state' || m.t === 'ev') { st = m.st || st; if (m.t === 'ev' && m.type === 'race') race = m.m; }
   }, WebSocketImpl: WebSocket, now: pnow, allowAutodrive: true });
   host.onMessage({ t: 'connect', wsUrl: srv.url.replace('http', 'ws'), build: srv.build, name: 'W', code: res.code });
@@ -36,6 +38,12 @@ export async function run({ mode = 'base', hz = 120, secs = 20, lagMs = 0, jitte
   host.onMessage({ t: 'autodrive', on: true });
   const L = nc.race.pred.sim.track.MAIN.L;
   const sm = P ? new P.OwnSmoother(L) : null;
+  // remote cars, drawn the way game.js does for each mode: base = Interpolator at serverNow (page clock);
+  // smooth = RemotePresenter at the frame's presentation time (stepAt(O.t))
+  const { Interpolator } = await import('../../src/net/netcode.js');
+  PRm = P; pres = P ? new P.RemotePresenter(nc.race.pred.sim.track) : null; const interp = P ? null : new Interpolator(nc.race.pred.sim.track);
+  const remoteIds = race.seats.map(s => s.id).filter(id => id !== nc.you);
+  const rPrev = new Map(), rErr = [], rRepeat = { n: 0 };
   const frameErr = [], stepsPerFrame = [], repeats = { n: 0 }, frameDt = [];
   let prev = null, prevSteps = null, frames = 0;
   const T0 = pnow(), period = 1000 / hz; let next = T0;
@@ -44,7 +52,16 @@ export async function run({ mode = 'base', hz = 120, secs = 20, lagMs = 0, jitte
     const t = pnow(); if (!view || view.ended) continue;
     const v = view; const stp = P ? P.stepOf(v.time, race) : null;
     let s = v.me.s, br = v.me.br, speed = v.me.va;
-    if (sm) { const o = sm.frame(v, t); s = o.s; br = o.br; }   // expected motion always from the sim's own va (same basis for both modes)
+    let presT = v.time;
+    if (sm) { const o = sm.frame(v, t); s = o.s; br = o.br; presT = o.t; }
+    // remote cars this frame
+    if (interp) for (const x of snapsSeen.splice(0)) interp.push(x);
+    for (const id of remoteIds) {
+      const o = {}; const ok = P ? pres.sample(id, 0, o, { ownStep: P.stepAt(presT, race) }) : interp.sample(id, nc.serverNow(), o); if (!ok || o.speed < 20 || o.finished) { rPrev.delete(id); continue; }
+      const q = rPrev.get(id), rb = o.path === nc.race.pred.sim.track.BR;
+      if (q && q.br === rb) { let ds = o.s - q.s; if (!rb) { if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; } const dtr = (t - q.t) / 1000; rErr.push(Math.abs(ds - (o.va + q.va) / 2 * dtr)); if (Math.abs(ds) < 1e-6) rRepeat.n++; }
+      rPrev.set(id, { s: o.s, br: rb, va: o.va, t });
+    }   // expected motion always from the sim's own va (same basis for both modes)
     if (v.me.lap < 0 || v.me.speed < 20) { prev = null; continue; }   // grid / launch
     if (prev && prev.br === br) {
       let ds = s - prev.s; if (!br) { if (ds > L / 2) ds -= L; if (ds < -L / 2) ds += L; }
@@ -57,7 +74,7 @@ export async function run({ mode = 'base', hz = 120, secs = 20, lagMs = 0, jitte
   }
   const out = { cfg: { mode, hz, secs, lagMs, jitterMs, seed: srv.rooms.get(res.code) && srv.rooms.get(res.code).room.seed }, frames,
     renderFrameMs: sum(frameDt), viewGapMs: sum(viewGaps), ownFrameErrM: sum(frameErr), ownFrameErrOver02m: frameErr.filter(x => x > 0.2).length,
-    ownFrameErrOver05m: frameErr.filter(x => x > 0.5).length, repeatedFrames: repeats.n,
+    ownFrameErrOver05m: frameErr.filter(x => x > 0.5).length, remoteFrameErrM: sum(rErr), remoteFrameErrOver05m: rErr.filter(x => x > 0.5).length, remoteRepeatedFrames: rRepeat.n, remoteFrames: rErr.length, repeatedFrames: repeats.n,
     stepsPerFrameHist: stepsPerFrame.reduce((h, x) => (h[x] = (h[x] || 0) + 1, h), {}), smoother: sm ? sm.stats : null };
   host.onMessage({ t: 'leave' }); await srv.close();
   return out;
