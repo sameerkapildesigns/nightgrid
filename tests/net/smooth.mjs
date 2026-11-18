@@ -40,7 +40,7 @@ function driver(seed, tight, target = null) {
   };
 }
 
-export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, jitterMs = 0, bots = 2, secs = 40, tight = false, outageAtS = null, outageMs = 800, full = false } = {}) {
+export async function run({ botsOnto = 0, contactOn = false, shove = 0, ram = false, mode = 'base', lagMs = 0, jitterMs = 0, bots = 2, secs = 40, tight = false, outageAtS = null, outageMs = 800, full = false } = {}) {
   const P = mode === 'new' ? await import('../../src/client/present.js') : null;
   const srv = await startLocalServer({ port: 0, netsim: true, lagMs, jitterMs, log: false, room: { countdownMs: 2500 } });
   const res = await fetch(srv.url + '/api/rooms', { method: 'POST' }).then(r => r.json());
@@ -61,7 +61,8 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
   await waitFor(() => clients.every(c => c.race), 5000, 'race');
   const rs = srv.rooms.get(res.code);
   if (ram) { const id0 = clients[0].you; clients[1].drive = driver(1, true, () => { const r = rs.sim && rs.sim.racers.find(x => x.id === id0); return r ? r.d : null; }); }
-  const out = {}; let contacts = 0; const origStep = rs.sim.step; let shoves = 0; rs.sim.step = h => { origStep(h); if (shove && rs.sim.phase === 'race' && rs.step > 240 && rs.step % Math.round(shove * 120) === 0) { const v = rs.sim.racers.find(x => x.id === clients[0].you); if (v && !v.crashed) { const sg = (shoves++ % 2) ? 1 : -1; v.d += 1.2 * sg; v.vd += 4 * sg; v.va -= 6; } } const a = rs.sim.racers.find(x => x.id === clients[0].you), b = rs.sim.racers.find(x => x.id === clients[1].you); if (a && b && a.path === b.path) { const g = Math.abs(rs.sim.relS(a, b)), dd = Math.abs(a.d - b.d); if (g < 4.8 && dd < 2.8) contacts++; if (rs.sim.phase === 'race' && (rs.step % 120) === 0) (out.trace = out.trace || []).push([rs.step, +g.toFixed(1), +dd.toFixed(1), +a.speed.toFixed(0), +b.speed.toFixed(0), a.boost ? 1 : 0, b.boost ? 1 : 0]); } };
+  const out = {}; let contacts = 0; const origStep = rs.sim.step; if (contactOn) rs.sim.ghost = false;
+  let shoves = 0, botOverlap = 0; rs.sim.step = h => { origStep(h); if (botsOnto && rs.sim.phase === 'race' && rs.step > 240 && rs.step % Math.round(botsOnto * 120) === 0) { const v = rs.sim.racers.find(x => x.id === clients[0].you); if (v && !v.crashed) for (const r of rs.sim.racers) if (r.isAI && r.path === v.path) { r.s = v.s + 0.6; r.d = v.d + 0.5; botOverlap++; } } if (shove && rs.sim.phase === 'race' && rs.step > 240 && rs.step % Math.round(shove * 120) === 0) { const v = rs.sim.racers.find(x => x.id === clients[0].you); if (v && !v.crashed) { const sg = (shoves++ % 2) ? 1 : -1; v.d += 1.2 * sg; v.vd += 4 * sg; v.va -= 6; } } const a = rs.sim.racers.find(x => x.id === clients[0].you), b = rs.sim.racers.find(x => x.id === clients[1].you); if (a && b && a.path === b.path) { const g = Math.abs(rs.sim.relS(a, b)), dd = Math.abs(a.d - b.d); if (g < 4.8 && dd < 2.8) contacts++; if (rs.sim.phase === 'race' && (rs.step % 120) === 0) (out.trace = out.trace || []).push([rs.step, +g.toFixed(1), +dd.toFixed(1), +a.speed.toFixed(0), +b.speed.toFixed(0), a.boost ? 1 : 0, b.boost ? 1 : 0]); } };
   // ---- server truth per tick ----
   const truth = new Map();   // step -> Map(id -> [prog, s, br])
   const origTick = rs.tick.bind(rs);
@@ -86,6 +87,7 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
         c.frame(c.drive(R.pred)); R.pred.decay(dt);
         if (R.pred.sim.phase !== 'race' && R.pred.sim.phase !== 'finished') continue;
         const me = R.pred.me, sn = c.serverNow();
+        { const cs = R.pred.stats.corrections; if (cs.length !== c.rec.nc) { c.rec.nc = cs.length; const m = cs[cs.length - 1]; if (m > 0.3 && (c.rec.corrCtx = c.rec.corrCtx || []).length < 12) { const tr = rs.sim && rs.sim.racers.find(x => x.id === c.you); c.rec.corrCtx.push({ m: +m.toFixed(2), predTow: +me.tow.toFixed(2), srvTow: tr ? +tr.tow.toFixed(2) : null, srvDraftT: tr ? +tr.draftT.toFixed(2) : null, srvSling: tr ? +(tr.slingT || 0).toFixed(2) : null }); } } }
         // own visual offset as DRAWN: baseline = worker correction; new = page OwnSmoother.softCorr on top
         const cv = R.pred.correction; let cl = { x: cv.x, y: cv.y, z: cv.z };
         if (P) { c.own = c.own || new P.OwnSmoother(R.pred.sim.track.MAIN.L); const pc = c.own.softCorr({ time: R.pred.sim.time, me: R.pred.me, corr: cl }); cl = { x: pc.x, y: pc.y, z: pc.z }; }
@@ -142,7 +144,7 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
     const k = steps[hi] === steps[lo] ? 0 : (step - steps[lo]) / (steps[hi] - steps[lo]); return a[0] + (b[0] - a[0]) * k;
   };
   out.clients = clients.map(c => {
-    const gapErr = [], trueFlipsBy = { n: 0 }; let lastTrueRank = null, falseRankFrames = 0, frames = 0, closeFrames = 0, closeErr = [];
+    const gapErr = [], trueFlipsBy = { n: 0 }; let lastTrueRank = null, falseRankFrames = 0, wrongFar = 0, frames = 0, closeFrames = 0, closeErr = [];
     for (const f of c.rec.frames) {
       const ownT = truthAt(f.step, c.you); if (ownT == null) continue;
       let trueRank = 1; let allT = true;
@@ -154,7 +156,7 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
         if (rt > ownT) trueRank++;
       }
       if (!allT) continue;
-      frames++; if (trueRank !== f.rank) falseRankFrames++;
+      frames++; if (trueRank !== f.rank) { falseRankFrames++; let mg = Infinity; for (const r of f.rows.slice(1)) { const rt = truthAt(f.step, r[0]); if (rt != null) mg = Math.min(mg, Math.abs(ownT - rt)); } if (mg > 3) wrongFar++; }
       if (lastTrueRank != null && trueRank !== lastTrueRank) trueFlipsBy.n++; lastTrueRank = trueRank;
     }
     const P = c.race ? c.race.pred.stats : null;
@@ -162,17 +164,17 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
     return {
       you: c.you, rttMs: +c.clock.rtt.toFixed(1), lead: c.lead, leadMs: +(c.lead * SIM_DT * 1000).toFixed(0),
       snapGapMs: sum(c.rec.snapGap), snapAgeMs: sum(c.stats.snapAges.slice(20)),
-      ownCorrectionM: sum(corr), ownCorrOver1m: corr.filter(x => x > 1).length, ownHardSnaps: P ? P.hard : 0, ownVisualM: sum(P ? P.visual.slice(10) : []), ownDrawnJerkM: sum(c.rec.corrDelta || []), bigCorrFrames: c.rec.bigCorr || [],
+      ownCorrectionM: sum(corr), ownCorrOver1m: corr.filter(x => x > 1).length, ownHardSnaps: P ? P.hard : 0, ownVisualM: sum(P ? P.visual.slice(10) : []), ownDrawnJerkM: sum(c.rec.corrDelta || []), bigCorrFrames: c.rec.bigCorr || [], corrContext: c.rec.corrCtx || [],
       remoteFrameJumpM: sum(c.rec.jump || []), remoteJumpsOver1m: (c.rec.jump || []).filter(x => x > 1).length, remoteJumpsOver3m: (c.rec.jump || []).filter(x => x > 3).length,
       remoteDvPerFrame: sum(c.rec.dv || []), remoteDvOver20: (c.rec.dv || []).filter(x => x > 20).length,
       interpUnderruns: c.race ? c.race.interp.stats.underruns : null, bigJumps: c.rec.bigJ || [], stepOfMismatches: c.rec.stepMismatch || 0, presStats: c.pres ? { snapsHard: c.pres.stats.snaps_hard, horizonS: sum(c.pres.stats.horizonS), softM: sum(c.pres.stats.soft) } : null,
       displayedGapErrM: sum(gapErr), closePassGapErrM: sum(closeErr), closeFrames,
-      hudRankFlips: c.rec.rankFlips, trueRankFlips: trueFlipsBy.n, wrongRankFrames: falseRankFrames, rankFrames: frames,
+      hudRankFlips: c.rec.rankFlips, trueRankFlips: trueFlipsBy.n, wrongRankFrames: falseRankFrames, wrongRankFramesGapOver3m: wrongFar, rankFrames: frames,
       results: c.results ? c.results.order.map(o => `${o.pos}:${o.id}:${o.time}`).join(' ') : null
     };
   });
   out.cfg = { ram, mode, lagMs, jitterMs, bots, secs, tight, outageAtS, full };
-  out.seed = rs.room.seed; out.humanContactSteps = contacts; out.injectedShoves = shoves; out.server = { ticks: rs.stats.ticks, lateTicks: rs.stats.lateTicks, starved: rs.stats.starved, skipped: rs.stats.skippedFrames };
+  out.seed = rs.room.seed; out.humanContactSteps = contacts; out.injectedShoves = shoves; out.botTeleportsOntoP1 = botOverlap; out.ghost = rs.sim ? rs.sim.ghost : null; out.server = { ticks: rs.stats.ticks, lateTicks: rs.stats.lateTicks, starved: rs.stats.starved, skipped: rs.stats.skippedFrames };
   out.resultsAgree = full ? new Set(out.clients.map(x => x.results)).size === 1 : null;
   for (const c of clients) c.leave();
   await srv.close();
@@ -180,7 +182,7 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const o = await run({ mode: arg('mode', 'base'), lagMs: +arg('lag', 0), jitterMs: +arg('jitter', 0), bots: +arg('bots', 2), secs: +arg('secs', 40), tight: !!arg('tight', false), shove: +arg('shove', 0), ram: !!arg('ram', false),
+  const o = await run({ mode: arg('mode', 'base'), lagMs: +arg('lag', 0), jitterMs: +arg('jitter', 0), bots: +arg('bots', 2), secs: +arg('secs', 40), tight: !!arg('tight', false), shove: +arg('shove', 0), botsOnto: +arg('bots-onto', 0), contactOn: !!arg('contact-on', false), ram: !!arg('ram', false),
     outageAtS: arg('outage', null) == null ? null : +arg('outage'), full: !!arg('full', false) });
   const txt = JSON.stringify(o, null, 1);
   if (arg('out', null)) writeFileSync(arg('out'), txt);

@@ -1,6 +1,6 @@
 # NIGHTGRID running handoff (M5 local-first sync)
 
-Chat counter: big 1, small 3 (rotate at 5 big or 10 small).
+Chat counter: big 1, small 4 (rotate at 5 big or 10 small).
 
 ## Verified state (git remote read 13:2x 18 Nov)
 - origin/main, origin/claude/admiring-meitner-db4ejz: 53af096 (M3). Do NOT push either. Production-linked branch is UNRESOLVED.
@@ -27,6 +27,12 @@ No pushes to main/production candidates; no micro-pushes (Vercel previews). No C
 
 ## Ghost mode (M5-3)
 - sim.ghost (default false = single-player keeps contact); server sets true for rooms; carried in snapshot; predictor sets true. Removes car-car push/impulse/bump for humans+bots. Kept: walls, drones (road traffic), slipstream, near-miss scoring, AI avoidance steering. tests/unit/ghost.test.mjs (5).
+
+## Evidence added (M5-3)
+- ghost-100-30-botsonto.json: 56 forced bot-onto-human overlaps, own correction 0. control-contact-100-30-botsonto.json (contact on): up to 0.81 m.
+- ghost-200-60-fullrace.json: full 4-car race 200/60, results identical on both clients; server starved 0.
+- evidence/m5/test-net-ghost.log: test:net 17/17 incl. same-room rematch, after ghost.
+- Interrupted/not produced: base vs new full race with wrongRank split (rerun pending); drawn-jerk metric (inconclusive on main-thread path, superseded by cadence bench).
 
 ## Next
 - 120 Hz worker->page cadence bench (own car), injected-contact own-correction tuning (client-only), full race + same-room rematch, unit/net/e2e/browser tests, build.
