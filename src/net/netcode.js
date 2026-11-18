@@ -7,8 +7,8 @@
 // server). Each 120 Hz step consumes the local input frame; frames are kept until the server
 // acknowledges them. On every snapshot the local racer is reset to the server's state at the
 // acknowledged frame and the un-acknowledged frames are replayed (silently: no presentation events).
-// Car-to-car contact and slipstream from OTHER cars exist only on the server, so they arrive as
-// corrections (measured, see docs/M4-REPORT.md). The rendered car hides small corrections by
+// Rooms are contact-free (sim.ghost, M5). Slipstream from OTHER cars still exists only on the server, so it
+// arrives as a correction (measured, see docs/M5-SYNC.md). The rendered car hides small corrections by
 // blending a decaying visual offset; large ones (> HARD_SNAP_M) snap.
 import { createSim } from '../core/sim.js';
 import { SIM_DT } from '../core/clock.js';
@@ -25,7 +25,7 @@ export class Predictor {
   constructor(raceMsg, events = null) {
     const sim = this.sim = createSim({ seed: raceMsg.seed });
     sim.setMode(raceMsg.mode); sim.setTrack(raceMsg.map);
-    sim.importSnapshot(raceMsg.snap);
+    sim.importSnapshot(raceMsg.snap); sim.ghost = true;   // same rule as the room server (contact-free), so prediction has no contact term to miss
     const me = sim.racers.find(r => r.id === raceMsg.you);
     if (!me) throw new Error('you are not in this race');
     sim.racers.length = 0; sim.racers.push(me);

@@ -151,7 +151,7 @@ export class RoomServer {
   // ---------------- race lifecycle ----------------
   beginCountdown() {
     const R = this.room, sim = this.sim = createSim({ seed: R.seed });
-    sim.setMode(R.mode); sim.setTrack(R.map); sim.diff = 'normal';
+    sim.setMode(R.mode); sim.setTrack(R.map); sim.diff = 'normal'; sim.ghost = true;   // multiplayer: no car-to-car contact (sim.js collideRacers)
     sim.addSeats(R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, pers: s.pers, carMods: CARS[s.car] ? CARS[s.car].mods : null })), null);
     for (const r of sim.racers) if (!r.isAI) r.wallLim = 1.2;
     this.inputs.clear();

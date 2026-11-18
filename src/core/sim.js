@@ -40,6 +40,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
 
   const sim = {
     time: 0, raceStart: 0, phase: 'grid',   // grid | race | finished
+    ghost: false,   // true in multiplayer rooms: no car-to-car contact (see collideRacers)
     racers: [], drones: [], player: null, finishOrder: [],
     input: { up: 0, down: 0, left: 0, right: 0, boost: 0 },
     diff: 'normal', mode: 'expert', pace: null, bestLap: Infinity, bestSplits: [], curSplits: [], wrongWayT: 0,
@@ -370,9 +371,12 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (r.autopilot) { r.d += dd; r.s += ds; r.speed = Math.max(0, r.speed + vs); r.dv += vd; }
     else { r.d += dd; r.s += ds; r.va += vs; r.vd += vd; }
   }
+  // sim.ghost (multiplayer rooms, approved 18 Nov 2026): racers pass through each other: no car-to-car
+  // position push, no impulse, no bump event, for humans AND bots. Track walls, drones (road traffic),
+  // slipstream and near-miss scoring are unchanged. Single-player keeps contact (ghost defaults to false).
   function collideRacers() {
     const all = sim.racers;
-    for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) {
+    if (!sim.ghost) for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) {
       const A = all[a], B = all[b]; if (A.path !== B.path || A.crashed || B.crashed) continue;
       const gs = relS(A, B), gd = B.d - A.d;
       if (Math.abs(gs) > 4.8 || Math.abs(gd) > 2.8) continue;
@@ -574,7 +578,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   };
   const encObj = (o) => { const out = {}; for (const k in o) if (!SKIP.has(k) && typeof o[k] !== 'function') out[k] = enc(o[k]); return out; };
   function snapshot() {
-    return { v: 1, map: td.key, mode: sim.mode, diff: sim.diff, time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
+    return { v: 1, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
       bestLap: enc(sim.bestLap), bestSplits: enc(sim.bestSplits), curSplits: enc(sim.curSplits), debugTouched: sim.debugTouched,
       focus: sim.player ? sim.player.id : null, finishOrder: sim.finishOrder.map(r => r.id),
       racers: sim.racers.map(encObj), drones: sim.drones.map(encObj) };
@@ -583,7 +587,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function importSnapshot(sn) {
     if (!sn || sn.v !== 1) throw new Error('bad snapshot version');
     if (!td || td.key !== sn.map) setTrack(sn.map);
-    setMode(sn.mode); sim.diff = sn.diff; sim.time = sn.time; sim.raceStart = sn.raceStart; sim.phase = sn.phase; rng.a = sn.rng;
+    setMode(sn.mode); sim.diff = sn.diff; sim.ghost = !!sn.ghost; sim.time = sn.time; sim.raceStart = sn.raceStart; sim.phase = sn.phase; rng.a = sn.rng;
     sim.bestLap = dec(sn.bestLap); sim.bestSplits = dec(sn.bestSplits); sim.curSplits = dec(sn.curSplits); sim.debugTouched = sn.debugTouched;
     const old = new Map(sim.racers.map(r => [r.id, r]));
     sim.racers.length = 0;

@@ -1,6 +1,6 @@
 # NIGHTGRID running handoff (M5 local-first sync)
 
-Chat counter: big 1, small 2 (rotate at 5 big or 10 small).
+Chat counter: big 1, small 3 (rotate at 5 big or 10 small).
 
 ## Verified state (git remote read 13:2x 18 Nov)
 - origin/main, origin/claude/admiring-meitner-db4ejz: 53af096 (M3). Do NOT push either. Production-linked branch is UNRESOLVED.
@@ -12,7 +12,8 @@ Chat counter: big 1, small 2 (rotate at 5 big or 10 small).
 No pushes to main/production candidates; no micro-pushes (Vercel previews). No Cloudflare/DNS/Vercel actions. No spend, no resets. Report via Instinct only. Release only after exact production branch is confirmed + explicit release instruction. Tested facts separate from assumptions; software-renderer FPS is not hardware evidence.
 
 ## Build id (computed, scripts/build-id.mjs)
-- Live/backends: 572c37df8548. This branch: 572c37df8548 (no src/core, src/net, room-server, package.json change). Recheck before any release.
+- Live backend/frontend: 572c37df8548. Up to b19be0f the branch was still 572c37df8548 (page-only).
+- Ghost mode (approved 13:30, small task 3) changes src/core/sim.js, server/room-server.js, src/net/netcode.js -> NEW id (ff3815343186 at ghost commit; recompute before release). Release = ONE batch: Worker + frontend with the same id. Cloudflare step: ask parent; user runs it on his Mac.
 
 ## Diagnosis (verified in code + measured)
 - Server has car-car contact (sim.js collideRacers) + slipstream; predictor removes other cars -> contact arrives as own-car correction.
@@ -23,6 +24,9 @@ No pushes to main/production candidates; no micro-pushes (Vercel previews). No C
 - tests/net/smooth.mjs harness (+ scripts/smooth-summary.mjs); raw JSON in evidence/m5/ (base-* = before, new-* = after).
 - src/client/present.js RemotePresenter: remotes dead-reckoned to local step + soft offset (250 ms tau, <=25 m/s close, snap >30 m counted); sticky HUD rank (+-2 m band); stepOf(view.time) == Predictor.seq (0 mismatches).
 - game.js wired (snap event -> presenter; HUD rank). Interpolator no longer used by page.
+
+## Ghost mode (M5-3)
+- sim.ghost (default false = single-player keeps contact); server sets true for rooms; carried in snapshot; predictor sets true. Removes car-car push/impulse/bump for humans+bots. Kept: walls, drones (road traffic), slipstream, near-miss scoring, AI avoidance steering. tests/unit/ghost.test.mjs (5).
 
 ## Next
 - 120 Hz worker->page cadence bench (own car), injected-contact own-correction tuning (client-only), full race + same-room rematch, unit/net/e2e/browser tests, build.
