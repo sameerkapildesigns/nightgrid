@@ -174,6 +174,45 @@ try {
       await close([host, g]);
     }
   }
+  if (run('T')) {   // REAL touch route: CDP touch on the DOM buttons -> page -> input worker -> server racer input (no autodrive)
+    const a = await player('Tia', 'phone'); const code = await create(a);
+    await click(a, '[data-act=addbot]'); await readyAll([a]); await waitMp(a, 'm => m.room.canStart');
+    const rs = srv.rooms.get(code); rs.cfg.maxRaceMs = 300000;
+    await click(a, '[data-act=start]'); await waitMp(a, 'm => m.state === "race"', 180000);
+    const cdp = await a.ctx.newCDPSession(a.page);
+    const center = async k => a.page.evaluate(k => { const r = document.querySelector(`#touch button[data-k="${k}"]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, k);
+    const P = {}; for (const k of ['left', 'right', 'down', 'boost']) P[k] = await center(k);
+    const touch = (type, keysDown) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: keysDown.map((k, i) => ({ x: P[k].x, y: P[k].y, id: i + 1 })) });
+    const inp = () => { const r = rs.sim && rs.sim.racers.find(x => x.id === 'p1'); return r ? { ...r.input } : null; };
+    const until = async (fn, ms = 8000) => { const t = Date.now(); while (Date.now() - t < ms) { const v = inp(); if (v && fn(v)) return Date.now() - t; await sleep(20); } return -1; };
+    const lat = {};
+    lat.throttle = await until(v => v.up === 1); C('T: auto-throttle reaches the server (no touch)', lat.throttle >= 0, JSON.stringify(inp()));
+    await touch('touchStart', ['right']); lat.right = await until(v => v.right === 1 && v.left === 0); C('T: hold RIGHT steer -> server right=1', lat.right >= 0, JSON.stringify(inp()));
+    await touch('touchEnd', []); lat.rightUp = await until(v => v.right === 0); C('T: release -> server right=0', lat.rightUp >= 0, JSON.stringify(inp()));
+    await touch('touchStart', ['down']); lat.brake = await until(v => v.down === 1 && v.up === 0); C('T: hold BRAKE -> server down=1, throttle off', lat.brake >= 0, JSON.stringify(inp()));
+    await touch('touchEnd', []); lat.brakeUp = await until(v => v.down === 0 && v.up === 1); C('T: release brake -> throttle back on', lat.brakeUp >= 0, JSON.stringify(inp()));
+    await touch('touchStart', ['left']); await touch('touchMove', ['left', 'boost']); lat.multi = await until(v => v.left === 1 && v.boost === 1); C('T: multitouch LEFT + BOOST -> both at the server', lat.multi >= 0, JSON.stringify(inp()));
+    await touch('touchCancel', []); lat.cancel = await until(v => v.left === 0 && v.boost === 0); C('T: touchcancel -> everything released at the server', lat.cancel >= 0, JSON.stringify(inp()));
+    // main-thread stall while steering: worker keeps the held input flowing; server does not starve
+    await touch('touchStart', ['right']); await until(v => v.right === 1);
+    const q = rs.inputs.get('p1'), m0 = q.starve, c0 = q.next;
+    const stallP = a.page.evaluate(() => { const t = performance.now(); while (performance.now() - t < 1800); });
+    await sleep(900); const mid = inp(); await stallP;
+    C('T: during an 1.8 s page main-thread stall the server still receives RIGHT (held by the worker)', mid && mid.right === 1, JSON.stringify(mid));
+    I('T: server input during/after the stall', `missed ${q.starve - m0} of ${q.next - c0} frames`);
+    await touch('touchEnd', []); await until(v => v.right === 0);
+    // focus loss / hidden page release immediately, independent of the next render
+    await touch('touchStart', ['boost']); await until(v => v.boost === 1);
+    await a.page.evaluate(() => window.dispatchEvent(new Event('blur'))); lat.blur = await until(v => v.boost === 0 && v.up === 0, 4000);
+    C('T: window blur -> server input released', lat.blur >= 0, JSON.stringify(inp()));
+    await touch('touchEnd', []); await sleep(300);
+    await touch('touchStart', ['left']); await until(v => v.left === 1);
+    await a.page.evaluate(() => { Object.defineProperty(document, 'hidden', { value: true, configurable: true }); document.dispatchEvent(new Event('visibilitychange')); }); lat.hidden = await until(v => v.left === 0, 4000);
+    C('T: page hidden -> server input released', lat.hidden >= 0, JSON.stringify(inp()));
+    I('T: touch -> server latency (ms; includes this host\'s ~1 FPS main thread + 0 ms netsim)', JSON.stringify(lat));
+    await shot(a, 'T-touch-race-phone');
+    await close([a]);
+  }
   if (run('E')) {   // ACCEPTANCE: four phone-sized touch browsers, 4 humans, full race + same-room rematch full race
     const LAG = +(process.env.NG_LAG || 0), names = ['Kai', 'Lea', 'Max', 'Noa'];
     const host = await player(names[0], 'phone'); const code = await create(host); const ps = [host];

@@ -1,0 +1,15 @@
+PASS  T: auto-throttle reaches the server (no touch)  — {"up":1,"down":0,"left":0,"right":0,"boost":0,"drift":0}
+PASS  T: hold RIGHT steer -> server right=1  — {"up":1,"down":0,"left":0,"right":1,"boost":0,"drift":0}
+PASS  T: release -> server right=0  — {"up":1,"down":0,"left":0,"right":0,"boost":0,"drift":0}
+PASS  T: hold BRAKE -> server down=1, throttle off  — {"up":0,"down":1,"left":0,"right":0,"boost":0,"drift":0}
+PASS  T: release brake -> throttle back on  — {"up":1,"down":0,"left":0,"right":0,"boost":0,"drift":0}
+PASS  T: multitouch LEFT + BOOST -> both at the server  — {"up":1,"down":0,"left":1,"right":0,"boost":1,"drift":0}
+PASS  T: touchcancel -> everything released at the server  — {"up":1,"down":0,"left":0,"right":0,"boost":0,"drift":0}
+PASS  T: during an 1.8 s page main-thread stall the server still receives RIGHT (held by the worker)  — {"up":1,"down":0,"left":0,"right":1,"boost":0,"drift":0}
+INFO  T: server input during/after the stall  — missed 0 of 301 frames
+PASS  T: window blur -> server input released  — {"up":0,"down":0,"left":0,"right":0,"boost":0,"drift":0}
+PASS  T: page hidden -> server input released  — {"up":0,"down":0,"left":0,"right":0,"boost":0,"drift":0}
+INFO  T: touch -> server latency (ms; includes this host's ~1 FPS main thread + 0 ms netsim)  — {"throttle":0,"right":161,"rightUp":140,"brake":2169,"brakeUp":1279,"multi":141,"cancel":1172,"blur":142,"hidden":139}
+PASS  Tia: no page errors
+11/11 functional checks passed; 0/0 quality targets met (render every 1 frame(s))
+EXIT 0

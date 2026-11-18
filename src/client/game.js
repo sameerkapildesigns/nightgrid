@@ -2396,7 +2396,10 @@ if (TOUCH) $('cineSkip').textContent = 'Skip';   // no Enter key on phones
 if (TOUCH) {
   const held = {};
   for (const b of document.querySelectorAll('#touch button')) {
-    const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } mpPushKeys(); }, off = e => { held[k] = 0; keys[k] = 0; b.classList.remove('on'); mpPushKeys(e && e.type === 'pointercancel'); };
+    // brake also switches the auto-throttle in the SAME event (not at the next 50 ms timer tick, which a
+    // slow render frame can delay): measured 2.2 s brake-to-server latency on a ~1 FPS host before this
+    const thr = () => { if (k === 'down' && (state === 'race' || state === 'countdown') && player && !player.autopilot && !paused) keys.up = held.down ? 0 : 1; };
+    const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; thr(); b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } mpPushKeys(); }, off = e => { held[k] = 0; keys[k] = 0; thr(); b.classList.remove('on'); mpPushKeys(e && e.type === 'pointercancel'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   }
   touchHeld = held;
