@@ -27,3 +27,8 @@ Not handset evidence: this host renders about 1.5-2 FPS.
 | mpE-4phones-rtt100 | 52af483 minus input fixes (0cdfc72 + harness) | 15/15 | 18/18 | 4/4 humans finished (178.0–188.8 s) | 4/4 finished (174.7–176.5 s) |
 | mpE-4phones-rtt200 | same | 15/15 | 18/18 | 4/4 finished (176.9–187.4 s) | 4/4 finished (174.4–176.6 s) |
 | mpU-phone-ui | this commit | 19/19 | — | — | — |
+| mpE-4phones-rtt100-61123fd | **61123fd** (final input fixes) | 15/15 | 18/18 | 4/4 finished (184.2–190.7 s) | 4/4 finished (174.2–176.7 s) |
+
+E proves networking/authority with in-worker scripted drivers; it does not prove physical playability at
+this host's ~1 FPS. The real touch route is covered by T (mpT-touch-route.txt, 11/11 at 61123fd). The 200 ms
+four-phone run was not repeated on 61123fd (priority moved to the hosted path); its evidence is from 0cdfc72.
