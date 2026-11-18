@@ -1,6 +1,16 @@
 # NIGHTGRID running handoff (M5 local-first sync)
 
-Chat counter: big 1, small 6 (rotate at 5 big or 10 small).
+Chat counter (M6 chat): big 2, small 0 (rotate at 5 big or 10 small).
+
+## M6 bug audit (18 Nov, local only, nothing pushed)
+- Base 789aaa0. claude/m6-bugfix-audit @ M6-A = client-only, build id ff3815343186 UNCHANGED (no Worker redeploy).
+- claude/m6-net-hardening (worktree ../nightgrid-b) = M6-A + NetClient fixes, NEW id aa3abbdf842b -> paired Worker+frontend release.
+- Confirmed+fixed: B1 double Create -> 2 rooms + orphan socket (A: lobby busy until welcome; B: connect() replaces old socket);
+  B2 reconnect retry reset on open -> endless loop if server opens then drops (B only); B3 MP winner never saw VICTORY (fo lags, index+1=0) (A);
+  B4 Copy code always said copied (A).
+- Not reproduced: stale 'closed' from old socket killing new room (L2 passes on base). Not yet audited: late join/tab hide/reconnect in countdown, SP restore, asset failure UX, mobile orientation.
+- Tests: unit 126/126 (A,B); browser lifecycle 5/5 (A); test:net 19/19 (B); finish-pos full race (A logic). test:mp on A: scenario A-2h2b all PASS, then STOPPED by scope change (crash line = my kill). Remaining test:mp + test:worker for B still to run before merge.
+
 
 ## Verified state (git remote read 13:2x 18 Nov)
 - origin/main, origin/claude/admiring-meitner-db4ejz: 53af096 (M3). Do NOT push either. Production-linked branch is UNRESOLVED.
