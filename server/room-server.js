@@ -16,6 +16,7 @@ import * as Room from '../src/core/room.js';
 import { createSim } from '../src/core/sim.js';
 import { createClock, SIM_DT } from '../src/core/clock.js';
 import { CARS } from '../src/core/roster.js';
+import { encodePads } from '../src/core/hazards.js';
 import { parseClient, rateLimiter, compactRacer, decodeFrame, makeToken, NET_HZ, FRAME_RATE_MAX, FRAME_BURST, MSG_RATE_MAX, MSG_BURST,
   MAX_AHEAD_FRAMES, QUEUE_DROP_FRAMES, MAX_LEAD_FRAMES, BACKPRESSURE_BYTES, PROTOCOL, ZERO_FRAME } from '../src/net/protocol.js';
 
@@ -152,6 +153,7 @@ export class RoomServer {
   beginCountdown() {
     const R = this.room, sim = this.sim = createSim({ seed: R.seed });
     sim.setMode(R.mode); sim.setTrack(R.map); sim.diff = 'normal'; sim.ghost = true;   // multiplayer: no car-to-car contact (sim.js collideRacers)
+    sim.hazards = true;   // M8: obstacles + server-owned shield/self-boost pads (src/core/hazards.js)
     sim.addSeats(R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, pers: s.pers, carMods: CARS[s.car] ? CARS[s.car].mods : null })), null);
     for (const r of sim.racers) if (!r.isAI) r.wallLim = 1.2;
     this.inputs.clear();
@@ -232,12 +234,12 @@ export class RoomServer {
   broadcastSnap(now) {
     const sim = this.sim, br = sim.track.BR, all = sim.racers.map(r => compactRacer(r, br));
     const dr = sim.drones.map(d => [+d.s.toFixed(3), +d.h.toFixed(4), +d.vh.toFixed(4)]);
-    const fo = sim.finishOrder.map(r => r.id), rt = +sim.raceTime().toFixed(4);
+    const fo = sim.finishOrder.map(r => r.id), rt = +sim.raceTime().toFixed(4), pk = encodePads(sim.pads, sim.time);
     for (const [conn, c] of this.conns) {
       if (!c.id) continue;
       if (conn.bufferedAmount && conn.bufferedAmount() > BACKPRESSURE_BYTES) { this.stats.skippedBackpressure++; continue; }   // drop stale snapshots, never queue
       const q = this.inputs.get(c.id);
-      this.send(conn, { t: 's', k: this.step, sn: now, ph: this.room.phase, rt, tm: sim.time, ack: q ? q.next - 1 : -1, q: q ? q.buf.size : 0, ms: q ? q.starve : 0, el: q && q.early.length ? Math.min(...q.early) : null, me: q ? sim.racerState(c.id) : null, a: all, dr, fo });
+      this.send(conn, { t: 's', k: this.step, sn: now, ph: this.room.phase, rt, tm: sim.time, ack: q ? q.next - 1 : -1, q: q ? q.buf.size : 0, ms: q ? q.starve : 0, el: q && q.early.length ? Math.min(...q.early) : null, me: q ? sim.racerState(c.id) : null, a: all, dr, fo, pk });
     }
   }
   // ---------------- housekeeping / lifetime ----------------

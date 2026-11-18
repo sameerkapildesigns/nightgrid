@@ -88,7 +88,7 @@ export class RemotePresenter {
     let s = e.s + c.off.s; if (!e.br) s = mod(s, this.L);
     out.path = e.br ? this.td.BR : this.td.MAIN; out.s = s; out.d = e.d + c.off.d; out.h = x[4]; out.psi = x[5]; out.speed = x[6];
     out.va = x[6] * Math.cos(x[5]); out.vd = -x[6] * Math.sin(x[5]);
-    out.lap = x[7]; out.prog = e.prog + c.off.s; out.boost = !!x[9]; out.finished = !!x[10]; out.netCrashed = !!x[11]; out.rollNet = x[12]; out.steer = x[13]; out.drift = !!x[14]; out.thr = x[15];
+    out.lap = x[7]; out.prog = e.prog + c.off.s; out.boost = !!x[9]; out.finished = !!x[10]; out.netCrashed = !!x[11]; out.rollNet = x[12]; out.steer = x[13]; out.drift = !!x[14]; out.thr = x[15]; out.pw = x[16] | 0;
     c.shown = out.prog;
     return true;
   }

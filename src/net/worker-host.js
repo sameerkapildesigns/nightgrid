@@ -23,6 +23,7 @@ export function createWorkerHost({ post, WebSocketImpl, now, timeOrigin = 0, set
     earn: (t, c) => send('earn', t, c), flash: (t, c) => send('flash', t, c), cp: h => send('cp', h), sfx: (n, ...a) => send('sfx', n, ...a),
     shake: x => send('shake', x), kick: x => send('kick', x), wallHit: (r, vn, s, Rw) => send('wallHit', vn, s, { x: Rw.x, y: Rw.y, z: Rw.z }),
     crash: () => send('crash'), respawn: () => send('respawn'), droneHit: () => send('droneHit'), sector: sec => send('sector', sec),
+    pickup: (r, kind) => send('pickup', kind), shieldPop: (r, what) => send('shieldPop', what), obstacleHit: (r, v) => send('obstacleHit', v),
     racerReset: () => { }, lap: () => { }, playerFinish: () => { }, bump: () => { }, racer: () => { }
   };
   const host = {

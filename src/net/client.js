@@ -8,6 +8,7 @@
 // therefore applied to the local car immediately, never delayed by the round trip.
 import { Predictor, Interpolator, ClockSync, MAX_CATCHUP, VIEW_FIELDS } from './netcode.js';
 import { SIM_DT } from '../core/clock.js';
+import { encodePads } from '../core/hazards.js';
 import { PROTOCOL, NET_HZ, encodeFrame, MAX_FRAMES_PER_MSG, MAX_LEAD_FRAMES, normalizeCode, validCode } from './protocol.js';
 
 const RECONNECT_DELAYS = [500, 1000, 2000, 3000, 4000, 4000];
@@ -131,7 +132,7 @@ export class NetClient {
     v.br = me.path === br; v.crashed = me.crashed;
     if (me.crashed > 0) { v.crashVel = me.crashVel ? { x: me.crashVel.x, y: me.crashVel.y, z: me.crashVel.z } : null; v.crashSpin = me.crashSpin ? { x: me.crashSpin.x, y: me.crashSpin.y, z: me.crashSpin.z } : null; v.world = { x: me.world.x, y: me.world.y, z: me.world.z }; }
     return { me: v, corr: { x: P.correction.x, y: P.correction.y, z: P.correction.z }, time: P.sim.time, raceStart: P.sim.raceStart,
-      drones: P.sim.drones.map(d => [d.s, d.d, d.h, d.world.x, d.world.y, d.world.z, d.fi]), fo: R.last ? R.last.fo : [], ended: !!R.ended };
+      drones: P.sim.drones.map(d => [d.s, d.d, d.h, d.world.x, d.world.y, d.world.z, d.fi]), fo: R.last ? R.last.fo : [], ended: !!R.ended, pk: encodePads(P.sim.pads, P.sim.time) };
   }
   flush(n = this.now()) {
     while (this.outbox.length) { const f = this.outbox.splice(0, MAX_FRAMES_PER_MSG); this.sendRaw({ t: 'in', q: this.outSeq, f }); this.outSeq += f.length; }
