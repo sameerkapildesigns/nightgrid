@@ -1,0 +1,31 @@
+TAP version 13
+# \# SWEEP [{"gapMs":0,"observerSawBeforeKill":{"connected":true,"ready":true},"restored":{"sameSeat":true,"seats":3,"ready":true}},{"gapMs":1500,"observerSawBeforeKill":{"connected":false,"ready":false},"restored":{"sameSeat":true,"seats":3,"ready":false}},{"gapMs":0,"observerSawBeforeKill":{"connected":true,"ready":true},"restored":{"sameSeat":true,"seats":3,"ready":true}},{"gapMs":1500,"observerSawBeforeKill":{"connected":false,"ready":false},"restored":{"sameSeat":true,"seats":3,"ready":false}},{"gapMs":0,"observerSawBeforeKill":{"connected":true,"ready":true},"restored":{"sameSeat":true,"seats":3,"ready":false}},{"gapMs":1500,"observerSawBeforeKill":{"connected":false,"ready":false},"restored":{"sameSeat":true,"seats":3,"ready":false}}]
+# Subtest: sweep (evidence): old sequence terminate -> SIGTERM after 0 ms vs 1500 ms, restored ready recorded
+ok 1 - sweep (evidence): old sequence terminate -> SIGTERM after 0 ms vs 1500 ms, restored ready recorded
+  ---
+  duration_ms: 28304.419199
+  type: 'test'
+  ...
+# \# GRACEFUL {"sameSeat":true,"seats":3,"ready":false}
+# Subtest: graceful disconnect: observed unready before the kill -> restored seat is unready (same seat via token)
+ok 2 - graceful disconnect: observed unready before the kill -> restored seat is unready (same seat via token)
+  ---
+  duration_ms: 4217.143467
+  type: 'test'
+  ...
+# \# ABRUPT {"observedBeforeKill":true,"restored":{"sameSeat":true,"seats":3,"ready":true}}
+# Subtest: abrupt runtime death (SIGKILL, sockets still open): observed ready=true before the kill -> restored state recorded
+ok 3 - abrupt runtime death (SIGKILL, sockets still open): observed ready=true before the kill -> restored state recorded
+  ---
+  duration_ms: 3522.301182
+  type: 'test'
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 37678.859893

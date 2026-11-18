@@ -27,7 +27,7 @@ async function startWrangler() {
   let out = ''; proc.stdout.on('data', d => { out += d; }); proc.stderr.on('data', d => { out += d; });
   await waitFor(() => /Ready on/.test(out), 90000, 'wrangler ready: ' + out.slice(-500));
 }
-async function stopWrangler() { if (!proc) return; try { process.kill(-proc.pid, 'SIGTERM'); } catch (e) { } await new Promise(r => setTimeout(r, 1500)); proc = null; }
+async function stopWrangler(sig = 'SIGTERM') { if (!proc) return; try { process.kill(-proc.pid, sig); } catch (e) { } await new Promise(r => setTimeout(r, 1500)); proc = null; }
 before(async () => { await startWrangler(); });
 let cleanupClients = () => { };
 after(async () => { cleanupClients(); await stopWrangler(); });
@@ -83,7 +83,7 @@ test('worker: 2 humans + 1 bot race 14 s in a Room DO through the shipping NetCl
   const st = []; for (let i = 0; i < 3; i++) { const x = await post('/api/rooms'); st.push(x.status); if (x.status === 503) { assert.equal(x.error, 'capacity'); break; } }
   assert.equal(st[st.length - 1], 503, 'refused at the cap: ' + st.join(','));
 });
-test('worker: workerd restart -> Room DO restores the lobby from storage; the session token reconnects to the same seat (ready kept)', async () => {
+test('worker: workerd runtime death (SIGKILL) -> Room DO restores the lobby from storage; the session token reconnects to the same seat (ready kept)', async () => {
   // the previous test's rooms have no connected players: their storage ALARM closes them (empty 60 s) and releases the budget
   let h = null; await waitFor(() => { fetch(BASE + '/api/health').then(x => x.json()).then(j => { h = j; }); return h && h.budget.active === 0; }, 150000, 'alarm-driven empty-room close');
   console.log('# rooms released by alarms: ' + JSON.stringify(h.budget));
@@ -91,8 +91,11 @@ test('worker: workerd restart -> Room DO restores the lobby from storage; the se
   const w = await open(`/api/rooms/${code}/ws`); w.ws.send(JSON.stringify({ t: 'hello', p: PROTOCOL, build: BUILD, name: 'Keep' }));
   await waitFor(() => w.msgs.some(m => m.t === 'welcome'), 5000, 'welcome');
   const tok = w.msgs.find(m => m.t === 'welcome').token; w.ws.send(JSON.stringify({ t: 'addBot' })); w.ws.send(JSON.stringify({ t: 'ready', ready: true }));
-  await new Promise(x => setTimeout(x, 800)); w.ws.terminate();
-  await stopWrangler(); await startWrangler();
+  await new Promise(x => setTimeout(x, 800));
+  // M7: abrupt runtime death = SIGKILL with the socket still open. The old terminate()+SIGTERM raced Room.disconnect()
+  // (lobby disconnect -> ready=false, persisted) against shutdown: restored ready was true 7/12, false 5/12
+  // (tests/worker/restore-race.test.mjs). Graceful disconnect -> unready is covered there, not asserted here.
+  await stopWrangler('SIGKILL'); w.ws.terminate(); await startWrangler();
   const w2 = await open(`/api/rooms/${code}/ws`); w2.ws.send(JSON.stringify({ t: 'hello', p: PROTOCOL, build: BUILD, name: 'Keep', token: tok }));
   await waitFor(() => w2.msgs.some(m => m.t === 'lobby'), 8000, 'lobby after restart');
   const wel = w2.msgs.find(m => m.t === 'welcome'), lob = w2.msgs.filter(m => m.t === 'lobby').pop();
