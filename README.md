@@ -14,6 +14,25 @@ npm run build        # production build -> dist/ (debug code compiled out)
 npm run preview      # serve dist/
 ```
 
+## Multiplayer (M4, branch `claude/m4-multiplayer`; not deployed)
+
+Private rooms, 2–4 racers (bots fill seats), server-authoritative. Local play needs no account:
+
+```bash
+npm run mp           # localmp build + local room server: http://127.0.0.1:8787 (open it in 2+ browsers)
+```
+
+Hosted shape: frontend stays on Vercel (`https://nightgrid.sameerkapil.com`, DNS untouched). The
+multiplayer backend is a Cloudflare Worker + Durable Objects on **workers.dev only**. The frontend is
+built with `VITE_MP_API_BASE=<backend https URL>`; production builds without it hide multiplayer.
+Runbook, approvals and rollback: **docs/M4-DEPLOY-FREE.md**. Architecture: docs/M4-ARCHITECTURE.md.
+Protocol: docs/M4-PROTOCOL.md. Status and evidence: docs/M4-REPORT.md.
+
+```bash
+npm run backend:dry-run                      # bundles the staging backend locally, uploads nothing
+npm run check:deploy -- --frontend <url> --backend <url>   # read-only build/CORS check of a deployment
+```
+
 ## Test
 
 ```bash
@@ -21,6 +40,10 @@ npm test             # unit tests (Node, no browser): track parity, sim, clock, 
 npm run test:e2e     # builds dist-test/ + dist/, Playwright/Chromium parity checks -> test-results/
 npm run measure      # cold/warm startup + transfer, v5b vs M1 -> docs/measurements.json
 npm run scan         # secret / PII scan of tracked files
+npm run test:net     # multiplayer over real WebSockets (local runtime, simulated RTT), worker host, stall regressions
+npm run test:worker  # Durable Object backend in local workerd (wrangler dev; no account)
+npm run test:mp      # multiplayer browser scenarios (NG_ONLY=E four phones, T touch route, U phone UI, ...)
+npm run test:xo      # cross-origin hosted shape: frontend origin + workerd backend origin
 ```
 
 ## Layout

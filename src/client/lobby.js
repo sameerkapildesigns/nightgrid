@@ -2,6 +2,7 @@
 // validates everything (host-only actions are also refused server-side). No chat, accounts or
 // matchmaking: create a room, share the 6-character code or join link, race.
 import { ERROR_TEXT, normalizeCode, validCode, CODE_LEN } from '../net/protocol.js';
+import { inviteLink } from '../net/mp-config.js';
 import { MAPS, MAP_KEYS } from '../core/maps.js';
 import { SHORT, PAINTS, RIVAL_LIV } from '../core/roster.js';
 
@@ -72,7 +73,7 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
     const b1 = el.querySelector('.mpbody'); if (b1) b1.scrollTop = sc;
     if (focus && (focus === 'mpName' || focus === 'mpCode')) { const f = document.getElementById(focus); if (f) { f.focus(); try { f.setSelectionRange(selS, selS); } catch (e) { } } }
   }
-  function joinLink(code) { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('room', code); return u.toString(); }
+  function joinLink(code) { return inviteLink(location.href, code); }   // the frontend page, never the backend
   async function copy(text) { try { await navigator.clipboard.writeText(text); return true; } catch (e) { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select(); let ok = false; try { ok = document.execCommand('copy'); } catch (x) { } t.remove(); return ok; } }
   el.addEventListener('input', e => { if (e.target.id === 'mpName') saveName(e.target.value); if (e.target.id === 'mpCode') ui.codeIn = e.target.value; });
   el.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter' && e.target.id === 'mpCode') act('join'); if (e.key === 'Escape') show(false); });

@@ -8,3 +8,6 @@ test-results/
 .env.*
 .wrangler/
 .dev.vars
+.wrangler-dry/
+dist-xo/
+dist-local/

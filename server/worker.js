@@ -17,17 +17,40 @@ const num = (v, d) => (v != null && v !== '' && isFinite(+v) ? +v : d);
 function budgetCfg(env) {
   return { dailyRoomMs: num(env.DAILY_ROOM_MINUTES, 240) * 60e3, maxActiveRooms: num(env.MAX_ACTIVE_ROOMS, 3), roomMaxLifetimeMs: num(env.ROOM_MAX_MINUTES, 60) * 60e3, safety: num(env.BUDGET_SAFETY, 0.85), maxCreatesPerDay: num(env.MAX_CREATES_PER_DAY, 200) };
 }
+// Allowed browser origins: exact list from ALLOWED_ORIGINS (comma-separated, e.g.
+// "https://nightgrid.sameerkapil.com,https://<preview>.vercel.app"). No wildcard, no credentials.
+// Requests without an Origin header (curl, health checks) are allowed for the HTTP API; browsers always
+// send Origin on cross-origin fetch and on WebSocket upgrades, which must match the list.
+export function allowedOrigins(env) { return (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim().replace(/\/+$/, '')).filter(Boolean); }
 function originOk(req, env) {
-  const o = req.headers.get('origin'); if (!o) return true;   // non-browser client
-  const allow = (env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean);
-  try { return allow.length ? allow.includes(o) : new URL(o).host === new URL(req.url).host; } catch (e) { return false; }
+  const o = req.headers.get('origin'); if (!o) return true;
+  return allowedOrigins(env).includes(o);
+}
+function cors(req, env, res) {
+  const o = req.headers.get('origin'); const h = new Headers(res.headers);
+  if (o && allowedOrigins(env).includes(o)) { h.set('access-control-allow-origin', o); h.append('vary', 'Origin'); }
+  return new Response(res.body, { status: res.status, headers: h, webSocket: res.webSocket });
+}
+function preflight(req, env) {
+  const o = req.headers.get('origin');
+  if (!o || !allowedOrigins(env).includes(o)) return new Response(null, { status: 403, headers: { vary: 'Origin' } });
+  return new Response(null, { status: 204, headers: { 'access-control-allow-origin': o, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '600', vary: 'Origin' } });
 }
 
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
-    if (!url.pathname.startsWith('/api/')) return env.ASSETS.fetch(req);
+    // API only: the game itself is served by the frontend host (Vercel); this Worker serves no pages
+    if (url.pathname === '/' && req.method === 'GET') return new Response(`NIGHTGRID multiplayer API ok\nbuild ${BUILD}\n`, { headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+    if (!url.pathname.startsWith('/api/')) return new Response('not found\n', { status: 404, headers: { 'content-type': 'text/plain' } });
+    if (req.method === 'OPTIONS') return preflight(req, env);
     if (!originOk(req, env)) return json(403, { ok: false, error: 'origin' });
+    if (req.headers.get('upgrade') === 'websocket') return route(req, env, url);   // 101 responses are not re-wrapped
+    return cors(req, env, await route(req, env, url));
+  }
+};
+async function route(req, env, url) {
+  {
     const registry = env.REGISTRY.get(env.REGISTRY.idFromName('global'));
     if (url.pathname === '/api/rooms' && req.method === 'POST') {
       for (let i = 0; i < 4; i++) {
@@ -49,7 +72,7 @@ export default {
     }
     return json(404, { ok: false, error: 'not-found' });
   }
-};
+}
 
 // ---- shared budget (singleton) ----
 export class Registry extends DurableObject {

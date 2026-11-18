@@ -1,0 +1,10 @@
+PASS  frontend build manifest: same build id as the backend source, backend URL recorded  — {"build":"572c37df8548","mpApiBase":"http://127.0.0.1:8890"}
+PASS  frontend origin has NO multiplayer API (no same-origin fallback possible)
+PASS  backend health over CORS: exact origin echoed, same build id  — {"acao":"http://127.0.0.1:4390","build":"572c37df8548"}
+PASS  create from the frontend origin went to the backend origin (HTTP + WebSocket)  — https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Chakra+Petch:ital,wght@0,500;0,600;0,700;1,700&family=Inter:wght@400;500;600&display=swap | http://127.0.0.1:8890/api/rooms | WS ws://127.0.0.1:8890/api/rooms/QEAW3N/ws
+PASS  invite link is on the FRONTEND origin  — http://127.0.0.1:4390/?room=QEAW3N
+PASS  two phones on the frontend origin race in one Room DO on the backend origin (both in the race, worker path)  — ["race","race","QEAW3N","QEAW3N"]
+PASS  Host: no page errors
+PASS  Guest: no page errors
+8/8 cross-origin checks passed
+EXIT 0

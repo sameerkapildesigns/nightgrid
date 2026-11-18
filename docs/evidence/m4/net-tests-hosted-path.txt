@@ -1,0 +1,24 @@
+ok 1 - HTTP: create returns a valid code; unknown/invalid code 404; foreign Origin refused on POST and WS
+ok 2 - capacity: the shared budget refuses a 4th concurrent room with a readable error
+ok 3 - two rooms are isolated over real sockets
+ok 4 - per-IP room creation rate limit (10/min default)
+ok 5 - race 2 human(s) + 0 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 6 - race 4 human(s) + 0 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 7 - race 1 human(s) + 3 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 8 - race 2 human(s) + 2 bot(s) at 100 ms RTT: everyone races, views agree with the server, inputs independent
+ok 9 - same-room rematch: race 1 -> identical results -> host returns the SAME room to the lobby -> race 2 in that room -> identical results
+ok 10 - race end -> every client gets the SAME result order from the server (two separate rooms on one server)
+# \# page-stall: consumed 2416, missed 1, mispredict p95 0.000 m, hard 0, lead 21, loop max gap 54 ms
+# Subtest: page stall: input reported every 1.5 s, the worker loop still delivers frames on time (server misses ~0)
+ok 11 - page stall: input reported every 1.5 s, the worker loop still delivers frames on time (server misses ~0)
+# \# loop-stall: server steps during stalls 1870 (~15.6 s of race in 18.0 s), missed during stalls 169/1870, after recovery 0.00 %, max pending 108, max lead 97, resyncs 0, ahead rejections 0
+# Subtest: loop stall: input loop frozen 700 ms every 3 s -> bounded lead/pending, no time-ahead, server never waits, recovers
+ok 12 - loop stall: input loop frozen 700 ms every 3 s -> bounded lead/pending, no time-ahead, server never waits, recovers
+# \# reconnect: same seat p1; outage+handshake 1222 ms; missed from drop to 1 s after resync 127 frames (~1.06 s); steady-state after: 0/601 (0.00 %); lead 30
+ok 13 - reconnect while stalling: socket dropped during a stall -> same seat; handshake loss reported separately; steady-state input recovers (< 2 % missed)
+ok 14 - input loop starts NEUTRAL (frame 0 would be full left), holds the last page frame, releases after the stale-page window
+ok 15 - worker host: connect -> welcome/lobby events with state; allow-listed calls only; timed state publication; leave stops the loop
+ok 16 - worker host: race end to end - keys reach the server racer (via frames), view published, results, same-room rematch
+ok 17 - worker host: server drops the socket -> auto-reconnect to the same seat; unknown room -> fatal error event
+# pass 17
+# fail 0

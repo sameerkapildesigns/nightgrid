@@ -17,10 +17,13 @@
     "test:net": "node --test \"tests/net/*.test.mjs\"",
     "test:matrix": "node tests/net/matrix.mjs",
     "mp:server": "node server/local.mjs",
-    "mp": "vite build && node server/local.mjs",
+    "mp": "vite build --mode localmp --outDir dist-local && node server/local.mjs --dist dist-local",
     "build-id": "node scripts/build-id.mjs",
     "test:mp": "vite build --mode test --outDir dist-test && node tests/e2e/mp-run.mjs",
-    "test:worker": "vite build && node --test --test-concurrency=1 tests/worker/wrangler.test.mjs"
+    "test:worker": "vite build && node --test --test-concurrency=1 tests/worker/wrangler.test.mjs",
+    "test:xo": "node tests/e2e/xo-run.mjs",
+    "check:deploy": "node scripts/check-deploy.mjs",
+    "backend:dry-run": "sh scripts/deploy-backend.sh staging"
   },
   "dependencies": {
     "three": "0.170.0"

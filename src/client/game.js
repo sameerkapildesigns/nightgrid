@@ -18,6 +18,7 @@ import { WorkerNet } from './net-proxy.js';
 import { Interpolator, VIEW_FIELDS } from '../net/netcode.js';
 import { encodeFrame } from '../net/protocol.js';
 import { driveLine } from '../net/driver.js';
+import { resolveMpConfig } from '../net/mp-config.js';
 import { createLobbyUI, errorText } from './lobby.js';
 import { createClock, createFpsMeter, SIM_DT } from '../core/clock.js';
 import { createRecordStore, memoryStorage, recordKey } from '../core/records.js';
@@ -2489,8 +2490,11 @@ async function boot() {
 const BUILD = __NG_BUILD__;
 const MP = { net: null, race: null, ui: null, results: null, preparing: false, autodrive: false, leaveArm: 0, lastErr: null };
 const MP_T = {}; let mpRenderN = 0, mpLastRender = 0; const mpRenderGaps = [];
-const mpApi = path => new URL('./' + path, location.href).toString();
-const mpWsBase = () => { const u = new URL('./', location.href); return (u.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + u.host + u.pathname.replace(/\/$/, ''); };
+// Backend location: VITE_MP_API_BASE at build time (production: required, https, e.g. the workers.dev URL);
+// dev/test without it: same origin (Vite proxy / local runtime). See src/net/mp-config.js.
+const MPC = resolveMpConfig({ mode: import.meta.env.MODE, apiBase: import.meta.env.VITE_MP_API_BASE, pageUrl: location.href });
+const mpApi = path => MPC.http + '/' + path;
+const mpWsBase = () => MPC.ws;
 const mpSimEvents = {
   earn: (t, c) => earnPopup(t, c), cp: cpFlash, sfx: (name, ...a) => { if (typeof AU[name] === 'function') AU[name](...a); },
   shake: x => { CC.shake += x; }, kick: x => { CC.kick += x; },
@@ -2709,7 +2713,7 @@ MP.ui = createLobbyUI({ el: $('mpPanel'), getNet: () => MP.net, onCreate: mpCrea
   onOpenChange: on => { GAR.fit = null; if (!on) $('mpBtn').focus({ preventScroll: true }); } });
 $('mpBtn').addEventListener('click', () => { $('mpBtn').blur(); MP.ui.show(!MP.ui.open); });
 { const q = new URLSearchParams(location.search).get('room'); if (q) { MP.ui.setCode(q); MP.ui.show(true); } }
-if (import.meta.env.VITE_MP === '0') { $('mpBtn').remove(); }
+if (import.meta.env.VITE_MP === '0' || !MPC.enabled) { $('mpBtn').remove(); if (!MPC.enabled) console.info('[NIGHTGRID] multiplayer disabled:', MPC.reason); }
 
 resize();
 // ---------- debug / QA hooks: compiled into dev and `--mode test` builds only ----------

@@ -1,15 +1,13 @@
-# NIGHTGRID multiplayer: Cloudflare Workers FREE plan configuration (NOT deployed by this branch).
-# Deployment needs Sameer's own free Cloudflare account and an explicit go-ahead; see docs/M4-DEPLOY-FREE.md.
-# No secrets are needed or stored here. Free plan: SQLite-backed Durable Objects only (new_sqlite_classes).
-name = "nightgrid"
+# NIGHTGRID multiplayer BACKEND only (Cloudflare Workers FREE plan). The game frontend stays on Vercel at
+# https://nightgrid.sameerkapil.com (unchanged DNS). This Worker serves only /api/* on workers.dev.
+# NOT deployed by this branch. Deployment needs Sameer's own free Cloudflare account and an explicit go-ahead:
+# see docs/M4-DEPLOY-FREE.md. No secrets are needed or stored here; the workers.dev URL is public.
+# Free plan: SQLite-backed Durable Objects only (new_sqlite_classes). No KV/R2/D1/Queues/custom domains.
+name = "nightgrid-mp"
 main = "server/worker.js"
 compatibility_date = "2026-11-01"
-
-[assets]
-directory = "./dist"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = ["/api/*"]
+workers_dev = true
+routes = []          # explicit: no routes, no zone_id, no custom_domain. DNS / zones are never touched.
 
 [[durable_objects.bindings]]
 name = "ROOMS"
@@ -24,10 +22,38 @@ tag = "v1"
 new_sqlite_classes = ["Room", "Registry"]
 
 [vars]
-# Conservative app-side guard (NOT a Cloudflare guarantee). Adjust before an event only after the load test.
-DAILY_ROOM_MINUTES = "240"     # 4 room-hours/day across ALL rooms
-MAX_ACTIVE_ROOMS = "3"          # concurrent rooms (raise to 5 for a heats event only after approval)
+# Exact browser origins allowed to call this backend (comma-separated, no wildcards).
+ALLOWED_ORIGINS = "https://nightgrid.sameerkapil.com"
+# Conservative app-side guard shared by all rooms (NOT a Cloudflare guarantee).
+DAILY_ROOM_MINUTES = "240"
+MAX_ACTIVE_ROOMS = "3"
 ROOM_MAX_MINUTES = "60"
 BUDGET_SAFETY = "0.85"
 MAX_CREATES_PER_DAY = "200"
-ALLOWED_ORIGINS = ""            # empty = same host only; e.g. "https://nightgrid.<account>.workers.dev"
+
+# Staging backend (deploy first): `npx wrangler deploy --env staging ...` -> nightgrid-mp-staging.<account>.workers.dev
+# Add the exact Vercel PREVIEW origin(s) for the claude/m4-multiplayer branch before testing previews.
+[env.staging]
+name = "nightgrid-mp-staging"
+workers_dev = true
+routes = []
+
+[[env.staging.durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[env.staging.durable_objects.bindings]]
+name = "REGISTRY"
+class_name = "Registry"
+
+[[env.staging.migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room", "Registry"]
+
+[env.staging.vars]
+ALLOWED_ORIGINS = "https://nightgrid.sameerkapil.com"   # + ",https://<branch-preview>.vercel.app" (exact URL from Vercel)
+DAILY_ROOM_MINUTES = "120"
+MAX_ACTIVE_ROOMS = "2"
+ROOM_MAX_MINUTES = "45"
+BUDGET_SAFETY = "0.85"
+MAX_CREATES_PER_DAY = "100"
