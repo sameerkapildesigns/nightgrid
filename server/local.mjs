@@ -18,6 +18,23 @@ import { computeBuildId } from '../scripts/build-id.mjs';
 const random = b => webcrypto.getRandomValues(b);
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.glb': 'model/gltf-binary', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.woff2': 'font/woff2' };
 
+// netsim lane: delayed delivery that keeps send order, like one TCP/WebSocket stream. One FIFO queue and
+// one timer per lane. (The previous version armed one setTimeout per message; messages due in the same
+// millisecond but scheduled with different durations sit in different Node timer lists and could fire out
+// of order, e.g. lobby v10 delivered after v11..v13, so a client kept a stale room. Test tool only.)
+export function netLane(enabled, dueAt, outageUntil = () => 0, clock = Date.now) {
+  const q = []; let tail = 0, timer = null, head = 0;
+  const drain = () => {
+    timer = null;
+    try { while (head < q.length && q[head][0] <= clock()) { const fn = q[head][1]; q[head++] = null; fn(); } }
+    finally { if (head > 1024) { q.splice(0, head); head = 0; } arm(); }
+  };
+  const arm = () => { if (timer || head >= q.length) return; timer = setTimeout(drain, Math.max(0, q[head][0] - clock())); };
+  return fn => {
+    if (!enabled()) return fn();
+    const at = Math.max(tail, dueAt(), outageUntil()); tail = at; q.push([at, fn]); arm();
+  };
+}
 export async function startLocalServer(opts = {}) {
   const o = { port: 8787, host: '127.0.0.1', dist: 'dist', netsim: false, lagMs: 0, jitterMs: 0, origins: null, budget: {}, room: {}, log: true, createPerMin: 10, ...opts };
   const build = o.build || computeBuildId();
@@ -50,7 +67,7 @@ export async function startLocalServer(opts = {}) {
   }
   // ---- netsim: ordered, delayed delivery per direction ----
   const delay = () => Math.max(0, net.lagMs / 2 + (Math.random() * 2 - 1) * net.jitterMs / 2);
-  function lane() { let tail = 0; return fn => { if (!o.netsim) return fn(); const now = Date.now(); const at = Math.max(tail, now + delay(), net.outageUntil); tail = at; setTimeout(fn, at - now); }; }
+  const lane = () => netLane(() => o.netsim, () => Date.now() + delay(), () => net.outageUntil);
 
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x'); const host = req.headers.host;

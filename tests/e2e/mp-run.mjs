@@ -61,10 +61,14 @@ async function raceAndFinish(ps, { label, full = false, shots = true }) {
   const host = ps[0];
   await waitMp(host, 'm => m.room && m.room.canStart', 30000);
   const rsv = [...srv.rooms.values()].find(r => r.room.seats.some(x => x.name === host.name)); if (rsv) rsv.cfg.maxRaceMs = full ? 300000 : 50000;
+  // the test driver is armed in every page BEFORE start (it only acts once the worker has a race), in
+  // parallel: on software GL each page.evaluate waits for a render frame (7-14 s with 4 pages), so arming it
+  // page by page after start let a 50 s capped race end before any desktop car got throttle (B-4h: server
+  // saw up=0 for the whole race; only the phone's touch auto-throttle drove, and it shoved the others)
+  await Promise.all(ps.map(p => p.page.evaluate(t => { __ng.mpAutodrive(true); window.__ngRenderEvery = t; }, THROTTLE)));
   await click(host, '[data-act=start]');
-  for (const p of ps) await waitMp(p, 'm => m.race || m.results', 180000);
-  for (const p of ps) await p.page.evaluate(t => { __ng.mpAutodrive(true); window.__ngRenderEvery = t; }, THROTTLE);
-  for (const p of ps) await waitMp(p, 'm => m.state === "race" || m.state === "finished" || m.results', 180000);
+  await Promise.all(ps.map(p => waitMp(p, 'm => m.race || m.results', 180000)));
+  await Promise.all(ps.map(p => waitMp(p, 'm => m.state === "race" || m.state === "finished" || m.results', 180000)));
   const tRace = Date.now();
   await sleep(9000);
   if (shots) for (const p of ps) await shot(p, `${label}-race-${p.name}-${p.kind}`);
