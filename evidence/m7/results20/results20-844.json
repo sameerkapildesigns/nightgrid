@@ -1,0 +1,49 @@
+{
+ "viewport": [
+  844,
+  390
+ ],
+ "before": {
+  "rows": 20,
+  "results": 20,
+  "vh": 390,
+  "scrollTop": 0,
+  "scrollMax": 236,
+  "lastTop": 504,
+  "lastBottom": 525,
+  "lastVisible": false,
+  "lastText": "P20Racer11--:--.---DNF",
+  "back": [
+   329,
+   369
+  ],
+  "backHit": true,
+  "backLabel": "BACK TO LOBBY"
+ },
+ "afterTouchScroll": {
+  "rows": 20,
+  "results": 20,
+  "vh": 390,
+  "scrollTop": 236,
+  "scrollMax": 236,
+  "lastTop": 268,
+  "lastBottom": 289,
+  "lastVisible": true,
+  "lastText": "P20Racer11--:--.---DNF",
+  "back": [
+   329,
+   369
+  ],
+  "backHit": true,
+  "backLabel": "BACK TO LOBBY"
+ },
+ "backTapReturned": true,
+ "afterBack": {
+  "state": "title",
+  "inRoom": true,
+  "phase": "lobby",
+  "panel": true
+ },
+ "pageErrors": 0,
+ "firstErr": null
+}
