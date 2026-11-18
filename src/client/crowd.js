@@ -4,10 +4,9 @@
 // Labels: a remote's name tag shows only if it is within LABEL_M of the camera, on screen, among the
 // LABEL_MAX nearest, and at least MIN_PX away (screen space) from every nearer label already shown.
 // Detail: 'full' = model + trails/exhaust/sparks/wheel animation; 'lite' = same model, effects off;
-// 'far' = cheap proxy instead of the model, ONLY when CROWD.PROXY is true. PROXY is false: distant model
-// substitution awaits explicit visual approval (parent review 18 Nov), so today remotes are only 'full' or 'lite'. The FULL_MAX nearest remotes within FULL_M stay 'full'
+// 'far' = cheap proxy instead of the model. The FULL_MAX nearest remotes within FULL_M stay 'full'
 // (near cars keep their detail); hysteresis (HYST m) stops threshold flicker.
-export const CROWD = { PROXY: false, LABEL_MAX: 6, LABEL_M: 140, MIN_PX: 44, FULL_MAX: 5, FULL_M: 60, FAR_M: 160, HYST: 12 };
+export const CROWD = { LABEL_MAX: 6, LABEL_M: 140, MIN_PX: 44, FULL_MAX: 5, FULL_M: 60, FAR_M: 160, HYST: 12 };
 
 // items: [{ id, dist, sx, sy, onScreen }] for REMOTE racers only (screen coords in CSS px).
 // prev: Map id -> previous detail level (for hysteresis). Returns Map id -> { label, detail }.
@@ -25,7 +24,7 @@ export function planCrowd(items, prev = new Map(), C = CROWD) {
     const was = prev.get(it.id) || 'full';
     const fullLim = C.FULL_M + (was === 'full' ? C.HYST : 0), farLim = C.FAR_M - (was === 'far' ? C.HYST : 0);
     let detail;
-    if (C.PROXY && it.dist > farLim) detail = 'far';
+    if (it.dist > farLim) detail = 'far';
     else if (full < C.FULL_MAX && it.dist <= fullLim) { detail = 'full'; full++; }
     else detail = 'lite';
     out.set(it.id, { label, detail });
