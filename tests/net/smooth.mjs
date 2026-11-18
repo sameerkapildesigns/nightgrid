@@ -86,7 +86,15 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
         c.frame(c.drive(R.pred)); R.pred.decay(dt);
         if (R.pred.sim.phase !== 'race' && R.pred.sim.phase !== 'finished') continue;
         const me = R.pred.me, sn = c.serverNow();
-        const cv = R.pred.correction, cl = { x: cv.x, y: cv.y, z: cv.z }; if (c.rec.lastCorr) (c.rec.corrDelta = c.rec.corrDelta || []).push(Math.hypot(cl.x - c.rec.lastCorr.x, cl.y - c.rec.lastCorr.y, cl.z - c.rec.lastCorr.z)); c.rec.lastCorr = cl;
+        // own visual offset as DRAWN: baseline = worker correction; new = page OwnSmoother.softCorr on top
+        const cv = R.pred.correction; let cl = { x: cv.x, y: cv.y, z: cv.z };
+        if (P) { c.own = c.own || new P.OwnSmoother(R.pred.sim.track.MAIN.L); const pc = c.own.softCorr({ time: R.pred.sim.time, me: R.pred.me, corr: cl }); cl = { x: pc.x, y: pc.y, z: pc.z }; }
+        // drawn world position = predicted world + drawn offset; second difference per frame (0 for steady
+        // motion; a visible lurch/snap shows up as a spike). Compensated reconcile jumps cancel here.
+        { const w = R.pred.me.world, D = { x: w.x + cl.x, y: w.y + cl.y, z: w.z + cl.z }, h = c.rec.Dh = c.rec.Dh || [];
+          h.push(D); if (h.length > 3) h.shift();
+          if (h.length === 3 && !(R.pred.me.crashed > 0)) { const j = Math.hypot(h[2].x - 2 * h[1].x + h[0].x, h[2].y - 2 * h[1].y + h[0].y, h[2].z - 2 * h[1].z + h[0].z); (c.rec.corrDelta = c.rec.corrDelta || []).push(j); if (j > 0.3 && (c.rec.bigCorr = c.rec.bigCorr || []).length < 10) c.rec.bigCorr.push({ j: +j.toFixed(2), step: R.pred.seq }); } }
+        c.rec.lastCorr = cl;
         const own = { prog: me.prog, s: me.s, d: me.d, br: me.path === R.pred.sim.track.BR, step: R.pred.seq, finished: me.finished };
         const rows = [['own', own.prog, own.s, own.d, own.br]];
         for (const id of ids) {
@@ -154,7 +162,7 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
     return {
       you: c.you, rttMs: +c.clock.rtt.toFixed(1), lead: c.lead, leadMs: +(c.lead * SIM_DT * 1000).toFixed(0),
       snapGapMs: sum(c.rec.snapGap), snapAgeMs: sum(c.stats.snapAges.slice(20)),
-      ownCorrectionM: sum(corr), ownCorrOver1m: corr.filter(x => x > 1).length, ownHardSnaps: P ? P.hard : 0, ownVisualM: sum(P ? P.visual.slice(10) : []), ownCorrDeltaPerFrameM: sum(c.rec.corrDelta || []),
+      ownCorrectionM: sum(corr), ownCorrOver1m: corr.filter(x => x > 1).length, ownHardSnaps: P ? P.hard : 0, ownVisualM: sum(P ? P.visual.slice(10) : []), ownDrawnJerkM: sum(c.rec.corrDelta || []), bigCorrFrames: c.rec.bigCorr || [],
       remoteFrameJumpM: sum(c.rec.jump || []), remoteJumpsOver1m: (c.rec.jump || []).filter(x => x > 1).length, remoteJumpsOver3m: (c.rec.jump || []).filter(x => x > 3).length,
       remoteDvPerFrame: sum(c.rec.dv || []), remoteDvOver20: (c.rec.dv || []).filter(x => x > 20).length,
       interpUnderruns: c.race ? c.race.interp.stats.underruns : null, bigJumps: c.rec.bigJ || [], stepOfMismatches: c.rec.stepMismatch || 0, presStats: c.pres ? { snapsHard: c.pres.stats.snaps_hard, horizonS: sum(c.pres.stats.horizonS), softM: sum(c.pres.stats.soft) } : null,
@@ -164,7 +172,7 @@ export async function run({ shove = 0, ram = false, mode = 'base', lagMs = 0, ji
     };
   });
   out.cfg = { ram, mode, lagMs, jitterMs, bots, secs, tight, outageAtS, full };
-  out.humanContactSteps = contacts; out.injectedShoves = shoves; out.server = { ticks: rs.stats.ticks, lateTicks: rs.stats.lateTicks, starved: rs.stats.starved, skipped: rs.stats.skippedFrames };
+  out.seed = rs.room.seed; out.humanContactSteps = contacts; out.injectedShoves = shoves; out.server = { ticks: rs.stats.ticks, lateTicks: rs.stats.lateTicks, starved: rs.stats.starved, skipped: rs.stats.skippedFrames };
   out.resultsAgree = full ? new Set(out.clients.map(x => x.results)).size === 1 : null;
   for (const c of clients) c.leave();
   await srv.close();

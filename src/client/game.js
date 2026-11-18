@@ -15,7 +15,7 @@ import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
 import { NetClient } from '../net/client.js';
 import { WorkerNet } from './net-proxy.js';
-import { RemotePresenter, stepOf } from './present.js';
+import { RemotePresenter, OwnSmoother, stepOf } from './present.js';
 import { VIEW_FIELDS } from '../net/netcode.js';
 import { encodeFrame } from '../net/protocol.js';
 import { driveLine } from '../net/driver.js';
@@ -2172,7 +2172,7 @@ function advanceFrame(now, render = true) {
   // brief slow motion right after the player crosses the line (finish camera)
   const ts = state === 'finished' && FIN.on && FIN.t < 2.2 ? 0.3 : 1;
   applyTilt();
-  if (MP.race) { const tn = performance.now(); if (mpLastRender && mpRenderGaps.length < 50000) mpRenderGaps.push(tn - mpLastRender); mpLastRender = tn; mpRenderN++; if (MP.net && MP.net.isWorker && (mpRenderN & 15) === 0) MP.net.refreshState(); mpFrame(wall, Math.min(wall, clock.maxCatchUp)); if (render && !(DEBUG && window.__ngRenderEvery > 1 && (mpRenderN % window.__ngRenderEvery))) renderNow(); return; }
+  if (MP.race) { const tn = performance.now(); if (mpLastRender && mpRenderGaps.length < 50000) mpRenderGaps.push(tn - mpLastRender); mpLastRender = tn; mpRenderN++; if (MP.net && MP.net.isWorker && (mpRenderN & 15) === 0) MP.net.refreshState(); mpFrame(wall, Math.min(wall, clock.maxCatchUp), now); if (render && !(DEBUG && window.__ngRenderEvery > 1 && (mpRenderN % window.__ngRenderEvery))) renderNow(); return; }
   const adv = clock.advance(wall, ts);
   if (adv.stalled) onStall(wall);
   for (let i = 0; i < adv.steps; i++) sim.step(adv.h);
@@ -2642,7 +2642,7 @@ async function mpBeginRace(m) {
   } finally { MP.preparing = false; }
 }
 const MP_COPY = VIEW_FIELDS;
-function mpFrame(wall, dt0) {
+function mpFrame(wall, dt0, nowMs = performance.now()) {
   const net = MP.net, RC = net && net.race;
   if (!RC || MP.preparing) { update(0, dt0); return; }
   let V;
@@ -2656,7 +2656,12 @@ function mpFrame(wall, dt0) {
   for (const k of MP_COPY) player[k] = me[k];
   player.path = me.br ? BR : MAIN;
   if (me.crashed > 0) { if (!wasCr && me.world) { player.world.set(me.world.x, me.world.y, me.world.z); player.crashVel = me.crashVel ? new V3(me.crashVel.x, me.crashVel.y, me.crashVel.z) : new V3(); player.crashSpin = me.crashSpin ? new V3(me.crashSpin.x, me.crashSpin.y, me.crashSpin.z) : new V3(); } player.crashed = me.crashed; }
-  else { player.crashed = 0; sim.pose(player); player.world.x += V.corr.x; player.world.y += V.corr.y; player.world.z += V.corr.z; }
+  else {   // own car: smoothed between worker views (60 Hz) for any display rate (src/client/present.js OwnSmoother)
+    player.crashed = 0;
+    const O = (RC.own || (RC.own = new OwnSmoother(MAIN.L))).frame(V, nowMs);
+    player.s = O.s; player.d = O.d; player.h = O.h; player.psi = O.psi; player.path = O.br ? BR : MAIN;
+    sim.pose(player); player.world.x += O.corr.x; player.world.y += O.corr.y; player.world.z += O.corr.z;
+  }
   sim.time = V.time; sim.raceStart = V.raceStart; sim.phase = state === 'countdown' ? 'grid' : (me.finished ? 'finished' : 'race'); sim.bestLap = me.bestLap;
   // remote cars <- dead-reckoned into the local car's timeline with soft correction (src/client/present.js)
   const PR = mpPresenter(RC), ownStep = stepOf(V.time, MP.race.msg);

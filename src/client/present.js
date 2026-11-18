@@ -107,6 +107,56 @@ export class RemotePresenter {
     return ahead + 1;
   }
 }
+// Own-car presentation between worker views. The worker publishes a view every second 8 ms tick
+// (measured 16.7 ms = 60 Hz), so on a 120 Hz display every other frame repeated the car (and the chase
+// camera) and the next frame doubled the step: 50% repeated frames, 0.48 m p50 per-frame error
+// (tests/net/cadence.mjs). Here each rendered frame advances a presentation clock with wall time (slewed
+// to the newest view's sim time + its age) and moves the car from the newest view by the rates measured
+// between the last two views (finite differences: includes track curvature and the decaying visual
+// correction). Bounded: at most OWN_EXTRAP_MAX_S ahead, no extrapolation across a branch change or crash.
+export const OWN_EXTRAP_MAX_S = 0.05, OWN_RESYNC_S = 0.05;
+export const WORKER_CORR_RATE = 12, OWN_CORR_RATE = 5, OWN_CORR_MAX_M = 6;   // 12 = netcode.js SMOOTH_RATE (asserted in tests/unit/present.test.mjs)
+const OWN_KEYS = ['s', 'd', 'h', 'psi'];
+export class OwnSmoother {
+  constructor(L) { this.L = L; this.a = null; this.b = null; this.P = null; this.lastNow = null; this.stats = { views: 0, resyncs: 0, holds: 0 }; }
+  reset() { this.a = this.b = null; this.P = null; this.wc = null; this.pc = null; }
+  // Softer visual correction for the local car, page-side (src/net/netcode.js is part of the network
+  // build id, so its SMOOTH_RATE = 12/s stays). Per view: keep every change the worker made to its offset
+  // EXCEPT its own decay, then decay at OWN_CORR_RATE instead. A reconciliation keeps the drawn position
+  // continuous either way; this only slows how fast the car slides back (contact / misprediction).
+  softCorr(v) {
+    const w = v.corr, dt = this.wc ? Math.max(0, v.time - this.wc.t) : 0;
+    if (!this.wc || !this.pc || dt > 0.5 || v.me.crashed > 0) { this.pc = { x: w.x, y: w.y, z: w.z }; this.wc = { x: w.x, y: w.y, z: w.z, t: v.time }; return this.pc; }
+    const kw = Math.exp(-WORKER_CORR_RATE * dt), kp = Math.exp(-OWN_CORR_RATE * dt);
+    for (const a of ['x', 'y', 'z']) this.pc[a] = this.pc[a] * kp + (w[a] - this.wc[a] * kw);
+    const m = Math.hypot(this.pc.x, this.pc.y, this.pc.z); if (m > OWN_CORR_MAX_M) { const k = OWN_CORR_MAX_M / m; this.pc.x *= k; this.pc.y *= k; this.pc.z *= k; this.stats.corrCaps = (this.stats.corrCaps || 0) + 1; }
+    this.wc = { x: w.x, y: w.y, z: w.z, t: v.time };
+    return this.pc;
+  }
+  frame(v, nowMs) {
+    const me = v.me;
+    if (!this.b || v.time > this.b.time || v.time < this.b.time - 1) {   // new view (a large backwards jump = new race)
+      if (this.b && v.time < this.b.time) this.reset();
+      const c = this.softCorr(v);
+      this.a = this.b; this.b = { time: v.time, s: me.s, d: me.d, h: me.h, psi: me.psi, br: !!me.br, cx: c.x, cy: c.y, cz: c.z, at: nowMs, crashed: me.crashed > 0 }; this.stats.views++;
+    }
+    const a = this.a, b = this.b, dtw = this.lastNow == null ? 0 : (nowMs - this.lastNow) / 1000; this.lastNow = nowMs;
+    const target = b.time + Math.min(OWN_EXTRAP_MAX_S, (nowMs - b.at) / 1000);
+    if (this.P == null || Math.abs(target - this.P) > OWN_RESYNC_S) { if (this.P != null) this.stats.resyncs++; this.P = target; }
+    else { this.P += dtw; this.P += (target - this.P) * Math.min(1, dtw * 8); }
+    const h = Math.max(-OWN_EXTRAP_MAX_S, Math.min(OWN_EXTRAP_MAX_S, this.P - b.time));
+    const out = { s: b.s, d: b.d, h: b.h, psi: b.psi, br: b.br, va: 0, corr: { x: b.cx, y: b.cy, z: b.cz } };
+    if (!a || a.br !== b.br || a.crashed || b.crashed || !(b.time > a.time)) { this.stats.holds++; return out; }
+    const k = h / (b.time - a.time);
+    let ds = b.s - a.s; if (!b.br) { if (ds > this.L / 2) ds -= this.L; if (ds < -this.L / 2) ds += this.L; }
+    out.s = b.br ? b.s + ds * k : mod(b.s + ds * k, this.L);
+    out.d = b.d + (b.d - a.d) * k; out.h = b.h + (b.h - a.h) * k; out.psi = wrapA(b.psi + wrapA(b.psi - a.psi) * k);
+    out.corr.x = b.cx + (b.cx - a.cx) * k; out.corr.y = b.cy + (b.cy - a.cy) * k; out.corr.z = b.cz + (b.cz - a.cz) * k;
+    out.va = ds / (b.time - a.time);
+    return out;
+  }
+}
+
 // Local prediction step from a published view's sim time. The predictor starts at the race message's
 // step/time and adds SIM_DT per step; reconciliation copies the server's time, so this is exact up to
 // float rounding (verified against Predictor.seq in tests/net/smooth.mjs). Keeps src/net unchanged.

@@ -1,0 +1,37 @@
+{
+ "cfg": {
+  "mode": "base",
+  "hz": 60,
+  "secs": 20,
+  "lagMs": 100,
+  "jitterMs": 30,
+  "seed": 2215199451
+ },
+ "frames": 1228,
+ "renderFrameMs": {
+  "n": 1227,
+  "p50": 16.6667,
+  "p95": 16.687,
+  "p99": 17.5532,
+  "max": 20.3202
+ },
+ "viewGapMs": {
+  "n": 1350,
+  "p50": 16.663,
+  "p95": 17.6956,
+  "p99": 19.1211,
+  "max": 22.683
+ },
+ "ownFrameErrM": {
+  "n": 1227,
+  "p50": 0.0027,
+  "p95": 0.4667,
+  "p99": 0.549,
+  "max": 1.2399
+ },
+ "ownFrameErrOver02m": 85,
+ "ownFrameErrOver05m": 19,
+ "repeatedFrames": 1,
+ "stepsPerFrameHist": {},
+ "smoother": null
+}
