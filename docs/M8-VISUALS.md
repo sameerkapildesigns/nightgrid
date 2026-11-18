@@ -57,4 +57,4 @@ The adaptive perf safeguards (pixel ratio, bloom fallbacks, ground culling) are 
 - No camera, FOV, gameplay or HUD changes.
 - Legacy is mostly a palette, sky, rain, crown and edge treatment (the cheap tier, as agreed).
 - The PMREM environment reflection map is still the shared night map on all themes. Kage reflections therefore stay slightly cool. A per-theme `buildEnv` would cost about 1 PMREM pass per map switch; not done.
-- Full `npm run test:e2e` was not run here because the Playwright browser bundle is not installed in this container. Unit tests pass 126/126. The visual-shot run loads all 3 maps at 2 viewports with page errors captured (see the json).
+- Full `npm run test:e2e` was not run here because the Playwright browser bundle is not installed in this container. Unit tests (`npm test`) pass 158/158. The visual-shot run loads all 3 maps at 2 viewports with page errors captured (see the json).

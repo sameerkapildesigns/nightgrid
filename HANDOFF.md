@@ -5,7 +5,7 @@
 - Themes: Velocity "Neon Heights" (cyan/violet, setbacks/spires/halo rings, edge fins), Kage "Harbour" (dusk sky + sun, warehouses/sawtooth, containers, gantry cranes, bollards, teal ground), Legacy "Neon Rain" (magenta palette, heavier rain, posts).
 - Hover taxi: procedural, 620 tris, 2 materials, instanced: 7 taxis 49 -> 4 draw calls; contact box (core) untouched.
 - Measured (SwiftShader, same poses): calls -27..+11, tris +5..+14% (evidence/m8/RENDER-DELTAS.md). No hardware/20-device FPS claimed.
-- Unit 126/126. test:e2e not run (no Playwright browser bundle in container); visual-shots run with no page errors.
+- Unit (npm test) 158/158. test:e2e not run (no Playwright browser bundle in container); visual-shots run with no page errors.
 
 ## (older) M5 local-first sync
 
