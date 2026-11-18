@@ -1,0 +1,51 @@
+PASS  E rtt100: 4 humans in one room, all ready  — [["Kai",true],["Lea",true],["Max",true],["Noa",true]]
+PASS  E rtt100: all four use the input worker  — true,true,true,true
+PASS  E-rtt100-race1-4phones: every player is racing (local car moving)  — 4831.6,5135.1,4763.6,5207.5
+PASS  E-rtt100-race1-4phones: every client shows the SAME server result order  — [[1,"p2",178.025,false],[2,"p4",178.233,false],[3,"p1",185.442,false],[4,"p3",188.75,false]]
+PASS  E-rtt100-race1-4phones: every HUMAN finished the race (no human DNF)  — [[1,"p2",178.025,false],[2,"p4",178.233,false],[3,"p1",185.442,false],[4,"p3",188.75,false]]
+TARGET PASS  E-rtt100-race1-4phones: server ticks over the 50 ms budget <= 0.5 % (server shares this host's 2 cores with the browsers)  — ticks 3764, tick p95 1.42 ms, overruns 14, late ticks 61, dropped 163 ms, starved frames 37, skipped frames 0, rejected {}
+INFO  E-rtt100-race1-4phones p1: server input  — frames consumed 22650, missed 8 (0.0 %), skipped 0, max queued 61
+INFO  E-rtt100-race1-4phones p2: server input  — frames consumed 22650, missed 10 (0.0 %), skipped 0, max queued 65
+INFO  E-rtt100-race1-4phones p3: server input  — frames consumed 22650, missed 10 (0.0 %), skipped 0, max queued 63
+INFO  E-rtt100-race1-4phones p4: server input  — frames consumed 22650, missed 9 (0.0 %), skipped 0, max queued 62
+PASS  E-rtt100-race1-4phones: no records offered from multiplayer
+TARGET PASS  E-rtt100-race1-4phones p1: mispredict p95 <= 1 m  — 0.000 m
+TARGET PASS  E-rtt100-race1-4phones p1: hard snaps <= 2/min  — 0 in 2.5 min
+INFO  E-rtt100-race1-4phones p1: client  — worker true, rtt 100.3 ms, lead 14, fps 0.8, render every 1, render gaps {"p50":3081,"p95":4800,"over250ms":59,"over1s":59,"frames":59}, net {"loop":{"ticks":64806,"maxGapMs":135,"keyUpdates":108},"snaps":3764,"sentMsgs":3908,"recvMsgs":4302,"behindMax":15,"resyncSteps":0,"ahead":[]}
+TARGET PASS  E-rtt100-race1-4phones p2: mispredict p95 <= 1 m  — 0.000 m
+TARGET PASS  E-rtt100-race1-4phones p2: hard snaps <= 2/min  — 0 in 2.5 min
+INFO  E-rtt100-race1-4phones p2: client  — worker true, rtt 100 ms, lead 14, fps 1, render every 1, render gaps {"p50":3110,"p95":5236,"over250ms":59,"over1s":59,"frames":59}, net {"loop":{"ticks":60699,"maxGapMs":94,"keyUpdates":103},"snaps":3764,"sentMsgs":3878,"recvMsgs":4268,"behindMax":16,"resyncSteps":0,"ahead":[]}
+TARGET PASS  E-rtt100-race1-4phones p3: mispredict p95 <= 1 m  — 0.000 m
+TARGET PASS  E-rtt100-race1-4phones p3: hard snaps <= 2/min  — 0 in 2.5 min
+INFO  E-rtt100-race1-4phones p3: client  — worker true, rtt 99.4 ms, lead 14, fps 0.7, render every 1, render gaps {"p50":3210,"p95":5584,"over250ms":56,"over1s":56,"frames":56}, net {"loop":{"ticks":51766,"maxGapMs":124,"keyUpdates":99},"snaps":3764,"sentMsgs":3809,"recvMsgs":4196,"behindMax":13,"resyncSteps":0,"ahead":[]}
+TARGET PASS  E-rtt100-race1-4phones p4: mispredict p95 <= 1 m  — 0.382 m
+TARGET PASS  E-rtt100-race1-4phones p4: hard snaps <= 2/min  — 0 in 2.5 min
+INFO  E-rtt100-race1-4phones p4: client  — worker true, rtt 99.4 ms, lead 15, fps 1, render every 1, render gaps {"p50":3216,"p95":6185,"over250ms":57,"over1s":57,"frames":57}, net {"loop":{"ticks":37726,"maxGapMs":123,"keyUpdates":84},"snaps":3764,"sentMsgs":3694,"recvMsgs":4083,"behindMax":15,"resyncSteps":0,"ahead":[]}
+PASS  E rtt100: same room after results (code unchanged, 4 seats, one room on the server)  — G3YM6H 4 rooms=1
+PASS  E-rtt100-race2-rematch-4phones: every player is racing (local car moving)  — 5745.9,5614.6,5707.9,5694.3
+PASS  E-rtt100-race2-rematch-4phones: every client shows the SAME server result order  — [[1,"p1",174.733,false],[2,"p3",175.492,false],[3,"p2",176.258,false],[4,"p4",176.483,false]]
+PASS  E-rtt100-race2-rematch-4phones: every HUMAN finished the race (no human DNF)  — [[1,"p1",174.733,false],[2,"p3",175.492,false],[3,"p2",176.258,false],[4,"p4",176.483,false]]
+TARGET PASS  E-rtt100-race2-rematch-4phones: server ticks over the 50 ms budget <= 0.5 % (server shares this host's 2 cores with the browsers)  — ticks 7317, tick p95 1.26 ms, overruns 24, late ticks 102, dropped 0 ms, starved frames 48, skipped frames 0, rejected {}
+INFO  E-rtt100-race2-rematch-4phones p1: server input  — frames consumed 21183, missed 4 (0.0 %), skipped 0, max queued 37
+INFO  E-rtt100-race2-rematch-4phones p2: server input  — frames consumed 21183, missed 2 (0.0 %), skipped 0, max queued 30
+INFO  E-rtt100-race2-rematch-4phones p3: server input  — frames consumed 21183, missed 2 (0.0 %), skipped 0, max queued 32
+INFO  E-rtt100-race2-rematch-4phones p4: server input  — frames consumed 21183, missed 3 (0.0 %), skipped 0, max queued 33
+PASS  E-rtt100-race2-rematch-4phones: no records offered from multiplayer
+TARGET PASS  E-rtt100-race2-rematch-4phones p1: mispredict p95 <= 1 m  — 0.332 m
+TARGET PASS  E-rtt100-race2-rematch-4phones p1: hard snaps <= 2/min  — 0 in 2.4 min
+INFO  E-rtt100-race2-rematch-4phones p1: client  — worker true, rtt 100.3 ms, lead 34, fps 1.1, render every 1, render gaps {"p50":3161,"p95":4800,"over250ms":147,"over1s":147,"frames":147}, net {"loop":{"ticks":117231,"maxGapMs":136,"keyUpdates":246},"snaps":7317,"sentMsgs":7487,"recvMsgs":8282,"behindMax":15,"resyncSteps":0,"ahead":[]}
+TARGET PASS  E-rtt100-race2-rematch-4phones p2: mispredict p95 <= 1 m  — 0.164 m
+TARGET PASS  E-rtt100-race2-rematch-4phones p2: hard snaps <= 2/min  — 0 in 2.4 min
+INFO  E-rtt100-race2-rematch-4phones p2: client  — worker true, rtt 99.3 ms, lead 30, fps 0.6, render every 1, render gaps {"p50":3116,"p95":4828,"over250ms":161,"over1s":160,"frames":161}, net {"loop":{"ticks":113077,"maxGapMs":177,"keyUpdates":260},"snaps":7317,"sentMsgs":7458,"recvMsgs":8248,"behindMax":16,"resyncSteps":0,"ahead":[]}
+TARGET PASS  E-rtt100-race2-rematch-4phones p3: mispredict p95 <= 1 m  — 0.927 m
+TARGET PASS  E-rtt100-race2-rematch-4phones p3: hard snaps <= 2/min  — 0 in 2.4 min
+INFO  E-rtt100-race2-rematch-4phones p3: client  — worker true, rtt 99.6 ms, lead 32, fps 1.1, render every 1, render gaps {"p50":3167,"p95":4559,"over250ms":168,"over1s":168,"frames":168}, net {"loop":{"ticks":104475,"maxGapMs":125,"keyUpdates":242},"snaps":7317,"sentMsgs":7396,"recvMsgs":8179,"behindMax":13,"resyncSteps":0,"ahead":[]}
+TARGET PASS  E-rtt100-race2-rematch-4phones p4: mispredict p95 <= 1 m  — 0.232 m
+TARGET PASS  E-rtt100-race2-rematch-4phones p4: hard snaps <= 2/min  — 0 in 2.4 min
+INFO  E-rtt100-race2-rematch-4phones p4: client  — worker true, rtt 100.3 ms, lead 33, fps 1.1, render every 1, render gaps {"p50":3128,"p95":4180,"over250ms":181,"over1s":181,"frames":181}, net {"loop":{"ticks":90137,"maxGapMs":124,"keyUpdates":206},"snaps":7317,"sentMsgs":7277,"recvMsgs":8064,"behindMax":15,"resyncSteps":0,"ahead":[]}
+PASS  Kai: no page errors
+PASS  Lea: no page errors
+PASS  Max: no page errors
+PASS  Noa: no page errors
+15/15 functional checks passed; 18/18 quality targets met (render every 1 frame(s))
+EXIT 0

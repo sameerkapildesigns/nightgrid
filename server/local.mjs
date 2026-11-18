@@ -69,7 +69,11 @@ export async function startLocalServer(opts = {}) {
       }
       const m = url.pathname.match(/^\/api\/rooms\/([A-Za-z0-9]+)$/);
       if (m && req.method === 'GET') { const code = normalizeCode(m[1]); const r = validCode(code) && rooms.get(code); if (!r) return json(404, { ok: false, error: 'no-room' }); return json(200, { ok: true, phase: r.room.phase, seats: r.room.seats.length }); }
-      if (url.pathname === '/api/health') return json(200, { ok: true, build, rooms: rooms.size, budget: budget.report(Date.now()) });
+      if (url.pathname === '/api/health') return json(200, { ok: true, build, rooms: rooms.size, budget: budget.report(Date.now()),
+        // --netsim (test tool) only: per-room input/tick counters for out-of-process test assertions
+        ...(o.netsim ? { debug: [...rooms.values()].map(r => ({ code: r.code, phase: r.room.phase, step: r.step, stats: { ticks: r.stats.ticks, overruns: r.stats.overruns, starved: r.stats.starved, skipped: r.stats.skippedFrames, rejected: r.stats.rejected },
+          racers: r.sim ? r.sim.racers.map(x => ({ id: x.id, ai: !!x.isAI, lap: x.lap, prog: +x.prog.toFixed(1), finished: x.finished })) : null,
+          inputs: Object.fromEntries([...r.inputs].map(([id, q]) => [id, { consumed: q.next, missed: q.starve, skipped: q.skipped, maxQ: q.maxQ }])) })) } : {}) });
       return json(404, { ok: false, error: 'not-found' });
     }
     // static files from dist/ (path traversal safe)

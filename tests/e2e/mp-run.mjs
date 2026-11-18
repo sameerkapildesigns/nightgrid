@@ -146,6 +146,26 @@ try {
     await raceAndFinish([a], { label: 'C-1h3b', full: true });
     await close([a]);
   }
+  if (run('E')) {   // ACCEPTANCE: four phone-sized touch browsers, 4 humans, full race + same-room rematch full race
+    const LAG = +(process.env.NG_LAG || 0), names = ['Kai', 'Lea', 'Max', 'Noa'];
+    const host = await player(names[0], 'phone'); const code = await create(host); const ps = [host];
+    for (const n of names.slice(1)) { const p = await player(n, 'phone'); await joinByCode(p, code); ps.push(p); }   // one browser at a time
+    await waitMp(host, 'm => m.room.seats.length === 4 && m.room.seats.every(s => s.connected)');
+    await click(host, '[data-act=map][data-map=technical]'); await click(host, '[data-act=mode][data-mode=assisted]');
+    await waitMp(ps[3], 'm => m.room.map === "technical"');
+    await readyAll(ps); await waitMp(host, 'm => m.room.canStart');
+    for (const p of ps) await shot(p, `E-rtt${LAG}-lobby-${p.name}`);
+    const lob = await mp(host); C(`E rtt${LAG}: 4 humans in one room, all ready`, lob.room.seats.length === 4 && lob.room.seats.every(s => s.kind === 'human' && s.ready), JSON.stringify(lob.room.seats.map(s => [s.name, s.ready])));
+    const w = await Promise.all(ps.map(mp)); C(`E rtt${LAG}: all four use the input worker`, w.every(m => m.worker), w.map(m => m.worker).join());
+    await raceAndFinish(ps, { label: `E-rtt${LAG}-race1-4phones`, full: true });
+    await backToLobby(ps);
+    if (await host.page.locator('[data-act=tolobby]').count()) await click(host, '[data-act=tolobby]');
+    for (const p of ps) await waitMp(p, 'm => m.room && m.room.phase === "lobby"');
+    const lob2 = await mp(host); C(`E rtt${LAG}: same room after results (code unchanged, 4 seats, one room on the server)`, lob2.code === code && lob2.room.seats.length === 4 && srv.rooms.size === 1, `${lob2.code} ${lob2.room.seats.length} rooms=${srv.rooms.size}`);
+    await readyAll(ps);
+    await raceAndFinish(ps, { label: `E-rtt${LAG}-race2-rematch-4phones`, full: true });
+    await close(ps);
+  }
   if (run('D')) {   // unthrottled single PHONE (touch, 844x390) + 3 bots, full race on Kage
     const a = await player('Joy', 'phone'); const code = await create(a); void code;
     for (let i = 0; i < 3; i++) await click(a, '[data-act=addbot]');

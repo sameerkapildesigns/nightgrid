@@ -2104,7 +2104,7 @@ if (DEBUG) $('qa').addEventListener('click', e => { const b = e.target.closest('
 const KEYMAP = { KeyW: 'up', ArrowUp: 'up', KeyS: 'down', ArrowDown: 'down', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right', KeyX: 'drift', ShiftLeft: 'boost', ShiftRight: 'boost', Space: 'boost' };
 addEventListener('keydown', e => {
   const k = KEYMAP[e.code];
-  if (k) { keys[k] = 1; e.preventDefault(); }
+  if (k) { keys[k] = 1; e.preventDefault(); mpPushKeys(); }
   if (e.repeat) return;
   if (state === 'title') { if (e.code === 'ArrowLeft' || e.code === 'KeyA') cycleCar(-1); if (e.code === 'ArrowRight' || e.code === 'KeyD') cycleCar(1); }
   if ((e.code === 'Enter' || e.code === 'Space') && state === 'intro') { endIntro(true); return; }
@@ -2115,9 +2115,13 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   if (e.code === 'KeyM') { AU.setMusic(!AU.music); flash(AU.music ? 'MUSIC ON' : 'MUSIC OFF', '#8a5cff'); }
 });
-addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) { keys[k] = 0; e.preventDefault(); } });
-addEventListener('blur', () => { for (const k in keys) keys[k] = 0; });
-document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'race' && !paused) togglePause(); });
+addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) { keys[k] = 0; e.preventDefault(); mpPushKeys(); } });
+addEventListener('blur', () => { for (const k in keys) keys[k] = 0; mpPushKeys(true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { if (MP.race) { releaseAllInputs(); mpPushKeys(true); } else if (state === 'race' && !paused) togglePause(); } });
+addEventListener('pagehide', () => { if (MP.race) { releaseAllInputs(); mpPushKeys(true); } });
+// multiplayer (worker path): every input change reaches the input worker immediately, not at the next
+// rendered frame; releases are forced through even if the frame looks unchanged
+function mpPushKeys(force = false) { const n = MP.net; if (n && n.isWorker && MP.race) n.setKeys(encodeFrame(keys), force); }
 function resize() {
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
@@ -2327,7 +2331,7 @@ $('cine').addEventListener('pointerdown', () => { if (state === 'intro') endIntr
 // screen.orientation.lock('landscape'); rejection/unsupported (e.g. iPhone Safari) falls back to
 // manual rotation. No CSS-rotated canvas.
 let touchRelease = () => {};
-function releaseAllInputs() { for (const k in keys) keys[k] = 0; touchRelease(); }
+function releaseAllInputs() { for (const k in keys) keys[k] = 0; touchRelease(); mpPushKeys(true); }
 const isPortrait = () => TOUCH && innerHeight > innerWidth;
 let orientLock = { requested: false, fullscreen: null, lock: null };
 function checkOrientation() {
@@ -2391,12 +2395,12 @@ document.body.classList.toggle('touchmode', TOUCH);
 if (TOUCH) {
   const held = {};
   for (const b of document.querySelectorAll('#touch button')) {
-    const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } }, off = e => { held[k] = 0; keys[k] = 0; b.classList.remove('on'); };
+    const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } mpPushKeys(); }, off = e => { held[k] = 0; keys[k] = 0; b.classList.remove('on'); mpPushKeys(e && e.type === 'pointercancel'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   }
   touchHeld = held;
   touchRelease = () => { tilt.reset(); for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
-  setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused) keys.up = held.down ? 0 : 1; }, 50);
+  setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused) { keys.up = held.down ? 0 : 1; mpPushKeys(); } }, 50);
   // (M2 fix) no inline pointer-events here: #cine is interactive only while .on (CSS); the
   // general #cine pointerdown handler above already covers touch.
 }

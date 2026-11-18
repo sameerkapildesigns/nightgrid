@@ -42,7 +42,7 @@ export class WorkerNet {
   refreshState() { this.post({ t: 'state' }); }
   autodrive(on) { this.post({ t: 'autodrive', on: !!on }); }
   // current input frame; re-sent at least every 200 ms so the worker never runs on an unknown frame
-  setKeys(f) { const t = performance.now(); if (f !== this.lastKeys || t - this.lastKeysAt > 200) { this.lastKeys = f; this.lastKeysAt = t; this.post({ t: 'keys', f }); } }
+  setKeys(f, force = false) { const t = performance.now(); if (force || f !== this.lastKeys || t - this.lastKeysAt > 200) { this.lastKeys = f; this.lastKeysAt = t; this.post({ t: 'keys', f }); } }
   get isHost() { return !!(this.room && this.you && this.room.hostId === this.you); }
   get me() { return this.room && this.room.seats.find(s => s.id === this.you); }
   serverNow() { return performance.timeOrigin + performance.now() + (this.K || 0); }
