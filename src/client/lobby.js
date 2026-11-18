@@ -34,28 +34,42 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
         <div class="or">or join with a code</div>
         <div class="joinrow"><input id="mpCode" class="tin code" maxlength="${CODE_LEN + 2}" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABC123" value="${esc(ui.codeIn)}" aria-label="Room code"><button class="btn mpbtn sm" data-act="join" ${ui.busy ? 'disabled' : ''}>Join</button></div>`;
     } else {
+      // in a room: sticky header (code, seats, copy, close) / scrolling body / sticky footer (ready, start, status)
+      // so the code, seats and the main action stay visible on 390 px tall phones
       const host = room.hostId === you, me = room.seats.find(s => s.id === you), lobby = room.phase === 'lobby';
-      const link = joinLink(room.code);
-      h += `<div class="codebox"><div><div class="glbl">Room code</div><div class="code" id="mpRoomCode">${esc(room.code)}</div></div>
-        <div class="cbtns"><button class="chip" data-act="copylink">${ui.copied && Date.now() - ui.copied < 2500 ? 'Copied ✓' : 'Copy invite link'}</button><button class="chip" data-act="copycode">Copy code</button></div></div>
-        <div class="glbl">Racers ${room.seats.length}/${room.maxSeats}${room.phase !== 'lobby' ? ' · ' + (room.phase === 'results' ? 'results' : 'racing') : ''}</div>
-        <ul class="seats" id="mpSeats">${room.seats.map(s => seatRow(s, room, you)).join('')}${Array.from({ length: room.maxSeats - room.seats.length }, () => '<li class="empty">Open seat</li>').join('')}</ul>`;
-      if (host && lobby) h += `<div class="hostrow"><button class="chip" data-act="addbot" ${room.seats.length >= room.maxSeats ? 'disabled' : ''}>Add bot</button><button class="chip" data-act="rmlastbot" ${room.seats.some(s => s.kind === 'bot') ? '' : 'disabled'}>Remove bot</button></div>`;
+      const copied = ui.copied && Date.now() - ui.copied < 2500;
+      h = `<div class="mphead"><div class="hc"><div class="glbl">Room code</div><div class="code" id="mpRoomCode">${esc(room.code)}</div></div>
+        <span class="cnt" id="mpCount" title="Racers">${room.seats.length}/${room.maxSeats}${room.phase !== 'lobby' ? ' · ' + (room.phase === 'results' ? 'results' : 'racing') : ''}</span>
+        <button class="chip" data-act="copylink">${copied ? 'Copied ✓' : 'Copy link'}</button><button class="chip" data-act="close" aria-label="Close room panel">Close</button></div>
+        <div class="mpbody"><ul class="seats" id="mpSeats">${room.seats.map(s => seatRow(s, room, you)).join('')}${Array.from({ length: room.maxSeats - room.seats.length }, () => '<li class="empty">Open seat</li>').join('')}</ul>`;
+      if (host && lobby) h += `<div class="hostrow"><button class="chip" data-act="addbot" ${room.seats.length >= room.maxSeats ? 'disabled' : ''}>Add bot</button><button class="chip" data-act="rmlastbot" ${room.seats.some(s => s.kind === 'bot') ? '' : 'disabled'}>Remove bot</button><button class="chip" data-act="copycode">Copy code</button></div>`;
       h += `<div class="glbl">Circuit${host ? '' : ' (host picks)'}</div><div class="seg" id="mpMaps">${MAP_KEYS.map(k => `<button class="${room.map === k ? 'on' : ''}" data-act="map" data-map="${k}" ${host && lobby ? '' : 'disabled'}>${MAPS[k].short}<small>${MAPS[k].laps} laps</small></button>`).join('')}</div>
         <div class="glbl">Driving mode (same for everyone)</div><div class="seg" id="mpModes">${[['assisted', 'Assisted'], ['expert', 'Expert']].map(([k, n]) => `<button class="${room.mode === k ? 'on' : ''}" data-act="mode" data-mode="${k}" ${host && lobby ? '' : 'disabled'}>${n}</button>`).join('')}</div>
-        <p class="hint">Your car and paint come from the garage behind this panel.</p>`;
+        <p class="hint">Your car and paint come from the garage behind this panel.</p>
+        <button class="ghost leave" data-act="leave">Leave room</button></div><div class="mpfoot">`;
       if (lobby && me) h += `<button class="btn mpbtn ${me.ready ? 'on' : ''}" data-act="ready">${me.ready ? 'Ready ✓ (tap to undo)' : "I'm ready"}</button>`;
       if (host && lobby) h += `<button class="btn mpbtn go" data-act="start" ${room.canStart ? '' : 'disabled'}>Start race</button><div class="why">${room.canStart ? 'Everyone is ready.' : esc(errorText(room.blocker))}</div>`;
       else if (lobby) h += `<div class="why">${room.canStart ? 'Waiting for the host to start.' : esc(errorText(room.blocker))}</div>`;
       if (room.phase === 'results' && host) h += `<button class="btn mpbtn" data-act="tolobby">Back to lobby now</button>`;
-      h += `<button class="ghost leave" data-act="leave">Leave room</button>`;
+      else if (room.phase === 'results') h += `<div class="why">The host can return everyone to the lobby.</div>`;
       if (net.status === 'reconnecting') h += `<div class="warn">Connection lost, reconnecting…</div>`;
+      if (ui.note) h += `<div class="note">${esc(ui.note)}</div>`;
+      if (ui.err) h += `<div class="err" role="alert">${esc(ui.err)}</div>`;
+      h += `<div class="portraitNote">Turn your phone sideways to race.</div></div>`;
+      el.classList.add('inroom');
+      return finish(h);
     }
     h += `<div class="portraitNote">Turn your phone sideways to race.</div>`;
     if (ui.note) h += `<div class="note">${esc(ui.note)}</div>`;
     if (ui.err) h += `<div class="err" role="alert">${esc(ui.err)}</div>`;
+    el.classList.remove('inroom');
+    finish(h);
+  }
+  function finish(h) {
     const focus = document.activeElement && document.activeElement.id, selS = focus && document.activeElement.selectionStart;
+    const b0 = el.querySelector('.mpbody'), sc = b0 ? b0.scrollTop : 0;   // keep the scroll position across live updates
     el.innerHTML = h;
+    const b1 = el.querySelector('.mpbody'); if (b1) b1.scrollTop = sc;
     if (focus && (focus === 'mpName' || focus === 'mpCode')) { const f = document.getElementById(focus); if (f) { f.focus(); try { f.setSelectionRange(selS, selS); } catch (e) { } } }
   }
   function joinLink(code) { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('room', code); return u.toString(); }

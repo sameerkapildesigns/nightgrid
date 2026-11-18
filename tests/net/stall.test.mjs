@@ -23,7 +23,8 @@ before(async () => {
   let out = ''; proc.stdout.on('data', d => { out += d; }); proc.stderr.on('data', d => { out += d; });
   await waitFor(() => /on http:\/\/127\.0\.0\.1:(\d+)/.test(out), 15000, 'server up'); BASE = 'http://127.0.0.1:' + out.match(/127\.0\.0\.1:(\d+)/)[1];
 });
-after(() => { proc.kill('SIGTERM'); });
+const cleanup = [];
+after(() => { for (const f of cleanup) f(); proc.kill('SIGTERM'); });
 const health = () => fetch(BASE + '/api/health').then(r => r.json());
 const busy = ms => { const t = Date.now(); while (Date.now() - t < ms); };   // blocks THIS process only
 async function race(bots = 1) {
@@ -36,7 +37,8 @@ async function race(bots = 1) {
   const timer = setInterval(() => loop.tick(), 8);
   nc.ready(true); await waitFor(() => nc.room.canStart, 5000, 'canStart'); nc.start();
   await waitFor(() => nc.race, 5000, 'race');
-  return { nc, loop, code, stop: () => { clearInterval(timer); nc.leave(); } };
+  const stop = () => { clearInterval(timer); try { nc.leave(); } catch (e) { } }; cleanup.push(stop);
+  return { nc, loop, code, stop };
 }
 const roomOf = async code => (await health()).debug.find(r => r.code === code);
 
@@ -70,15 +72,21 @@ test('loop stall: input loop frozen 700 ms every 3 s -> bounded lead/pending, no
   const bot = end.racers.find(r => r.ai); assert.ok(bot.prog > 400, 'bot kept racing: ' + bot.prog);
   stop();
 });
-test('reconnect while stalling: socket dropped during a stall -> same seat, inputs flow again', async () => {
+test('reconnect while stalling: socket dropped during a stall -> same seat; handshake loss reported separately; steady-state input recovers (< 2 % missed)', async () => {
   const { nc, code, stop } = await race(1);
-  await new Promise(r => setTimeout(r, 6000));
-  const id = nc.you; nc.ws.terminate(); busy(600);
-  await waitFor(() => nc.status === 'open' && nc.race && nc.race.msg && nc.you === id, 15000, 'reconnected');
-  const c0 = (await roomOf(code)).inputs[id].consumed, m0 = (await roomOf(code)).inputs[id].missed;
-  await new Promise(r => setTimeout(r, 5000));
-  const q = (await roomOf(code)).inputs[id];
-  console.log(`# reconnect: same seat ${id}, after reconnect missed ${q.missed - m0}/${q.consumed - c0}`);
-  assert.ok((q.missed - m0) / (q.consumed - c0) < 0.05);
-  stop();
+  try {
+    let raceMsgs = 0; const onEv = nc.onEvent; nc.onEvent = (t, m) => { if (t === 'race') raceMsgs++; onEv(t, m); };
+    await new Promise(r => setTimeout(r, 6000));
+    const id = nc.you, before = (await roomOf(code)).inputs[id];
+    const tDrop = performance.now(); nc.ws.terminate(); busy(600);
+    await waitFor(() => raceMsgs >= 1 && nc.you === id && nc.status === 'open', 15000, 'reconnected + race snapshot received');
+    const tBack = performance.now(); await new Promise(r => setTimeout(r, 1000));   // resync settle (lead adapts on the new predictor)
+    const a = (await roomOf(code)).inputs[id];
+    await new Promise(r => setTimeout(r, 5000));
+    const b = (await roomOf(code)).inputs[id];
+    const handshakeMissed = a.missed - before.missed, steady = (b.missed - a.missed) / Math.max(1, b.consumed - a.consumed);
+    console.log(`# reconnect: same seat ${id}; outage+handshake ${(tBack - tDrop).toFixed(0)} ms; missed from drop to 1 s after resync ${handshakeMissed} frames (~${(handshakeMissed / 120).toFixed(2)} s); steady-state after: ${b.missed - a.missed}/${b.consumed - a.consumed} (${(steady * 100).toFixed(2)} %); lead ${nc.lead}`);
+    assert.ok(steady < 0.02, 'steady-state recovery ' + steady);
+    assert.ok(handshakeMissed / 120 < (tBack - tDrop) / 1000 + 1.5, 'loss bounded by the outage + 1.5 s');
+  } finally { stop(); }
 });

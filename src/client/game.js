@@ -2392,6 +2392,7 @@ $('setSteer').addEventListener('click', e => { const b = e.target.closest('[data
 /* ---------- touch driving (coarse pointers only): auto-throttle, hold Brake to slow/drift, steer pads, Boost ---------- */
 const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) || new URLSearchParams(location.search).has('touch');
 document.body.classList.toggle('touchmode', TOUCH);
+if (TOUCH) $('cineSkip').textContent = 'Skip';   // no Enter key on phones
 if (TOUCH) {
   const held = {};
   for (const b of document.querySelectorAll('#touch button')) {
@@ -2677,7 +2678,7 @@ function mpShowResults() {
   }
   const el = $('resPos'); el.textContent = myPos; el.dataset.t = myPos;
   $('resTable').innerHTML = h;
-  $('resLaps').innerHTML = player.lapTimes.map((t, k) => `LAP ${k + 1} &nbsp; ${fmt(t)}`).join('<br>') + '<br><span style="color:rgba(232,246,255,.5)">Multiplayer races never change single-player records.</span>';
+  $('resLaps').innerHTML = player.lapTimes.map((t, k) => `LAP ${k + 1} ${fmt(t)}`).join(' &nbsp;·&nbsp; ') + '<br><span style="color:rgba(232,246,255,.5)">Multiplayer races never change single-player records.</span>';
   $('toGarage').textContent = 'BACK TO LOBBY';
 }
 const escHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

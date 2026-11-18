@@ -20,7 +20,7 @@ const targets = []; const T = (n, ok, d) => { targets.push({ name: n, ok: !!ok, 
 const infos = []; const I = (n, d) => { infos.push({ name: n, detail: d }); console.log(`INFO  ${n}  — ${d}`); };
 const TGT = { mispredictP95M: 1.0, hardSnapsPerMin: 2 };   // stated targets (gate 5: p95 > 1 m is a tuning investigation)
 const browser = await launch();
-const VIEW = { desk: { width: 1280, height: 720 }, phone: { width: 844, height: 390 }, portrait: { width: 390, height: 844 } };
+const VIEW = { desk: { width: 1280, height: 720 }, phone: { width: 844, height: 390 }, portrait: { width: 390, height: 844 }, l667: { width: 667, height: 375 }, l852: { width: 852, height: 393 }, p344: { width: 344, height: 740 } };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const THROTTLE = +(process.env.NG_RENDER_EVERY || 1);   // default 1 = every frame rendered (no throttling). >1 is a diagnostic option only, reported in the output
 async function shot(p, n) {
@@ -145,6 +145,34 @@ try {
     await pp.ctx.close();
     await raceAndFinish([a], { label: 'C-1h3b', full: true });
     await close([a]);
+  }
+  if (run('U')) {   // phone UI: room code, seats and main action visible + hit-testable; results action on screen
+    const hit = (p, sels) => p.page.evaluate(sels => sels.map(sel => { const e = document.querySelector(sel); if (!e) return [sel, 'missing']; const r = e.getBoundingClientRect();
+      const inView = r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight + 0.5 && r.right <= innerWidth + 0.5; const x = r.left + r.width / 2, y = r.top + r.height / 2; const at = document.elementFromPoint(x, y);
+      return [sel, inView && at && (at === e || e.contains(at)) ? 'ok' : `not hit-testable (${Math.round(r.left)},${Math.round(r.top)} ${Math.round(r.width)}x${Math.round(r.height)} in ${innerWidth}x${innerHeight}, top=${at && (at.id || at.className)})`, Math.round(r.height)]; }), sels);
+    for (const kind of ['phone', 'l667', 'l852']) {
+      const a = await player('Uma', kind); const code = await create(a);
+      for (let i = 0; i < 3; i++) await click(a, '[data-act=addbot]');
+      await waitMp(a, 'm => m.room.seats.length === 4'); await sleep(800); await shot(a, `U-lobby-host-4seats-${kind}`);
+      const h = await hit(a, ['#mpRoomCode', '#mpCount', '[data-act=copylink]', '[data-act=close]', '[data-act=ready]', '[data-act=start]', '#mpSeats li:nth-child(1)', '#mpSeats li:nth-child(4)']);
+      const seatsVisible = await a.page.evaluate(() => { const b = document.querySelector('#mpPanel .mpbody').getBoundingClientRect(); return [...document.querySelectorAll('#mpSeats li')].every(li => { const r = li.getBoundingClientRect(); return r.top >= b.top - 1 && r.bottom <= b.bottom + 1; }); });
+      C(`U ${kind}: room code, seat count, copy/close, Ready/Start visible + hit-testable`, h.slice(0, 6).every(x => x[1] === 'ok'), JSON.stringify(h.slice(0, 6)));
+      C(`U ${kind}: all 4 seats visible without scrolling`, seatsVisible && h.slice(6).every(x => x[1] === 'ok'), JSON.stringify(h.slice(6)));
+      C(`U ${kind}: main buttons >= 36 px tall`, h.filter(x => /ready|start/.test(x[0])).every(x => x[2] >= 36), JSON.stringify(h.map(x => [x[0], x[2]])));
+      if (kind === 'phone') {   // results screen at 844x390: time-capped race, then the Back to lobby action must be on screen
+        const rs = [...srv.rooms.values()].find(r => r.room.code === code); rs.cfg.maxRaceMs = 9000;
+        await click(a, '[data-act=ready]'); await waitMp(a, 'm => m.room.canStart'); await click(a, '[data-act=start]');
+        await waitMp(a, 'm => m.results', 120000); await sleep(1500); await shot(a, 'U-results-phone');
+        const r = await hit(a, ['#toGarage', '#resTable']); C('U phone: results table + BACK TO LOBBY visible and hit-testable at 844x390', r.every(x => x[1] === 'ok'), JSON.stringify(r));
+      }
+      await close([a]);
+    }
+    for (const kind of ['p344', 'portrait']) {
+      const host = await player('Vic', 'phone'); const code = await create(host);
+      const g = await player('Wes', kind, '?room=' + code); await sleep(800); await shot(g, `U-invite-${kind}`);
+      const h = await hit(g, ['#mpName', '#mpCode', '[data-act=join]']); C(`U ${kind}: portrait invite shows name, code and Join (hit-testable)`, h.every(x => x[1] === 'ok'), JSON.stringify(h));
+      await close([host, g]);
+    }
   }
   if (run('E')) {   // ACCEPTANCE: four phone-sized touch browsers, 4 humans, full race + same-room rematch full race
     const LAG = +(process.env.NG_LAG || 0), names = ['Kai', 'Lea', 'Max', 'Noa'];

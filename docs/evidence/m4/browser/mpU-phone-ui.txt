@@ -1,0 +1,21 @@
+PASS  U phone: room code, seat count, copy/close, Ready/Start visible + hit-testable  — [["#mpRoomCode","ok",21],["#mpCount","ok",21],["[data-act=copylink]","ok",36],["[data-act=close]","ok",36],["[data-act=ready]","ok",40],["[data-act=start]","ok",40]]
+PASS  U phone: all 4 seats visible without scrolling  — [["#mpSeats li:nth-child(1)","ok",28],["#mpSeats li:nth-child(4)","ok",34]]
+PASS  U phone: main buttons >= 36 px tall  — [["#mpRoomCode",21],["#mpCount",21],["[data-act=copylink]",36],["[data-act=close]",36],["[data-act=ready]",40],["[data-act=start]",40],["#mpSeats li:nth-child(1)",28],["#mpSeats li:nth-child(4)",34]]
+PASS  U phone: results table + BACK TO LOBBY visible and hit-testable at 844x390  — [["#toGarage","ok",40],["#resTable","ok",99]]
+PASS  Uma: no page errors
+PASS  U l667: room code, seat count, copy/close, Ready/Start visible + hit-testable  — [["#mpRoomCode","ok",21],["#mpCount","ok",21],["[data-act=copylink]","ok",36],["[data-act=close]","ok",36],["[data-act=ready]","ok",40],["[data-act=start]","ok",40]]
+PASS  U l667: all 4 seats visible without scrolling  — [["#mpSeats li:nth-child(1)","ok",28],["#mpSeats li:nth-child(4)","ok",34]]
+PASS  U l667: main buttons >= 36 px tall  — [["#mpRoomCode",21],["#mpCount",21],["[data-act=copylink]",36],["[data-act=close]",36],["[data-act=ready]",40],["[data-act=start]",40],["#mpSeats li:nth-child(1)",28],["#mpSeats li:nth-child(4)",34]]
+PASS  Uma: no page errors
+PASS  U l852: room code, seat count, copy/close, Ready/Start visible + hit-testable  — [["#mpRoomCode","ok",21],["#mpCount","ok",21],["[data-act=copylink]","ok",36],["[data-act=close]","ok",36],["[data-act=ready]","ok",40],["[data-act=start]","ok",40]]
+PASS  U l852: all 4 seats visible without scrolling  — [["#mpSeats li:nth-child(1)","ok",28],["#mpSeats li:nth-child(4)","ok",34]]
+PASS  U l852: main buttons >= 36 px tall  — [["#mpRoomCode",21],["#mpCount",21],["[data-act=copylink]",36],["[data-act=close]",36],["[data-act=ready]",40],["[data-act=start]",40],["#mpSeats li:nth-child(1)",28],["#mpSeats li:nth-child(4)",34]]
+PASS  Uma: no page errors
+PASS  U p344: portrait invite shows name, code and Join (hit-testable)  — [["#mpName","ok",44],["#mpCode","ok",46],["[data-act=join]","ok",46]]
+PASS  Vic: no page errors
+PASS  Wes: no page errors
+PASS  U portrait: portrait invite shows name, code and Join (hit-testable)  — [["#mpName","ok",44],["#mpCode","ok",46],["[data-act=join]","ok",46]]
+PASS  Vic: no page errors
+PASS  Wes: no page errors
+19/19 functional checks passed; 0/0 quality targets met (render every 1 frame(s))
+EXIT 0
