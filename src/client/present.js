@@ -31,7 +31,7 @@ export class RemotePresenter {
     this.cars = new Map();   // id -> { a, b (compact rows), ka, kb (steps), off: {s,d}, lastT, shown }
     this.fo = []; this.lastK = -1;
     this.order = new Map();  // id -> +1 (I am ahead) / -1 (behind), sticky with RANK_BAND_M
-    this.stats = { snaps: 0, outOfOrder: 0, snaps_hard: 0, horizonS: [], soft: [] };
+    this.stats = { snaps: 0, outOfOrder: 0, snaps_hard: 0, snapLog: [], horizonS: [], soft: [] };
   }
   // authoritative snapshot (as forwarded to the page: { k, sn, ph, a, fo })
   push(s) {
@@ -49,7 +49,7 @@ export class RemotePresenter {
         else {
           let ds = old.s - neu.s; if (!neu.br) { if (ds > this.L / 2) ds -= this.L; if (ds < -this.L / 2) ds += this.L; }
           const ns = c.off.s + ds, nd = c.off.d + (old.d - neu.d);
-          if (Math.abs(ns) > SNAP_M) { c.off.s = 0; c.off.d = 0; this.stats.snaps_hard++; }
+          if (Math.abs(ns) > SNAP_M) { c.off.s = 0; c.off.d = 0; this.stats.snaps_hard++; if (this.stats.snapLog.length < 10) this.stats.snapLog.push({ id: x[0], k: s.k, err: +ns.toFixed(1), fin: x[10], prevFin: c.b[10], lap: x[7] }); }
           else { c.off.s = ns; c.off.d = nd; if (this.stats.soft.length < 50000) this.stats.soft.push(Math.abs(ds)); }
         }
       }
@@ -60,9 +60,11 @@ export class RemotePresenter {
   extrap(c, T) {
     const x = c.b, br = x[1] === 1, L = this.L;
     const h = Math.max(0, Math.min(HORIZON_MAX_S, (T - c.kb) * SIM_DT));
-    // crashed or FINISHED (server autopilots finished cars slowly; the old Interpolator also never
-    // extrapolated them): hold at the newest snapshot, the soft offset glides between snapshots
-    const moving = !x[11] && !x[10];
+    // crashed: hold. FINISHED cars keep driving on the server (sim.js finish: autopilot, >= 25 m/s), so they
+    // are dead-reckoned like any car while snapshots arrive; holding them turned the ~0.4 s lead into an
+    // offset that slid the car BACKWARDS after the line (measured: fullrace-new-200-60.json, M5-6 fix).
+    // When snapshots stop, HORIZON_MAX_S bounds the motion.
+    const moving = !x[11];
     const vs = moving ? x[6] * Math.cos(x[5]) : 0;
     let vd = 0;
     if (moving && c.a && c.a[1] === x[1] && c.kb > c.ka) vd = Math.max(-LAT_V_MAX, Math.min(LAT_V_MAX, (x[3] - c.a[3]) / ((c.kb - c.ka) * SIM_DT)));

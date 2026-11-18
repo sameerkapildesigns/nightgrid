@@ -172,7 +172,7 @@ export async function run({ botsOnto = 0, contactOn = false, shove = 0, ram = fa
       ownCorrectionM: sum(corr), ownCorrOver1m: corr.filter(x => x > 1).length, ownHardSnaps: P ? P.hard : 0, ownVisualM: sum(P ? P.visual.slice(10) : []), ownDrawnJerkM: sum(c.rec.corrDelta || []), bigCorrFrames: c.rec.bigCorr || [], corrContext: c.rec.corrCtx || [],
       remoteFrameJumpM: sum(c.rec.jump || []), remoteJumpsOver1m: (c.rec.jump || []).filter(x => x > 1).length, remoteJumpsOver3m: (c.rec.jump || []).filter(x => x > 3).length,
       remoteDvPerFrame: sum(c.rec.dv || []), remoteDvOver20: (c.rec.dv || []).filter(x => x > 20).length,
-      interpUnderruns: c.race ? c.race.interp.stats.underruns : null, bigJumps: c.rec.bigJ || [], stepOfMismatches: c.rec.stepMismatch || 0, presStats: c.pres ? { snapsHard: c.pres.stats.snaps_hard, horizonS: sum(c.pres.stats.horizonS), softM: sum(c.pres.stats.soft) } : null,
+      interpUnderruns: c.race ? c.race.interp.stats.underruns : null, bigJumps: c.rec.bigJ || [], stepOfMismatches: c.rec.stepMismatch || 0, presStats: c.pres ? { snapsHard: c.pres.stats.snaps_hard, snapLog: c.pres.stats.snapLog, horizonS: sum(c.pres.stats.horizonS), softM: sum(c.pres.stats.soft) } : null,
       displayedGapErrM: sum(gapErr), closePassGapErrM: sum(closeErr), closeFrames,
       hudRankFlips: c.rec.rankFlips, trueRankFlips: trueFlipsBy.n, wrongRankFrames: falseRankFrames, wrongRankFramesGapOver3m: wrongFar, rankFrames: frames,
       results: c.results ? c.results.order.map(o => `${o.pos}:${o.id}:${o.time}`).join(' ') : null

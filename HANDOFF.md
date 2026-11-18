@@ -1,6 +1,6 @@
 # NIGHTGRID running handoff (M5 local-first sync)
 
-Chat counter: big 1, small 5 (rotate at 5 big or 10 small).
+Chat counter: big 1, small 6 (rotate at 5 big or 10 small).
 
 ## Verified state (git remote read 13:2x 18 Nov)
 - origin/main, origin/claude/admiring-meitner-db4ejz: 53af096 (M3). Do NOT push either. Production-linked branch is UNRESOLVED.
@@ -39,6 +39,11 @@ No pushes to main/production candidates; no micro-pushes (Vercel previews). No C
 - tests/unit/present.test.mjs (13): wrap, branch, crash, finished, out-of-order/missing k, horizon, snap, soft cap, rank band + server finish order + rematch, stepOf/stepAt, OwnSmoother cadence/bounds/reset/wrap, softCorr; asserts WORKER_CORR_RATE == netcode SMOOTH_RATE.
 - smooth.mjs: config ack on all clients before ready; try/finally cleanup. cadence.mjs: remote cars at 120 Hz (cadence2-*.json).
 - Unit 124/124, build id ff3815343186. Headline numbers are per-run (seed/noise differ), not paired guarantees.
+
+## M5-6 finish fix + full races (200/60, ghost server)
+- Review fix 'hold finished cars' REGRESSED: finished cars slid backwards after the line, 30 hard snaps/client (fullrace-new-200-60-HOLDBUG.json). Server keeps finished cars driving -> dead-reckon them; horizon bounds when snapshots stop. Test 'crossing the finish line' fails on the hold version, passes now.
+- fullrace-base-200-60.json: wrongRank 38-41% (36-37% at gaps >3 m), gapErr p50 22-24 m, dv>20 1325-1559. fullrace-new-200-60.json: snaps 0, wrongRank 2.1-3.1% (0.3-1.1% >3 m), gapErr p50 0.64-0.75 m, dv>20 1. Results identical on both clients in both runs.
+- Unit 126 (present.test 14 + ghost 5).
 
 ## Next
 - 120 Hz worker->page cadence bench (own car), injected-contact own-correction tuning (client-only), full race + same-room rematch, unit/net/e2e/browser tests, build.

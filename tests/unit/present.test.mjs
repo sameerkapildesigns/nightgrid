@@ -51,13 +51,25 @@ test('branch change and crash reset the offset (no slide across topologies)', ()
   P.push(snap(12, [row('r', 10 + 60 * 6 * SIM_DT, { br: 1, cr: 1, speed: 0 })])); P.sample('r', 0, o, { ownStep: 40 });
   assert.equal(o.netCrashed, true); assert.ok(Math.abs(o.s - (10 + 60 * 6 * SIM_DT)) < 1e-6, 'crashed: held, not extrapolated');
 });
-test('FINISHED remote car is not dead-reckoned (held at its newest snapshot; offset only glides)', () => {
+test('crossing the finish line: no backwards motion, no snap (server keeps finished cars driving)', () => {
   const P = new RemotePresenter(TRACK), o = {};
-  P.push(snap(0, [row('r', 100)])); P.sample('r', 0, o, { ownStep: 0 });
-  P.push(snap(6, [row('r', 100.5, { fin: 1, speed: 40 })]));   // crossed the line, server keeps it rolling slowly
-  for (let T = 7; T < 7 + 240; T++) P.sample('r', 0, o, { ownStep: T });
+  let prev = null, k = 0; const v = T => (T < 120 ? 60 : 40);   // finishes at step 120, then rolls at 40 m/s
+  const pos = T => { let s = 100; for (let i = 0; i < T; i++) s += v(i) * SIM_DT; return s; };
+  for (let T = 0; T < 480; T++) {
+    if (T % 6 === 0 && T >= 48) { k = T - 48; P.push(snap(k, [row('r', pos(k), { fin: k >= 120 ? 1 : 0, speed: v(k) })])); }   // 400 ms late
+    if (T < 48) P.push(snap(0, [row('r', 100)]));
+    if (!P.sample('r', 0, o, { ownStep: T })) continue;
+    if (prev != null) assert.ok(o.s - prev >= -1e-9, `step ${T}: moved backwards ${o.s - prev}`);
+    prev = o.s;
+  }
+  assert.equal(P.stats.snaps_hard, 0);
   assert.equal(o.finished, true);
-  assert.ok(Math.abs(o.s - 100.5) < 0.05, `held at the finish snapshot, got ${o.s}`);
+});
+test('snapshots stop (race over): motion is bounded by the horizon, then holds', () => {
+  const P = new RemotePresenter(TRACK), o = {};
+  P.push(snap(0, [row('r', 100, { fin: 1, speed: 40 })]));
+  P.sample('r', 0, o, { ownStep: 1000 }); const a = o.s; P.sample('r', 0, o, { ownStep: 2000 });
+  assert.equal(o.s, a); assert.ok(Math.abs(a - (100 + 40 * HORIZON_MAX_S)) < 1e-6);
 });
 test('large error snaps (counted); out-of-order snapshots ignored; outputs finite', () => {
   const P = new RemotePresenter(TRACK), o = {};
