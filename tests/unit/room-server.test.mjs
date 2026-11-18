@@ -5,6 +5,7 @@ import { RoomServer } from '../../server/room-server.js';
 import { fakeTimers, fakeConn, fakeRandom } from '../helpers/fake-timers.mjs';
 import { encodeFrame, PROTOCOL, ZERO_FRAME, QUEUE_DROP_FRAMES } from '../../src/net/protocol.js';
 import { createBudget } from '../../src/net/budget.js';
+import { MAX_SEATS } from '../../src/core/room.js';
 
 const BUILD = 'test-build';
 const J = JSON.stringify;
@@ -23,7 +24,7 @@ const UP = encodeFrame({ up: 1 });
 // a client that sends one batch of frames per 50 ms tick starting at seq `from`
 function feeder(S, c, frameOf, lead = 12) { let seq = 0; return { tick(step) { const want = step + lead; const f = []; while (seq < want && f.length < 24) f.push(frameOf(seq++)); if (f.length) msg(S, c, { t: 'in', q: seq - f.length, f }); }, get seq() { return seq; } }; }
 
-test('join: server-issued ids + session tokens; build/protocol mismatch rejected with a fatal error; 5th human rejected without breaking the room', () => {
+test('join: server-issued ids + session tokens; build/protocol mismatch rejected with a fatal error; human MAX_SEATS+1 rejected without breaking the room', () => {
   const { S } = mk();
   const a = player(S, 'Ann'), b = player(S, 'Bob');
   const wa = a.last('welcome'), wb = b.last('welcome');
@@ -32,9 +33,9 @@ test('join: server-issued ids + session tokens; build/protocol mismatch rejected
   const bad = fakeConn(); S.connect(bad); msg(S, bad, { t: 'hello', p: PROTOCOL, build: 'old-build', name: 'X' });
   assert.equal(bad.last('error').error, 'build-mismatch'); assert.equal(bad.last('error').fatal, true); assert.ok(bad.closed);
   const old = fakeConn(); S.connect(old); msg(S, old, { t: 'hello', p: 1, build: BUILD }); assert.equal(old.last('error').error, 'protocol-mismatch'); assert.ok(old.closed);
-  player(S, 'C'); player(S, 'D'); const e = player(S, 'E');
+  for (let k = 2; k < MAX_SEATS; k++) player(S, 'P' + k); const e = player(S, 'E');
   assert.equal(e.last('error').error, 'room-full'); assert.ok(e.closed);
-  assert.equal(a.last('lobby').room.seats.length, 4); assert.equal(S.room.seats.length, 4);
+  assert.equal(a.last('lobby').room.seats.length, MAX_SEATS); assert.equal(S.room.seats.length, MAX_SEATS);
 });
 test('messages before hello, malformed and oversized payloads are rejected and counted', () => {
   const { S } = mk(); const c = fakeConn(); S.connect(c);

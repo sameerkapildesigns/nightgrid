@@ -23,6 +23,19 @@ export const DIFF = { normal: { vmax: 0.97, lat: 0.95 }, hard: { vmax: 1.03, lat
 export const MAX_STEP_ADVANCE = (h) => 150 * h + 5;
 const FINISH_PERS = { vmax: 60, lat: 50, acc: 20, brake: 40, off: 0, short: 0, aggr: 0, block: 0, boostUse: 0, margin: 5 };
 
+// M7 grid. <= 4 racers: the v5b 2x2 grid unchanged (single-player parity: GHOST, VEX, BLITZ, player).
+// 5..20: 4 abreast, rows 8 m apart, lanes spread to the map's road width (2.4 m kept to each wall), so the
+// back row of 20 starts 32 m behind the front row (the M6 prototype's 2-wide, 14 m rows put it 126 m behind,
+// ~1.6 s at race pace). Returns [metres behind the start line, lateral offset] per grid slot.
+export const MAX_RACERS = 20, GRID_FRONT = 14, GRID_ROW = 8, GRID_WIDE = 4;
+const GRID_V5B = [[14, -4.4], [14, 4.4], [28, -4.4], [28, 4.4]];
+export function gridSlots(n, W0) {
+  if (n <= 4) return GRID_V5B.slice(0, Math.max(n, 4));
+  const sp = Math.min(5.2, (2 * W0 - 2 * 2.4) / GRID_WIDE), out = [];
+  for (let k = 0; k < n; k++) out.push([GRID_FRONT + GRID_ROW * Math.floor(k / GRID_WIDE), (k % GRID_WIDE - (GRID_WIDE - 1) / 2) * sp]);
+  return out;
+}
+
 export function createSim({ seed = 4242, events = null } = {}) {
   // mulberry32 with exportable state (snapshot/import parity)
   const rng = { a: seed | 0 };
@@ -93,11 +106,10 @@ export function createSim({ seed = 4242, events = null } = {}) {
     addDrones();
   }
   // Multiplayer/server: seats in order, kind 'human' | 'bot' (bots use AI personalities). focusId: local
-  // racer for presentation events (null on a server). Total cap 4 (grid slots).
+  // racer for presentation events (null on a server). Total cap MAX_RACERS (grid slots, see gridSlots).
   const BOT_NAMES = ['GHOST', 'VEX', 'BLITZ'];
   function addSeats(seats, focusId = null) {
-    const CAP = (typeof globalThis !== 'undefined' && globalThis.NG_PROTO_MAX_SEATS) || 4;   // M6 prototype only
-    if (seats.length < 1 || seats.length > CAP) throw new Error('1-' + CAP + ' seats required');
+    if (seats.length < 1 || seats.length > MAX_RACERS) throw new Error('1-' + MAX_RACERS + ' seats required');
     let b = 0;
     seats.forEach((st, k) => {
       const bot = st.kind === 'bot', pn = bot ? (PERS[st.pers] ? st.pers : BOT_NAMES[b++ % 3]) : null;
@@ -123,8 +135,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
     ev.racerReset(r);
   }
   function gridUp() {
-    const SLOTS = [[14, -4.4], [14, 4.4], [28, -4.4], [28, 4.4]];   // v5b grid: GHOST, VEX, BLITZ, player
-    for (const r of sim.racers.slice().sort((a, b) => a.gridSlot - b.gridSlot)) { const [bk, d] = SLOTS[r.gridSlot] || [14 + 14 * (r.gridSlot >> 1), r.gridSlot & 1 ? 4.4 : -4.4]; /* M6 prototype: extra rows 14 m apart */ placeRacer(r, bk, d); if (!r.isAI) r.meter = 0.35; }
+    const slots = gridSlots(sim.racers.length, W0);
+    for (const r of sim.racers.slice().sort((a, b) => a.gridSlot - b.gridSlot)) { const [bk, d] = slots[r.gridSlot]; placeRacer(r, bk, d); if (!r.isAI) r.meter = 0.35; }
     sim.drones.forEach((d, k) => { d.s = mod(S0 + 380 + k * MAIN.L / 7, MAIN.L); d.speed = R(30, 41); });
     sim.phase = 'grid'; sim.finishOrder = []; sim.curSplits = []; sim.debugTouched = false;
     for (const r of sim.racers) { r.curSplits = []; r.wrongWayT = 0; }

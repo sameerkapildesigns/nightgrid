@@ -56,8 +56,9 @@ for (const [label, seats] of Object.entries(SEATS)) test(`MP race ${label}: ever
   assert.equal(ev.other, 0, 'no flash/sfx/cp events without a focus racer');
   assert.equal(s.phase, 'finished'); assert.equal(s.finishOrder.length, seats.length);
 });
-test('seat cap: 0 or 5+ seats rejected', () => {
-  assert.throws(() => mpSim(1, 'velocity', [])); assert.throws(() => mpSim(1, 'velocity', [...SEATS['4h'], { id: 'h5', kind: 'human' }]));
+test('seat cap: 0 or MAX_RACERS+1 seats rejected, MAX_RACERS accepted', () => {
+  const many = n => Array.from({ length: n }, (_, k) => ({ id: 'h' + k, kind: 'human' }));
+  assert.throws(() => mpSim(1, 'velocity', [])); assert.throws(() => mpSim(1, 'velocity', many(21))); assert.doesNotThrow(() => mpSim(1, 'velocity', many(20)));
 });
 test('per-racer crash/respawn: a non-focus human who leaves the edgeless branch respawns', () => {
   const s = mpSim(2, 'legacy', [{ id: 'h1', kind: 'human' }, { id: 'h2', kind: 'human' }], 'h1'); s.startRace();

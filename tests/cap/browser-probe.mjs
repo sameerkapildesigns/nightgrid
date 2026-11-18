@@ -2,7 +2,6 @@
 // NetClients (shipping netcode, line-follower) in the same room on the local server. Measures what ONE
 // player's browser pays to show N cars: draw calls, triangles, frame time (software GL: relative only,
 // NOT phone FPS), render gaps, RTT, mispredict. Usage: node tests/cap/browser-probe.mjs --n 4,12,20
-globalThis.NG_PROTO_MAX_SEATS = 20;
 const { startLocalServer } = await import('../../server/local.mjs');
 const { NetClient } = await import('../../src/net/client.js');
 const { driver, waitFor } = await import('../net/scenario.mjs');
@@ -15,7 +14,7 @@ const srv = await startLocalServer({ port: 0, dist: 'dist-test', netsim: true, l
 const browser = await launch(); const out = [];
 for (const n of NS) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } }); const page = await ctx.newPage(); page.setDefaultTimeout(240000);
-  await page.addInitScript(() => { window.NG_PROTO_MAX_SEATS = 20; });
+
   await page.route('**/*', r => /fonts\.(googleapis|gstatic)\.com/.test(r.request().url()) ? r.abort() : r.continue());
   await page.goto(srv.url + '/', { timeout: 240000 }); await page.waitForFunction(() => window.NG_DEBUG && NG_DEBUG.state === 'title', null, { timeout: 240000 });
   await page.click('#mpBtn'); await page.fill('#mpName', 'Host'); await page.click('[data-act=create]');

@@ -10,10 +10,11 @@ test('server-issued ids; first human is host; names are cleaned and bounded', ()
   assert.equal(a.id, 'p1'); assert.equal(b.id, 'p2'); assert.equal(r.hostId, 'p1');
   assert.equal(r.seats[0].name, 'bSam/b K'); assert.equal(r.seats[1].name.length, R.NAME_MAX); assert.equal(R.cleanName(''), 'Player');
 });
-test('1 human + 3 bots: bots auto-ready with matching personality/car, 5th seat rejected, start needs the human ready', () => {
+test('1 human + bots: bots auto-ready with matching personality/car, seat MAX_SEATS+1 rejected, start needs the human ready', () => {
   const r = room(); const h = j(r, 'h').id; for (let k = 0; k < 3; k++) assert.ok(R.addBot(r, h).ok);
-  assert.equal(R.addBot(r, h).error, 'room-full');
   assert.deepEqual(r.seats.filter(s => s.kind === 'bot').map(s => [s.pers, s.car, s.ready]), [['GHOST', 'hypercar', true], ['VEX', 'wedge', true], ['BLITZ', 'endurance', true]]);
+  while (r.seats.length < R.MAX_SEATS) assert.ok(R.addBot(r, h).ok);
+  assert.equal(R.addBot(r, h).error, 'room-full'); assert.equal(r.seats.length, R.MAX_SEATS);
   assert.equal(R.canStart(r), false); assert.equal(R.startBlocker(r), 'not-all-ready');
   R.setReady(r, h, true); assert.equal(R.canStart(r), true);
   assert.ok(R.start(r, h, 1000, 123).ok); assert.equal(r.phase, 'countdown'); assert.equal(r.countdownAt, 4000);
@@ -23,11 +24,11 @@ test('minimum 2 racers: a lone ready human cannot start; a bot makes it startabl
   assert.equal(R.canStart(r), false); assert.equal(R.start(r, h, 0, 1).error, 'need-2-racers');
   R.addBot(r, h); assert.ok(R.start(r, h, 0, 1).ok);
 });
-test('2 humans + 2 bots; 4 humans; a 5th human or bot is rejected without breaking the room', () => {
-  const r = room(); const h1 = j(r, 'a').id; j(r, 'b'); R.addBot(r, h1); R.addBot(r, h1);
-  assert.equal(j(r, 'c').error, 'room-full'); assert.equal(r.seats.length, 4);
-  const q = room(); for (const n of ['a', 'b', 'c', 'd']) assert.ok(j(q, n).ok);
-  assert.equal(j(q, 'e').error, 'room-full'); assert.equal(R.addBot(q, 'p1').error, 'room-full'); assert.equal(q.seats.length, 4);
+test('mixed humans + bots up to MAX_SEATS; all-human room; seat MAX_SEATS+1 (human or bot) is rejected without breaking the room', () => {
+  const r = room(); const h1 = j(r, 'a').id; j(r, 'b'); while (r.seats.length < R.MAX_SEATS) R.addBot(r, h1);
+  assert.equal(j(r, 'c').error, 'room-full'); assert.equal(r.seats.length, R.MAX_SEATS);
+  const q = room(); for (let k = 0; k < R.MAX_SEATS; k++) assert.ok(j(q, 'n' + k).ok);
+  assert.equal(j(q, 'extra').error, 'room-full'); assert.equal(R.addBot(q, 'p1').error, 'room-full'); assert.equal(q.seats.length, R.MAX_SEATS);
 });
 test('host-only controls; settings change un-readies humans only when something changed; car change un-readies that seat', () => {
   const r = room(); const h1 = j(r, 'a').id, h2 = j(r, 'b').id;

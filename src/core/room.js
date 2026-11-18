@@ -4,8 +4,9 @@
 // >= 2 seats (bots count), >= 1 connected human, and every connected human ready.
 // Player ids are SERVER-issued (never chosen by a client). Reconnect is by an opaque session token held
 // by the server layer, not by this model. All times are passed in (no clocks here).
-// M6 CAPACITY PROTOTYPE ONLY (branch claude/m6-capacity-proto): cap overridable for local benches
-export const MAX_SEATS = (typeof globalThis !== 'undefined' && globalThis.NG_PROTO_MAX_SEATS) || 4, MIN_RACERS = 2, RECONNECT_MS = 15000, STALE_INPUT_MS = 250, NAME_MAX = 16;
+// M7: 20 seats (user decision 18 Nov: all 20 in one race). Must equal sim.js MAX_RACERS (room.test asserts).
+// Release is gated on real-hardware FPS + 20-client gates (HANDOFF), not on this constant.
+export const MAX_SEATS = 20, MIN_RACERS = 2, RECONNECT_MS = 15000, STALE_INPUT_MS = 250, NAME_MAX = 16;
 export const ROOM_PHASES = ['lobby', 'countdown', 'race', 'results'];
 export const MAPS_OK = ['velocity', 'technical', 'legacy'], MODES_OK = ['assisted', 'expert'];
 export const CARS_OK = ['hypercar', 'endurance', 'wedge', 'rally', 'streamliner', 'wipeout'];

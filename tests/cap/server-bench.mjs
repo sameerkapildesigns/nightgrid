@@ -3,7 +3,6 @@
 // Humans are driven by the scenario line-follower reading their own SERVER state (bench driver, not netcode).
 // Each human sends 1 input batch per 50 ms tick (6 frames) + 1 ping/s, like the shipping client.
 // Usage: node tests/cap/server-bench.mjs --n 4,8,12,20 [--rooms 2] [--secs 0=full race] [--rematch]
-globalThis.NG_PROTO_MAX_SEATS = 20;
 const { RoomServer } = await import('../../server/room-server.js');
 const { fakeTimers, fakeRandom } = await import('../helpers/fake-timers.mjs');
 const { encodeFrame, PROTOCOL } = await import('../../src/net/protocol.js');
