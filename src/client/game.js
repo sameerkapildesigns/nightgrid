@@ -2145,6 +2145,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   if (!manualClock) advanceFrame(now);
 }
+let fxLowT = 0, fxHighT = 0, fxFallbacks = 0;
 function advanceFrame(now, render = true) {
   const wall = Math.max(0, (now - last) / 1000); last = now;
   RDT = Math.min(1.0, wall);
@@ -2152,6 +2153,13 @@ function advanceFrame(now, render = true) {
   if (fpsMeter.n === 0 && nBefore > 0) {   // a 1 s FPS window just closed (wall-clock based)
     lastFps = fpsMeter.fps;
     if (lastFps < 48 && state !== 'loading') { lowT++; if (lowT >= 2 && PR > 0.75) { PR = Math.max(0.75, PR - 0.25); renderer.setPixelRatio(PR); composer.setPixelRatio(PR); resize(); lowT = 0; } } else lowT = 0;
+    // low-FPS fallback (M4 perf): only once resolution is already at its 0.75 floor and FPS stays < 30 for
+    // 3 s, bloom is switched off (car geometry/detail and resolution floor unchanged); it returns after
+    // 5 s above 50 FPS. Normal devices never reach this.
+    if (state !== 'loading') {
+      if (bloom.enabled && PR <= 0.75 && lastFps < 30) { if (++fxLowT >= 3) { bloom.enabled = false; fxLowT = 0; fxFallbacks++; } } else if (bloom.enabled) fxLowT = 0;
+      if (!bloom.enabled && lastFps > 50) { if (++fxHighT >= 5) { bloom.enabled = true; fxHighT = 0; } } else if (!bloom.enabled) fxHighT = 0;
+    }
   }
   if (state === 'loading' || window.__ngFreeze) return;
   if (paused) { composer.render(); return; }
@@ -2174,12 +2182,8 @@ function onStall(wall) {
   if (!MP.race && wall >= AUTO_PAUSE_AFTER && (state === 'race' || state === 'countdown') && !paused) {
     lastStall.paused = true; togglePause(); $('pauseNote').textContent = `Auto-paused: the game was suspended for ${wall.toFixed(1)} s`; }
 }
-let garageLastRender = 0;
 function renderNow() {
   const g = state === 'title';
-  // M4: while the room panel is open over the garage, the showroom renders at ~4 FPS (phones keep CPU and
-  // battery for the lobby and the coming race). Race rendering is never throttled.
-  if (g && document.body.classList.contains('mpopen')) { const t = performance.now(); if (t - garageLastRender < 250) return; garageLastRender = t; }
   renderPass.scene = g ? GAR.scene : scene; renderPass.camera = g ? GAR.cam : camera;
   if (!g) cullGround(camera);
   renderer.info.reset();
@@ -2556,11 +2560,18 @@ function mpFx(list) {
 }
 async function mpCreate(name) {
   MP.ui.setError('');
+  // bounded: a stuck request must not leave "Create room" spinning; errors say what failed
+  const ac = new AbortController(), to = setTimeout(() => ac.abort(), 10000), t0 = performance.now();
   try {
-    const r = await fetch(mpApi('api/rooms'), { method: 'POST' }); const j = await r.json().catch(() => ({}));
-    if (!j.ok) { MP.lastErr = j.error || 'server-unreachable'; return MP.ui.setError(MP.lastErr); }
+    const r = await fetch(mpApi('api/rooms'), { method: 'POST', signal: ac.signal });
+    const j = await r.json().catch(() => ({}));
+    if (!j.ok) { MP.lastErr = j.error || ('http-' + r.status); console.warn('[NIGHTGRID] create room failed:', r.status, j.error || '', mpApi('api/rooms')); return MP.ui.setError(MP.lastErr); }
     mpJoin(j.code, name);
-  } catch (e) { MP.lastErr = 'server-unreachable'; MP.ui.setError('server-unreachable'); }
+  } catch (e) {
+    MP.lastErr = e.name === 'AbortError' ? 'server-timeout' : 'server-unreachable';
+    console.warn('[NIGHTGRID] create room request failed after', Math.round(performance.now() - t0), 'ms:', e.name, e.message, '- backend', mpApi('api/rooms'), '(a CORS block also shows up as this)');
+    MP.ui.setError(MP.lastErr);
+  } finally { clearTimeout(to); }
 }
 function mpJoin(code, name) {
   let tok = null; try { tok = sessionStorage.getItem('ng_tok_' + code); } catch (e) { }
@@ -2733,7 +2744,7 @@ if (DEBUG) {
     get state() { return state; },
     get paused() { return paused; },
     get map() { return { key: MAPKEY, name: MAPDEF.name, lengthM: Math.round(MAIN.L), laps: LAPS, sectors: SECTORS.map(s => s.name), record: isFinite(recordLap) ? recordLap : null, worldMeshes: WORLD.children.length, lastSwitch: lastDispose }; },
-    get render() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, fps: +lastFps.toFixed(1), pixelRatio: PR, programs: renderer.info.programs.length }; },
+    get render() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, fps: +lastFps.toFixed(1), pixelRatio: PR, programs: renderer.info.programs.length, bloom: bloom.enabled, fxFallbacks }; },
     get clock() { return clockInfo(); },
     get intro() { return introStats ? Object.assign({ len: CINE.len }, introStats) : null; },
     get precompile() { return lastPrecompile; },
