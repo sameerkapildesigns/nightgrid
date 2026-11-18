@@ -30,6 +30,8 @@ import { buildShelter, shelterTop } from '../core/shelter.js';
 import { buildClearance, groundHeightAt, worstClearance, GROUND_Y } from '../core/terrain.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
+import { createHazardVis, updateShield } from './hazards-vis.js';
+import { applyPads } from '../core/hazards.js';
 
 // DEBUG is a build-time constant: true for `vite` dev and `vite build --mode test`,
 // false for the production build (all debug hooks and the QA panel are compiled out).
@@ -173,6 +175,8 @@ function buildEnv() {
 /* ============================== simulation + track data ============================== */
 // The pure simulation owns racers, physics, laps and the per-map track data.
 const sim = createSim({ seed: 4242, events: null });   // events are attached below (SIMEV)
+sim.hazards = true;   // M8: obstacles + shield/self-boost pads in single-player too (same layout as rooms)
+let HZV = null;      // hazard visuals for the current map (src/client/hazards-vis.js)
 let MAPKEY = null, MAPDEF = null, TD, W0, SECTORS, MAIN, BR, SA, SB, OFF, SAm, SBm, LAPLEN, HASBR, SECCOL, SECSTART, LAPS = 3;
 function loadTrackData(key) {
   TD = sim.setTrack(key);
@@ -1781,6 +1785,22 @@ function earnPopup(txt, col) {   // boost meter itself is credited by the simula
   el.style.bottom = (Object.keys(earnCD).length % 3) * 4 + 'px';
   $('earn').appendChild(el); setTimeout(() => el.remove(), 1300);
 }
+/* ---------- M8 hazards: pickup / shield / obstacle presentation (own car only; remote shields from pw) ---------- */
+function hazardEvents(me) {
+  return {
+    pickup: (r, kind) => { const k = typeof r === 'string' ? r : kind; if (k === 'S') { flash('SHIELD', '#4fd8ff'); AU.chime(); } else { flash('OVERDRIVE', '#ffb21c'); AU.whoosh(); CC.kick += 6; } },
+    shieldPop: (r, what) => { const w = typeof r === 'string' ? r : what; const p = me(); if (w === 'expired') return; cpFlash('SHIELD ABSORBED'); AU.thud(0.4); for (let k = 0; k < 30; k++) spark(p.world.x, p.world.y + 0.6, p.world.z, R(-10, 10), R(-2, 9), R(-10, 10), SPARK_CY, R(0.3, 0.7)); },
+    obstacleHit: () => { const p = me(); CC.shake += 0.7; hitFlash = Math.min(1, hitFlash + 0.6); AU.thud(0.9); for (let k = 0; k < 36; k++) spark(p.world.x, p.world.y + 0.4, p.world.z, R(-11, 11), R(-1, 9), R(-11, 11), k % 2 ? SPARK_HOT : FLAME, R(0.3, 0.9)); }
+  };
+}
+let pwCache = '';
+function updatePowerHUD() {
+  const p = player; if (!p) return;
+  const parts = [];
+  if (p.shieldT > 0) parts.push(`<span class="pw s">⬢ SHIELD ${Math.ceil(p.shieldT)}</span>`);
+  if (p.surgeT > 0) parts.push('<span class="pw b">▲ OVERDRIVE</span>');
+  const h = parts.join(''); if (h !== pwCache) { pwCache = h; $('pwr').innerHTML = h; }
+}
 /* ---------- simulation events -> presentation ---------- */
 function onWallHit(vn, s, Rw) {
   CC.shake += Math.min(0.9, vn / 26); hitFlash = Math.min(1, hitFlash + vn / 40);
@@ -1808,6 +1828,7 @@ sim.events = {
     for (let k = 0; k < 18; k++) spark(cx, cy, cz, R(-8, 8), R(-3, 7), R(-8, 8), k % 2 ? SPARK_HOT : SPARK_CY, R(0.3, 0.7));
   },
   droneHit: r => { CC.shake += 0.4; AU.thud(0.6); for (let k = 0; k < 20; k++) spark(r.world.x, r.world.y, r.world.z, R(-9, 9), R(-2, 8), R(-9, 9), SPARK_HOT, R(0.3, 0.8)); },
+  ...hazardEvents(() => player),
   sector: sec => { secFlash(sec); $('sector').textContent = `S${sec + 1} · ${SECTORS[sec].name}`; $('sector').style.color = SECTORS[sec].css; },
   lap: lap => {
     if (lap.isBest) { $('best').classList.add('flash'); setTimeout(() => $('best').classList.remove('flash'), 2000); }
@@ -1917,6 +1938,7 @@ function updateVisual(r, dt) {
     updateTrail(t, _tp, (r.boost ? 0.11 : 0.045 + 0.02 * r.thr) * esz);
   }
   emitExhaust(r, dt);
+  updateShield(sh, r.shieldT > 0, gameTime);
   const gy = sh.groundY != null ? sh.groundY : -0.5, hw = sh.halfW || 1.1;
   if (r.drift && sp > 20 && Math.random() < 0.85) {
     for (const sx of [-1, 1]) { _tp.set(sx * hw * 0.9, gy, -(sh.halfL || 2.3) * 0.6); sh.root.localToWorld(_tp); spark(_tp.x, _tp.y, _tp.z, -r.F.x * sp * 0.15 + R(-3, 3), R(0.5, 4), -r.F.z * sp * 0.15 + R(-3, 3), Math.random() < 0.5 ? SPARK_HOT : sh.neonA, R(0.2, 0.5)); }
@@ -2221,6 +2243,8 @@ function update(dt, dt0) {
   }
   if (state === 'finished') { cineUI(FIN.on && FIN.t < 3.4, false, FIN.on && FIN.t < 3.4); finishT += dt; if ((FIN.on ? FIN.t > 3.4 : finishT > 2.6) && !shownResults) { shownResults = true; $('results').classList.remove('hide'); } if (shownResults) showResults(); }
   for (const r of racers) updateVisual(r, dt);
+  if (HZV) HZV.update(gameTime);
+  updatePowerHUD();
   const s01 = Math.min(player.speed / 92, 1.4);
   const boosting = player.boost && state === 'race' && !player.crashed;
   if (boosting && !prevBoost.v) { AU.whoosh(); CC.kick = 5; CC.shake += 0.12; }
@@ -2441,7 +2465,7 @@ async function switchMap(key, persist = true) {
   const t0 = performance.now();
   lastDispose = disposeWorld();
   loadTrackData(key);
-  planDecks(); buildRainShelter(); buildTrack(); planBillboards(); BOUNDS = buildCity(); buildProps();
+  planDecks(); buildRainShelter(); buildTrack(); planBillboards(); BOUNDS = buildCity(); buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex });
   for (const r of racers) { r.path = MAIN; r.emPrev = null; r.prevS = undefined; for (const t of r.trails) t.n = 0; }
   gridUp(); initHUD(); loadRecord(); hudCache = {};
   flyS = mod(SECSTART[Math.min(1, SECSTART.length - 1)] + 280, MAIN.L);
@@ -2473,7 +2497,7 @@ async function boot() {
   buildEnv(); await setLoad(0.12, 'MAGNETISING CIRCUIT');
   scene.add(WORLD); planDecks(); buildRainShelter(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');
   BOUNDS = buildCity(); await setLoad(0.55, 'WIRING NEON');
-  buildProps(); buildGarage(); performance.mark('ng:world-built'); await setLoad(0.7, `DOWNLOADING ${CARS[GAR.sel].title} (REAL GLB)…`);
+  buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex }); buildGarage(); performance.mark('ng:world-built'); await setLoad(0.7, `DOWNLOADING ${CARS[GAR.sel].title} (REAL GLB)…`);
   await Promise.race([selLoad, new Promise(r => setTimeout(r, 60000))]);
   updateAssetUI();
   await setLoad(0.86, 'BUILDING FLEET');
@@ -2511,7 +2535,7 @@ const mpSimEvents = {
   shake: x => { CC.shake += x; }, kick: x => { CC.kick += x; },
   flash: (t, c) => { if (t !== 'VICTORY' && t !== 'FINISH') flash(t, c); },   // finishing is announced from the server state
   wallHit: (r, vn, s, Rw) => onWallHit(vn, s, Rw), crash: () => sim.events.crash(player), respawn: () => sim.events.respawn(player),
-  droneHit: () => sim.events.droneHit(player), sector: sec => sim.events.sector(sec), racerReset: () => { }, lap: () => { }, playerFinish: () => { }, bump: () => { }
+  droneHit: () => sim.events.droneHit(player), sector: sec => sim.events.sector(sec), ...hazardEvents(() => player), racerReset: () => { }, lap: () => { }, playerFinish: () => { }, bump: () => { }
 };
 function disposeRacerVis(r) {
   if (r.ship) scene.remove(r.ship.root);
@@ -2672,10 +2696,12 @@ function mpFrame(wall, dt0, nowMs = performance.now()) {
   for (const r of racers) {
     if (r === player || !PR.sample(r.id, sn, MP_T, { ownStep })) continue;
     r.path = MP_T.path === PR.td.BR ? BR : MAIN; r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;
+    r.shieldT = MP_T.pw & 1 ? 1 : 0; r.surgeT = MP_T.pw & 2 ? 1 : 0;
     r.lap = MP_T.lap; r.prog = MP_T.prog; r.boost = MP_T.boost; r.finished = MP_T.finished; r.steer = MP_T.steer; r.drift = MP_T.drift; r.thr = MP_T.thr; r.rollAI = MP_T.rollNet; r.autopilot = true;
     if (MP_T.netCrashed) { if (!(r.crashed > 0)) { sim.pose(r); r.crashed = 1.7; r.crashVel = r.F.clone().multiplyScalar(r.speed * 0.8).addScaledVector(r.Uw, 6); r.crashSpin = new V3(R(-4, 4), R(-6, 6), R(-4, 4)); } }
     else { r.crashed = 0; sim.pose(r); }
   }
+  if (V.pk) applyPads(sim.pads, V.pk, V.time);   // pad availability: server state (+ own-car prediction)
   V.drones.forEach((pd, k) => { const d = drones[k]; if (!d) return; d.s = pd[0]; d.d = pd[1]; d.h = pd[2]; d.world.set(pd[3], pd[4], pd[5]); d.fi = pd[6]; });
   const fo = RC.last ? RC.last.fo : V.fo; sim.finishOrder = fo.map(id => racers.find(r => r.id === id)).filter(Boolean);
   if (state === 'race' && me.finished) mpLocalFinish(false);
