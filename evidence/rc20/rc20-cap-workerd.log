@@ -1,0 +1,6 @@
+PASS  health reports this build  - 0661cad63d2e vs 0661cad63d2e
+PASS  staging budget unchanged (2 rooms)  - {"day":"2026-11-18","usedMin":0,"budgetMin":120,"limitMin":102,"active":0,"maxActive":2,"creates":0}
+PASS  20 humans seated
+PASS  lobby reports 20/20 and maxSeats 20  - 20/20
+PASS  21st refused: room-full  - {"t":"error","error":"room-full","fatal":true}
+PASS  room still 20 after refusal
