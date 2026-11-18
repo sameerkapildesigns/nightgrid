@@ -18,8 +18,10 @@ await page.goto(srv.url + '/'); await page.waitForFunction(() => window.NG_DEBUG
 // BACK-ROW view (worst case): a Node client hosts (seat 0), 18 more join, the browser joins LAST (seat 19)
 const code = (await (await fetch(srv.url + '/api/rooms', { method: 'POST' })).json()).code;
 const cl = []; for (let i = 0; i < N - 1; i++) { const c = new NetClient({ wsUrl: srv.url.replace('http', 'ws'), WebSocketImpl: WebSocket, now: () => performance.now(), build: srv.build, name: 'Racer' + i, onEvent: () => { } }); c.drive = driver(i + 1); c.connect(code); cl.push(c); await waitFor(() => c.you, 20000); c.ready(true); }
-await page.evaluate(() => __ng.mpAutodrive(true));
 await page.click('#mpBtn'); await page.fill('#mpName', 'Back'); await page.fill('#mpCode', code.toLowerCase()); await page.click('[data-act=join]');
+// autodrive AFTER join: set before, mpNet() posts it before 'connect' creates the worker loop and it is dropped
+// (M7 diagnosis: that ordering caused the back-row 0 km/h; real held ArrowUp drives normally)
+await page.evaluate(() => __ng.mpAutodrive(true));
 await page.waitForFunction(k => NG_DEBUG.mp.room && NG_DEBUG.mp.room.seats.length === k, N); await page.click('[data-act=ready]');
 await waitFor(() => cl[0].room && cl[0].room.canStart, 30000); cl[0].start();
 let stop = false; const loop = (async () => { while (!stop) { for (const c of cl) if (c.race) { c.frame(c.drive(c.race.pred)); c.race.pred.decay(0.033); } await sleep(33); } })();
