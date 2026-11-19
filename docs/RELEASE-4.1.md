@@ -65,3 +65,5 @@ After about one hour of play, Sameer reported his head/brain felt a little hurt.
 
 Slipstream request at 22:23: recharge the boost bar at 2x the current slipstream recharge rate (the typo in the original is interpreted as slipstream). This is in addition to the confirmed stronger slipstream/catch-up direction. Do not silently interpret it as doubling every passive or drift gain. Held for next pass, not implemented.
 Base boost-bar fill should also be a little faster, a modest unspecified bump separate from the slipstream 2x change. Preserve that distinction when selecting values. Held, not implemented.
+
+Air trick idea: jump ramps can launch an optional airborne barrel-roll trick that awards boost on a clean stable landing. This is separate from the disliked forced road-surface 360-degree barrels. Comfort treatment, optionality, input and landing/reward checks need design before implementation. Held for R5, not implemented.
