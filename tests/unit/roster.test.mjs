@@ -11,14 +11,14 @@ test('six approved models, Hypercar default, no Z-32S', () => {
   assert.ok(!existsSync(new URL('../../assets/models/z32s.glb', import.meta.url)));
 });
 test('load order: selected car first, then rival cars; nothing else at boot', () => {
-  assert.deepEqual(bootLoadOrder('hypercar'), ['hypercar', 'wedge', 'endurance']);
-  assert.deepEqual(bootLoadOrder('wipeout'), ['wipeout', 'hypercar', 'wedge', 'endurance']);
+  assert.deepEqual(bootLoadOrder('hypercar'), ['hypercar', 'wipeout', 'wedge', 'endurance']);
+  assert.deepEqual(bootLoadOrder('wipeout'), ['wipeout', 'wedge', 'endurance']);
   for (const k of CAR_KEYS) { const o = bootLoadOrder(k); assert.equal(o[0], k); assert.ok(o.length <= 4); }
-  assert.deepEqual(raceCarKeys('wedge').sort(), ['endurance', 'hypercar', 'wedge']);
-  assert.deepEqual(Object.values(RIVAL_LIV).map(r => r.car).sort(), ['endurance', 'hypercar', 'wedge']);
+  assert.deepEqual(raceCarKeys('wedge').sort(), ['endurance', 'wedge', 'wipeout']);
+  assert.deepEqual(Object.values(RIVAL_LIV).map(r => r.car).sort(), ['endurance', 'wedge', 'wipeout']);
 });
 test('race readiness needs every race car settled (ok or failed->labelled fallback)', () => {
-  const st = { hypercar: 'ok', wedge: 'ok', endurance: 'loading' };
+  const st = { hypercar: 'ok', wipeout:'ok', wedge: 'ok', endurance: 'loading' };
   assert.equal(isRaceReady('hypercar', k => st[k] || 'none'), false);
   st.endurance = 'failed'; assert.equal(isRaceReady('hypercar', k => st[k] || 'none'), true);
   assert.equal(isRaceReady('rally', k => st[k] || 'none'), false);

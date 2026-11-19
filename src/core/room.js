@@ -13,7 +13,7 @@ export const MAPS_OK = ['velocity', 'technical', 'casino', 'summit', 'legacy'], 
 export const CARS_OK = ['hypercar', 'endurance', 'wedge', 'rally', 'streamliner', 'wipeout'];
 export const PAINT_COUNT = 4;
 export const BOT_PERS = ['GHOST', 'VEX', 'BLITZ'];
-export const BOT_CAR = { GHOST: 'hypercar', VEX: 'wedge', BLITZ: 'endurance' };
+export const BOT_CAR = { GHOST: 'wipeout', VEX: 'wedge', BLITZ: 'endurance' };
 const err = (code) => ({ ok: false, error: code });
 
 export function cleanName(name) {

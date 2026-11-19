@@ -39,7 +39,7 @@ export const PAINTS = [
 ];
 export const RIVAL_LIV = {
   VEX: { car: 'wedge', name: 'VEX #13', paint: '#141016', metal: 0.5, rough: 0.28, accent: '#ff2a3a', neon: '#ff3355' },
-  GHOST: { car: 'hypercar', name: 'GHOST #00', paint: '#a8afc6', metal: 0.7, rough: 0.2, accent: '#5a3ae0', neon: '#b9a6ff' },
+  GHOST: { car: 'wipeout', name: 'GHOST #00', paint: '#a8afc6', metal: 0.7, rough: 0.2, accent: '#5a3ae0', neon: '#b9a6ff' },
   BLITZ: { car: 'endurance', name: 'BLITZ #88', paint: '#f7bf12', metal: 0.25, rough: 0.32, accent: '#111111', neon: '#ff8a2a' }
 };
 export const RIVAL_ORDER = ['GHOST', 'VEX', 'BLITZ'];
