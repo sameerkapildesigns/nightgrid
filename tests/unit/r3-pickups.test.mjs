@@ -6,8 +6,8 @@ function at(s,p){Object.assign(s.player,{s:p.s,d:p.d,va:0,vd:0,psi:0,h:1,vh:0,sp
 for(const map of maps)test(`${map}: seed chooses safe, repeatable extra gold pads, no mutation or shared RNG consumption`,()=>{
  const s=createSim({seed:123});s.setTrack(map);const rng=s.rngState,base=s.track.hazards.pads.length;
  const a=buildRacePads(s.track,123,s.weaponBoxes),b=buildRacePads(s.track,123,s.weaponBoxes),c=buildRacePads(s.track,456,s.weaponBoxes),extra=a.filter(p=>p.extra);
- assert.deepEqual(a,b);assert.notDeepEqual(extra,c.filter(p=>p.extra));assert.ok(extra.length>=3&&extra.length<=6);assert.equal(s.track.hazards.pads.length,base);assert.equal(s.rngState,rng);
- for(const p of extra){assert.equal(p.kind,'B');assert.ok(okStation(s.track,Math.round(p.s/s.track.MAIN.ds),{pad:true}));assert.ok(Math.abs(p.d)<=s.track.W0/2);for(const q of extra)if(q!==p)assert.ok(Math.abs(gapS(p.s,q.s,s.track.MAIN.L))>=180);for(const q of s.weaponBoxes)assert.ok(Math.abs(gapS(p.s,q.s,s.track.MAIN.L))>=65);}
+ assert.deepEqual(a,b);assert.notDeepEqual(extra,c.filter(p=>p.extra));assert.ok(extra.length>=3&&extra.length<=10);assert.equal(s.track.hazards.pads.length,base);assert.equal(s.rngState,rng);
+ for(const p of extra){assert.equal(p.kind,'B');assert.ok(okStation(s.track,Math.round(p.s/s.track.MAIN.ds),{pad:true}));assert.ok(Math.abs(p.d)<=s.track.W0/2);for(const q of extra)if(q!==p)assert.ok(Math.abs(gapS(p.s,q.s,s.track.MAIN.L))>=150);for(const q of s.weaponBoxes)assert.ok(Math.abs(gapS(p.s,q.s,s.track.MAIN.L))>=65);}
 });
 for(const kind of['R','S'])test(`${kind}: respawns in1.5s, no parked farming, fresh entry can collect`,()=>{
  const s=setup(),p=s.pads.find(p=>p.kind===kind);s.pads=[p];at(s,p);s.player.meter=0;s.step(dt);assert.ok(p.readyAt>s.time);assert.ok(Math.abs(p.readyAt-s.time-1.5)<dt);

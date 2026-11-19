@@ -5,6 +5,7 @@ import {buildR4Landmarks} from './env/r4-landmarks.js';
 import {engineVoice} from './engine-profiles.js';
 import {beatGlow} from './music-beat.js';
 import { createMusic } from './music.js';
+import {attachBoostFlames,updateBoostFlames} from './boost-flames.js';
 import { ambientGains, engineGains } from './audio-mix.js';
 import { QUALITY, qualityLimits, qualitySample } from './quality.js';
 // NIGHTGRID client: rendering, world building, car models, garage, FX, HUD, audio, input,
@@ -2028,6 +2029,8 @@ function updateVisual(r, dt) {
     else { U.uHot.value.copy(t.base).multiplyScalar(0.18 * r.thr); U.uColor.value.copy(t.base).multiplyScalar(0.1 + r.thr * 0.16); U.uTail.value.copy(t.base).multiplyScalar(0.05); t.maxLen = 1.1 + 0.6 * r.thr; t.wobble = 0; t.mesh.visible=false; }
     updateTrail(t, _tp, (r.boost ? 0.11 : 0.045 + 0.02 * r.thr) * esz);
   }
+  if(!sh.boostFlames)attachBoostFlames(sh);
+  updateBoostFlames(sh,r.boost,sp,gameTime);
   emitExhaust(r, dt);
   updateShield(sh, r.shieldT > 0 && (r !== player || !MP.race || (mpPw() & PW_SHIELD)), gameTime,r.passT>0);   // own bubble in rooms: confirmed only
   const gy = sh.groundY != null ? sh.groundY : -0.5, hw = sh.halfW || 1.1;
@@ -2044,6 +2047,7 @@ const EX_SPARK_A = new THREE.Color(0.55, 1.4, 1.8), EX_SPARK_B = new THREE.Color
 function updateDrones() {   // drone motion is simulated in core; this only places the meshes
   for (const d of drones) {
     if (!d.root) continue;
+    d.visibility=sim.trafficVisibility(d.s);
     d.root.position.copy(d.world);
     _L.crossVectors(MAIN.U[d.fi], MAIN.T[d.fi]).normalize(); _mb.makeBasis(_L, MAIN.U[d.fi], MAIN.T[d.fi]); d.root.quaternion.setFromRotationMatrix(_mb);
     d.beacon.material.color.setScalar(Math.sin(gameTime * 6 + d.lane) > 0 ? 4 : 0.3);

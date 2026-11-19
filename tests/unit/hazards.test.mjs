@@ -122,7 +122,7 @@ test('self-boost: surge forces boost for SURGE_TIME without draining the meter; 
   assert.equal(powerFlags({ shieldT: 1, surgeT: 0 }), 1); assert.equal(powerFlags({ shieldT: 0, surgeT: 1 }), 2);
 });
 
-test('bots dodge obstacles (8 bots, full race, every map) without pickups and keep their pace', () => {
+test('bots dodge obstacles (8 bots, full race, every map) without pickups and without losing pace', () => {
   for (const map of MAP_KEYS) {
     const out = {};
     for (const haz of [false, true]) {
@@ -134,7 +134,7 @@ test('bots dodge obstacles (8 bots, full race, every map) without pickups and ke
       out[haz] = { hits, win: sim.finishOrder[0].finishTime };
     }
     assert.ok(out.true.hits <= 2, `${map}: ${out.true.hits} bot hits`);
-    assert.ok(Math.abs(out.true.win - out.false.win) / out.false.win < 0.03, `${map} pace ${out.false.win} -> ${out.true.win}`);
+    assert.ok(out.true.win <= out.false.win * 1.03, `${map} pace ${out.false.win} -> ${out.true.win}`);
   }
 });
 

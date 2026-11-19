@@ -3,8 +3,7 @@
 // automated runs can never write a real record.
 export const RECORD_PREFIX = 'nightgrid_v4_rec_';
 export const LEGACY_KEYS = { legacy: ['nightgrid_v2_best'] };
-// Hard physical ceiling: player top speed is 125 m/s boosted x1.06 slipstream x1.035 car
-// mod (~137 m/s). 140 m/s over a whole lap is already impossible; anything faster is rejected.
+// R5 hard simulation ceiling after impulses is 140 m/s. Assisted laps are also rejected below.
 export const MAX_LAP_SPEED = 140;
 export const MAX_LAP_SECONDS = 3600;
 
@@ -20,9 +19,8 @@ export const MAX_LAP_SECONDS = 3600;
 // overwritten, never deleted. The revision sits BEFORE the map key, so game.js lapLenOf
 // (k.split('~')[0].endsWith('_' + MAPKEY)) still matches. Bit 4 (night) stays cosmetic: it shares the day record.
 export const R4_LAYOUT_REV = 'r4';
-// R4.1 changes Velocity camber. Keep its older records stored, but
-// use separate keys rather than comparing laps under different surface frames.
-export const LAYOUT_REV = Object.freeze({ velocity: 'r41', technical: R4_LAYOUT_REV, legacy: R4_LAYOUT_REV, casino: R4_LAYOUT_REV, summit: R4_LAYOUT_REV, drift: R4_LAYOUT_REV });
+// R5 speed/boost physics changes every map. Preserve all older keys but never compare them.
+export const LAYOUT_REV = Object.freeze({ velocity: 'r5', technical: 'r5', legacy: 'r5', casino: 'r5', summit: 'r5', drift: 'r5' });
 const modePart = mode => (mode === 'assisted' ? 'assisted' : 'expert');
 const variantPart = vr => (vr & 3 ? '~' + (vr & 1 ? 'm' : '') + (vr & 2 ? 'r' : '') : '');
 export function recordKey(mode, map, vr = 0) {

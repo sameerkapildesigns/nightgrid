@@ -64,14 +64,25 @@ const triCount = g => (g.index ? g.index.count : g.attributes.position.count) / 
 
 export function createTaxiFleet(scene, { capacity = 16, paint } = {}) {
   const geo = buildTaxiGeometry({ paint });
-  const bodyMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.45, roughness: 0.32, envMapIntensity: 1.1 });
-  const lightMat = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const bodyMat = new THREE.MeshStandardMaterial({ transparent:true, vertexColors: true, metalness: 0.45, roughness: 0.32, envMapIntensity: 1.1 });
+  const lightMat = new THREE.MeshBasicMaterial({ transparent:true,vertexColors: true });
   const glowTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.45)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
   const glowGeo = new THREE.PlaneGeometry(3.6, 6.6).rotateX(-Math.PI / 2).translate(0, -0.95, 0);
   const glowMat = new THREE.MeshBasicMaterial({ map: glowTex, color: new THREE.Color(1.3, 0.75, 0.2), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
   const mk = (g, m) => { const im = new THREE.InstancedMesh(g, m, capacity); im.count = 0; im.frustumCulled = false; im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.name = 'taxi'; scene.add(im); return im; };
   const body = mk(geo.body, bodyMat), lights = mk(geo.lights, lightMat), beacon = mk(geo.beacon, lightMat), glow = mk(glowGeo, glowMat);
   beacon.setColorAt(0, new THREE.Color(1, 1, 1));
+  // Per-instance opacity lets traffic fade without popping, scaling or teleporting.
+  for(const m of meshesForAlpha()){
+    m.geometry.setAttribute('taxiAlpha',new THREE.InstancedBufferAttribute(new Float32Array(capacity).fill(1),1));
+  }
+  function meshesForAlpha(){return [body,lights,beacon,glow];}
+  for(const mat of [bodyMat,lightMat,glowMat])mat.onBeforeCompile=shader=>{
+    shader.vertexShader='attribute float taxiAlpha; varying float vTaxiAlpha;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvTaxiAlpha=taxiAlpha;');
+    shader.fragmentShader='varying float vTaxiAlpha;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a*=vTaxiAlpha;\nif(diffuseColor.a<.001)discard;');
+  };
   const slots = [];
   const zero = new THREE.Matrix4().makeScale(0, 0, 0);
   const meshes = [body, lights, beacon, glow];
@@ -91,10 +102,11 @@ export function createTaxiFleet(scene, { capacity = 16, paint } = {}) {
       for (const d of list) {
         if (!d.root || d.root.userData.slot == null) continue;
         const k = d.root.userData.slot; d.root.updateMatrix();
+        for(const m of meshes)m.geometry.getAttribute('taxiAlpha').setX(k,d.visibility??1);
         for (const m of meshes) m.setMatrixAt(k, d.root.matrix);
         beacon.setColorAt(k, d.beacon.material.color);
       }
-      for (const m of meshes) m.instanceMatrix.needsUpdate = true;
+      for (const m of meshes){m.instanceMatrix.needsUpdate=true;m.geometry.getAttribute('taxiAlpha').needsUpdate=true;}
       if (beacon.instanceColor) beacon.instanceColor.needsUpdate = true;
     }
   };

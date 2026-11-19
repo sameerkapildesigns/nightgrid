@@ -5,7 +5,7 @@ const out=process.env.NG_EVIDENCE_DIR||'/tmp/r5-comfort-evidence';mkdirSync(out,
 const server=await createServer({mode:'test',server:{host:'127.0.0.1',port:4193,strictPort:true},logLevel:'error'});await server.listen();
 const browser=await launch();
 try{
- const page=await browser.newPage({viewport:{width:1366,height:768}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const page=await browser.newPage({viewport:{width:1366,height:768}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&/shader|WebGL|THREE/.test(m.text()))errors.push(m.text());});
  await page.addInitScript(()=>localStorage.setItem('nightgrid_v4_settings',JSON.stringify({blur:2,shake:true,quality:'battery',mode:'expert',music:true})));
  await page.route(/fonts\.(googleapis|gstatic)\.com/,r=>r.abort());await page.goto('http://127.0.0.1:4193/');
  await page.waitForFunction(()=>NG_DEBUG?.state==='title'&&!document.getElementById('go').disabled,null,{timeout:120000});

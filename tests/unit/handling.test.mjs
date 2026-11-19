@@ -65,17 +65,17 @@ test('Assisted edge correction is capped at 15% and disabled while the player st
   sim.step(SIM_DT); assert.ok(p.edgeAssist < 0 && p.edgeAssist >= -0.15, String(p.edgeAssist));
   sim.input.left = 1; sim.step(SIM_DT); assert.equal(p.edgeAssist, 0);
 });
-test('pace caps: Assisted top speed == cap (fastest car, no boost), never exceeded incl. AI, gravity, drafting', () => {
+test('pace caps: Assisted top speed == cap (fastest car, no boost), never exceeded incl. AI, bounded downhill allowance, drafting', () => {
   for (const m of MAP_KEYS) {
     const r = RUN[m + 'assisted'], cap = PACE[m].assisted.kmh;
-    assert.ok(r.pMax * 3.6 <= cap[0] + 0.5 && r.pMax * 3.6 > cap[0] * 0.95, `${m} player max ${(r.pMax * 3.6).toFixed(1)} vs ${cap[0]}`);
-    assert.ok(r.aiMax * 3.6 <= cap[1] + 0.5, `${m} AI max ${(r.aiMax * 3.6).toFixed(1)} vs boost cap ${cap[1]}`);
-    const b = drive(m, 'assisted', { boost: true }); assert.ok(b.pMax * 3.6 <= cap[1] + 0.5 && b.pMax * 3.6 > cap[0], `${m} boosted max ${(b.pMax * 3.6).toFixed(1)}`);
+    assert.ok(r.pMax * 3.6 <= cap[0]*1.04 + 0.5 && r.pMax * 3.6 > cap[0] * 0.95, `${m} player max ${(r.pMax * 3.6).toFixed(1)} vs ${cap[0]}`);
+    assert.ok(r.aiMax * 3.6 <= cap[1]*1.04 + 0.5, `${m} AI max ${(r.aiMax * 3.6).toFixed(1)} vs boost cap ${cap[1]}`);
+    const b = drive(m, 'assisted', { boost: true }); assert.ok(b.pMax * 3.6 <= cap[1]*1.04 + 0.5 && b.pMax * 3.6 > cap[0], `${m} boosted max ${(b.pMax * 3.6).toFixed(1)}`);
   }
 });
 test('Expert reaches its higher normal cap; other cars scale by modifier/1.035', () => {
   for (const m of MAP_KEYS) { const r = RUN[m + 'expert'], cap = PACE[m].expert.kmh[0]; assert.ok(r.pMax * 3.6 > cap * 0.97, `${m} ${(r.pMax * 3.6).toFixed(0)} vs ${cap}`); }
-  const p = paceFor('velocity', 'assisted'); assert.ok(Math.abs(p.normal * 3.6 - 240) < 1e-9 && Math.abs(p.normal * 0.985 / 1.035 * 3.6 - 228.4) < 0.1);
+  const p = paceFor('velocity', 'assisted'); assert.ok(Math.abs(p.normal * 3.6 - 276) < 1e-9 && Math.abs(p.normal * 0.985 / 1.035 * 3.6 - 262.7) < 0.1);
 });
 test('tight-corner speeds (curvature-based): AI medians in range for both modes; Assisted player in range', () => {
   for (const m of MAP_KEYS) for (const mode of ['assisted', 'expert']) {
@@ -96,7 +96,7 @@ test('loops / barrel rolls / inversions hold at the lower speeds: no crashes, va
 });
 test('records are separate per mode; pre-M3 records are not migrated (and not deleted)', () => {
   const mem = memoryStorage(); mem.setItem('nightgrid_v4_rec_velocity', '66'); const st = createRecordStore(mem, { lapLenOf: () => 5870 });
-  assert.equal(recordKey('assisted', 'velocity'), 'm3_assisted_r41_velocity'); assert.equal(recordKey('expert', 'velocity'), 'm3_expert_r41_velocity');
+  assert.equal(recordKey('assisted', 'velocity'), 'm3_assisted_r5_velocity'); assert.equal(recordKey('expert', 'velocity'), 'm3_expert_r5_velocity');
   assert.equal(st.get(recordKey('assisted', 'velocity')), Infinity); assert.equal(st.get(recordKey('expert', 'velocity')), Infinity);
   st.offer(recordKey('assisted', 'velocity'), { time: 92, lapLen: 5870 });
   assert.equal(st.get(recordKey('assisted', 'velocity')), 92); assert.equal(st.get(recordKey('expert', 'velocity')), Infinity);

@@ -11,7 +11,7 @@ export const HAZ = {
   OB_SPEED_KEEP: 0.6, OB_MAX_LOSS: 35, OB_GLANCE: 6, OB_DEBOUNCE: 0.5,
   START_CLEAR: 300, SEAM_CLEAR: 100, RUNUP: 120, RUNUP_K: 1 / 260, MIN_UPY: 0.8, OB_SPACING: 180, PAD_CLEAR: 80,
   PAD_HALF_LEN: 5.0, PAD_HALF_W: 3.4, BOOST_PAD_HALF_LEN: 10, PAD_VISUAL_HALF_W: 2.8, PAD_RESPAWN: 1.5, CLAIM_COOLDOWN: 1.5,
-  SHIELD_TIME: 15, SHIELD_PASS: 0.4, SURGE_TIME: 1.8, BOOST_REFILL: 0.35,
+  SHIELD_TIME: 15, SHIELD_PASS: 0.4, SURGE_TIME: 2.2, SURGE_MAX:3.6, BOOST_REFILL: 0.35,
   DRONE_HOP: 2.8, DRONE_HOP_RANGE: 9
 };
 export const OB_COUNT = { velocity: 4, technical: 3, casino: 3, summit: 3, legacy: 4,drift:0 };
@@ -98,8 +98,8 @@ export function buildRacePads(td,seed=4242,boxes=[]){
   for(let i=0;i<M.N;i+=15)if(okStation(td,i,{pad:true,avoid}))candidates.push(i);
   for(let i=candidates.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
   const placed=[];
-  for(const i of candidates){const s=i*M.ds;if(placed.some(v=>Math.abs(gapS(v,s,M.L))<180))continue;
-    const d=(rnd()*2-1)*Math.min(M.W[i]*.5,5);pads.push({s,d,kind:'B',row:200+placed.length,extra:true});placed.push(s);if(placed.length>=6)break;}
+  for(const i of candidates){const s=i*M.ds;if(placed.some(v=>Math.abs(gapS(v,s,M.L))<150))continue;
+    const d=(rnd()*2-1)*Math.min(M.W[i]*.5,5);pads.push({s,d,kind:'B',row:200+placed.length,extra:true});placed.push(s);if(placed.length>=10)break;}
   return pads;
 }
 // signed shortest along-track gap b - a on a closed loop of length L

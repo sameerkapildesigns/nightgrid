@@ -9,7 +9,7 @@ import { createSim } from '../../src/core/sim.js';
 import { SIM_DT } from '../../src/core/clock.js';
 import { decodeFrame, encodeFrame } from '../../src/net/protocol.js';
 
-const RATE = 0.08, DELAY = 0.75, sec = s => Math.round(s / SIM_DT);
+const RATE = 0.10, DELAY = 0.75, sec = s => Math.round(s / SIM_DT);
 function solo({ ghost = false, seats = 1 } = {}) {
   const sim = createSim({ seed: 7 }); sim.setTrack('velocity');
   sim.addSeats(Array.from({ length: seats }, (_, k) => ({ id: 'p' + k, kind: 'human', name: 'P' + k })), 'p0');

@@ -11,6 +11,8 @@ import { clamp, lerp, mod, wrapA, damp, fmtTime, sstep } from './math.js';
 import { paceFor, FASTEST_MOD } from './pace.js';
 import { buildHazards, buildRacePads, HAZ, gapS, padContact } from './hazards.js';
 import { updateCatchup } from './catchup.js';
+import { R5_BALANCE as BAL,downhill,downhillCap } from './balance.js';
+import {trafficProfile,trafficAlpha,trafficStarts} from './traffic.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
 
 export { H0, S0 };
@@ -40,7 +42,7 @@ export function gridSlots(n, W0) {
   return out;
 }
 
-export const BOOST_REGEN_RATE = 0.08, BOOST_REGEN_DELAY = 0.75, BOOST_RELOCK = 0.05;
+export const BOOST_REGEN_RATE = BAL.passive, BOOST_REGEN_DELAY = 0.75, BOOST_RELOCK = 0.05;
 export function createSim({ seed = 4242, events = null } = {}) {
   // mulberry32 with exportable state (snapshot/import parity)
   const rng = { a: seed | 0 };
@@ -50,6 +52,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   // Presentation hooks; unknown/missing handlers are no-ops so the core runs headless.
   const ev = new Proxy({}, { get: (_, k) => { const f = sim.events && sim.events[k]; return typeof f === 'function' ? f : noop; } });
 
+  let traffic=null;
   let td = null, MAIN, BR, SAm, SBm, OFF, W0, LAPLEN, LAPS, HASBR, SECTORS;
   const frameAt = (p, s, o) => frameAtTD(td, p, s, o);
   const kgAt = (p, s) => kgAtTD(td, p, s);
@@ -81,7 +84,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function setTrack(key, vr = 0) {
     td = typeof key === 'string' ? buildTrackData(key, vr) : key;
     ({ MAIN, BR, SAm, SBm, OFF, W0, LAPLEN, LAPS, HASBR, SECTORS } = td);
-    sim.pace = paceFor(td.key, sim.mode);
+    sim.pace = paceFor(td.key, sim.mode);traffic=trafficProfile(td);
     const hz = buildHazards(td); sim.obstacles = hz.obstacles;
     sim.weaponBoxes = buildWeaponBoxes(td);sim.pads=buildRacePads(td,sim.pickupSeed,sim.weaponBoxes).map(p=>({...p,readyAt:0}));combat.reset();
     for (const r of sim.racers) { r.path = MAIN; r.prevS = undefined; }
@@ -137,7 +140,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     addDrones();
   }
   function addDrones() {
-    const count=['casino','summit'].includes(td.key)?3:7;
+    const count=7;
     const lanes = [-6, 0, 6, -4, 5, -7, 2];
     for (let k = 0; k < count; k++) sim.drones.push({ s: (k + 0.35) * MAIN.L / 7, lane: lanes[k], d: lanes[k], speed: R(30, 41), h: H0 + 0.1, vh: 0, phase: R(0, 10), world: new Vec3(), lastSign: 0, fi: 0 });
     gridUp();
@@ -157,7 +160,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     combat.reset(); sim.stepIndex = 0;
     const slots = gridSlots(sim.racers.length, W0);
     for (const r of sim.racers.slice().sort((a, b) => a.gridSlot - b.gridSlot)) { const [bk, d] = slots[r.gridSlot]; placeRacer(r, bk, d); if (!r.isAI) r.meter = 0.35; }
-    sim.drones.forEach((d, k) => { d.s = td.key==='casino'?160+k*90:td.key==='summit'?2600+k*55:mod(S0 + 380 + k * MAIN.L / 7, MAIN.L); d.speed = R(30, 41); });
+    const starts=trafficStarts(traffic,sim.drones.length);sim.drones.forEach((d,k)=>{d.s=starts[k];d.speed=R(30,41);});
     sim.phase = 'grid'; sim.finishOrder = []; sim.curSplits = []; sim.debugTouched = false;
     for (const p of sim.pads) p.readyAt = 0;
     for (const r of sim.racers) { r.curSplits = []; r.wrongWayT = 0;r.padTouch={}; }
@@ -260,18 +263,18 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const tow = r.tow;
     const CM = r.carMods || { vmax: 1, acc: 1, grip: 1 };
     const CU = r.catchMul || 1;   // R2 catch-up assist: 1 except solo and far behind (catchup.js)
-    const capN = PC.normal * CM.vmax / FASTEST_MOD * CU, capB = PC.boost * CM.vmax / FASTEST_MOD * CU;
-    const vmax = (r.boost ? capB : capN) * (MD.draftOverCap ? 1 + 0.06 * tow : 1);
+    const capN = PC.normal * CM.vmax / FASTEST_MOD * CU * downhillCap(f.T.y), capB = PC.boost * CM.vmax / FASTEST_MOD * CU * downhillCap(f.T.y);
+    const vmax = (r.boost ? capB : capN) * (MD.draftOverCap ? 1 + BAL.draftCap * tow : 1);
     let a = 0;
     const tm = air ? 0.25 : 1;
-    if (thr) a += (r.boost ? 88 : 44) * CM.acc * tm * Math.max(-0.5, 1 - (vf / vmax) * (vf / vmax));
+    if (thr) a += (r.boost ? BAL.boostAccel : BAL.normalAccel) * CM.acc * tm * Math.max(-0.5, 1 - (vf / vmax) * (vf / vmax));
     else if (r.boost) a += 34 * tm * Math.max(0, 1 - (vf / vmax) * (vf / vmax));
     if (vf > vmax) a -= (vf - vmax) * 1.2;
     if (airbrake && !air) a -= brk ? 18 : 9;
     else if (brk && !air) a -= vf > 0.5 ? MD.brake0 + (MD.brakeMax - MD.brake0) * Math.min(1, r.brakeT / MD.brakeRamp) : 16;
     else if (r.cornerAssist > 0 && vf > 0.5) a -= r.cornerAssist;
-    a -= vf * 0.035 * (1 - 0.35 * tow) + (thr || r.boost ? 0 : 3.5) * Math.sign(vf);
-    if (r.slingT > 0) { a += 22; r.slingT -= dt; }
+    a -= vf * 0.035 * (1 - BAL.draftDrag * tow) + (thr || r.boost ? 0 : 3.5) * Math.sign(vf);
+    if (r.slingT > 0) { a += BAL.slingAccel; r.slingT -= dt; }
     vf += a * dt; if (vf < -22) vf = -22;
     if (!MD.draftOverCap) {   // Assisted: hard ceiling (boost cap while boosting, decaying back to the normal cap) - gravity/draft/slingshot can't exceed it
       r.capHold = r.boost ? capB : Math.max(capN, Math.min(capB, (r.capHold || capN) - 25 * dt));
@@ -286,7 +289,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (vf > 0 && !air) vf += lost * 0.32;
     r.drift = !air && ((airbrake && Math.abs(vl) > 4) || Math.abs(vl) > 12);
     r.va = vf * c + vl * sn; r.vd = -vf * sn + vl * c;
-    r.va -= GRAV * f.T.y * dt;
+    r.va += BAL.downhillAccel * downhill(f.T.y) * dt;
     // advance along the curved surface
     const den = Math.max(0.3, 1 + kg * (r.d + f.off));
     const dsm = r.va * dt / den;
@@ -295,7 +298,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const va2 = r.va * ca - r.vd * sa, vd2 = r.vd * ca + r.va * sa; r.va = va2; r.vd = vd2; r.psi = wrapA(r.psi - ang);
     r.prevS = r.s; r.s += dsm; transitions(r);
     r.vf = vf; r.vl = vl; r.acc = a; r.speed = Math.hypot(r.va, r.vd);
-    if (r.drift && vf > 30) earn(r, 'DRIFT', '#ffc23f', dt * 0.2);
+    if (r.drift && vf > 30 && Math.abs(kg)>1/300) earn(r, 'DRIFT', '#ffc23f', dt * BAL.driftRegen);
     // walls
     const [wl, wr, rl, rrl] = walls(r);
     const lim = r.wallLim; r.scrape = false;
@@ -352,7 +355,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     // M3: corner speed from the mode's lateral accel (personality lat relative to 84, difficulty lat)
     // Brake toward upcoming corners instead of adopting their minimum speed the instant
     // they enter the lookahead window. Current curvature still sets an immediate limit.
-    const cornerA = PC.cornerA * (P0 ? P0.lat / 84 : 1) * DF.lat;
+    const cornerA = PC.cornerA * (td.key==='drift'&&sim.mode==='expert'?1.35:1) * (P0 ? P0.lat / 84 : 1) * DF.lat;
     let vC = Math.sqrt(cornerA / Math.max(Math.abs(kgAt(r.path,r.s)),1e-4));
     for(let ahead=6;ahead<look;ahead+=3){const s=r.s+ahead;
       const branch=r.path===MAIN&&r.takeShort&&r.s<SAm&&s>=SAm;
@@ -368,7 +371,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       rub = 1 + (gapSec > 0 ? clamp(gapSec / 8, 0, 1.35) * 0.06 : clamp(gapSec / 8, -1.3, 0) * 0.065);
     }
     // M3: AI top pace scaled to the mode's cap (v5b AI ~= the fastest car's cap), personality relative to 93.75
-    let vmax = PC.normal * ((P0 ? P0.vmax : 70) / 93.75) * DF.vmax * noise * rub * (PC.mode.draftOverCap ? 1 + 0.04 * r.tow : 1);
+    let vmax = downhillCap(f.T.y) * PC.normal * ((P0 ? P0.vmax : 70) / 93.75) * DF.vmax * noise * rub * (PC.mode.draftOverCap ? 1 + 0.04 * r.tow : 1);
     if (r.isAI && racing) {
       r.aiBoostCD -= dt;
       if (r.aiBoostT > 0) { r.aiBoostT -= dt; r.boost = true; }
@@ -381,9 +384,9 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const vT = Math.min(vmax, vC * (r.boost ? 1.04 : 1) * Math.min(1.04, rub * noise));
     const dv = vT - r.speed;
     r.speed += dv > 0 ? Math.min(dv, ((r.isAI && r.prog<140 ? 44 : (P0 ? P0.acc : 24)) + (r.boost ? 12 : 0)) * dt) : Math.max(dv, -(P0 ? P0.brake : 44) * dt);
-    r.speed -= GRAV * f.T.y * dt; if (r.speed < 0) r.speed = 0;
+    r.speed += BAL.downhillAccel * downhill(f.T.y) * dt; if (r.speed < 0) r.speed = 0;
     if (!PC.mode.draftOverCap) {   // Assisted: same hard ceiling rule as the player (AI never outruns the cap)
-      const pf = Math.min(1, (P0 ? P0.vmax : 70) / 93.75), cN = PC.normal * pf, cB = PC.boost * pf;
+      const pf = Math.min(1, (P0 ? P0.vmax : 70) / 93.75), cN = PC.normal * pf * downhillCap(f.T.y), cB = PC.boost * pf * downhillCap(f.T.y);
       r.capHold = r.boost ? cB : Math.max(cN, Math.min(cB, (r.capHold || cN) - 25 * dt));
       if (r.speed > r.capHold) r.speed = r.capHold;
     }
@@ -415,6 +418,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     }
     for (const dr of sim.drones) {
       if (r.path !== MAIN) break;
+      if(trafficAlpha(traffic,dr.s)<.99)continue;
       let gp = dr.s - r.s; if (gp > MAIN.L / 2) gp -= MAIN.L; if (gp < -MAIN.L / 2) gp += MAIN.L;
       if (gp > -4 && gp < 40 && Math.abs(dr.d - r.d) < 4.6) { dT = dr.d + (r.d >= dr.d ? 5.2 : -5.2); if (gp < 12 && Math.abs(dr.d - r.d) < 3.2) r.speed = Math.min(r.speed, dr.speed + 10); }
     }
@@ -490,6 +494,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   // sim RNG. One droneHit event per contact (0.35 s debounce, closing speed >= 1.5 m/s); state rides in r.droneT.
   const DR_L = 5.2, DR_W = 2.7, DR_H = 1.5, DR_E = 0.3, DR_GLANCE = 3, DR_DEBOUNCE = 0.35, DR_MIN_HIT = 1.5;
   function droneContact(r, dr) {
+    if(trafficAlpha(traffic,dr.s)<.99)return;
     let gs = dr.s - r.s; if (gs > MAIN.L / 2) gs -= MAIN.L; if (gs < -MAIN.L / 2) gs += MAIN.L;
     const gd = dr.d - r.d;
     if (Math.abs(gs) >= DR_L || Math.abs(gd) >= DR_W || Math.abs(r.h - dr.h) >= DR_H) return;
@@ -557,7 +562,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
         if ((p.kind!=='B' && p.readyAt > sim.time) || (p.kind==='S' && r.powCD>0)) continue;
         if (p.kind === 'S' && r.shieldT > 0) continue;
         p.readyAt = p.kind==='B' ? 0 : sim.time + HAZ.PAD_RESPAWN; if(p.kind!=='R')r.powCD = HAZ.CLAIM_COOLDOWN;
-        if(p.kind==='R'){r.meter=Math.min(1,r.meter+HAZ.BOOST_REFILL);r.boostLock=false;}else if (p.kind === 'S') { r.shieldT = HAZ.SHIELD_TIME; r.passT = 0; } else { r.surgeT = Math.min(HAZ.SURGE_TIME*2,r.surgeT+HAZ.SURGE_TIME); r.meter = Math.min(1, r.meter + HAZ.BOOST_REFILL); r.boostLock = false; }
+        if(p.kind==='R'){r.meter=Math.min(1,r.meter+HAZ.BOOST_REFILL);r.boostLock=false;}else if (p.kind === 'S') { r.shieldT = HAZ.SHIELD_TIME; r.passT = 0; } else { r.surgeT = Math.min(HAZ.SURGE_MAX,r.surgeT+HAZ.SURGE_TIME); r.meter = Math.min(1, r.meter + HAZ.BOOST_REFILL); r.boostLock = false; }
         ev.racer('pickup', r, p.kind); if (isFocus(r)) ev.pickup(r, p.kind);
         break;
       }
@@ -575,7 +580,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function nearMisses() { for (const h of sim.racers) if (!h.isAI) nearMiss(h); }
   function nearMiss(p) {
     if (p.autopilot || p.crashed || p.speed < 40) return;
-    const others = sim.racers.filter(o => o !== p).map(o => [o, o.path === p.path ? relS(p, o) : null, o.d, o.name]).concat(sim.drones.map((d, k) => [d, p.path === MAIN ? (() => { let g = d.s - p.s; if (g > MAIN.L / 2) g -= MAIN.L; if (g < -MAIN.L / 2) g += MAIN.L; return g; })() : null, d.d, 'D' + k]));
+    const others = sim.racers.filter(o => o !== p).map(o => [o, o.path === p.path ? relS(p, o) : null, o.d, o.name]).concat(sim.drones.filter(d=>trafficAlpha(traffic,d.s)>=.99).map((d, k) => [d, p.path === MAIN ? (() => { let g = d.s - p.s; if (g > MAIN.L / 2) g -= MAIN.L; if (g < -MAIN.L / 2) g += MAIN.L; return g; })() : null, d.d, 'D' + k]));
     for (const [, gs, od, key] of others) {
       if (gs == null) { p.lastSign[key] = 0; continue; }
       const sg = Math.sign(gs); const prev = p.lastSign[key] || 0;
@@ -587,14 +592,14 @@ export function createSim({ seed = 4242, events = null } = {}) {
     let inCone = false;
     for (const o of sim.racers) {
       if (o === r || o.path !== r.path || o.crashed || o.finished || Math.abs(o.h-r.h)>2 || Math.abs(wrapA(o.psi-r.psi))>.35) continue;
-      const gs = relS(r, o); if (gs < 5 || gs > 42) continue;
-      if (Math.abs(o.d - r.d) < 1.6 + gs * 0.05) { inCone = true; break; }
+      const gs = relS(r, o); if (gs < 5 || gs > 55) continue;
+      if (Math.abs(o.d - r.d) < 2.0 + gs * 0.06) { inCone = true; break; }
     }
     const was = r.draftT;
     if (inCone && r.speed > 45) r.draftT = Math.min(1.8, r.draftT + dt); else r.draftT = Math.max(0, r.draftT - dt * (r.draftT > 1.5 ? 0.6 : 2.2));
     r.tow = clamp((r.draftT - 0.4) / 1.1, 0, 1);
     if (!r.isAI) {
-      if (r.tow > 0.2) earn(r, 'SLIPSTREAM', '#00f0ff', dt * 0.06);
+      if (r.tow > 0.2) earn(r, 'SLIPSTREAM', '#00f0ff', dt * BAL.slipRegen);
       if (!inCone && was >= 1.5 && r.slingT <= 0 && !r.autopilot) { r.slingT = 0.5; r.draftT = 0; if (isFocus(r)) { ev.flash('SLINGSHOT', '#00f0ff'); ev.sfx('whoosh'); ev.kick(6); } }
     } else if (!inCone && was >= 1.5) { r.speed += 6; r.draftT = 0; }   // (Assisted: clipped by the AI ceiling next step)
   }
@@ -679,7 +684,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
   }
   function poseAll() { for (const r of sim.racers) if (!(r.crashed > 0)) pose(r); for (const d of sim.drones) stepDrone(d, 0, false); }
   function stepDrone(d, dt, move) {
-    if(move){const zone=td.key==='casino'?[140,420]:td.key==='summit'?[2520,2790]:null;d.s=zone?zone[0]+mod(d.s-zone[0]+d.speed*dt,zone[1]-zone[0]):mod(d.s+d.speed*dt,MAIN.L);}
+    if(move)d.s=mod(d.s+d.speed*dt,MAIN.L);
+    d.visibility=trafficAlpha(traffic,d.s);
     const f = frameAt(MAIN, d.s, _fd);
     d.d = clamp(d.lane * (MAIN.W[f.i] / W0), -MAIN.WL[f.i] + 2.2, MAIN.WR[f.i] - 2.2);
     if (dt > 0) hoverStep(d, MAIN.KN[f.i], d.speed, dt);
@@ -712,11 +718,14 @@ export function createSim({ seed = 4242, events = null } = {}) {
       combat.step(h);
       for (const r of sim.racers) { if (!r.crashed) { slipstream(r, h); checkLaps(r, h); } }
       nearMisses();
-      // Assisted: ceiling re-applied after slingshot/collision impulses (AI uses r.speed; player uses va/vd)
-      if (!(sim.pace && sim.pace.mode.draftOverCap)) for (const r of sim.racers) {
-        if (r.capHold == null || r.crashed) continue;
-        if (r.autopilot) { if (r.speed > r.capHold) r.speed = r.capHold; }
-        else { const sp = Math.hypot(r.va, r.vd); if (sp > r.capHold) { const k = r.capHold / sp; r.va *= k; r.vd *= k; } r.speed=Math.hypot(r.va,r.vd); }
+      // Every mode has a hard anti-chain ceiling after all impulses. Assisted retains its tighter capHold.
+      for (const r of sim.racers) {
+        if(r.crashed)continue;
+        const cm=r.carMods?.vmax||FASTEST_MOD,cu=r.isAI?1:(r.catchMul||1);
+        const absolute=Math.min(140,sim.pace.boost*cm/FASTEST_MOD*cu*1.10);
+        const cap=sim.pace.mode.draftOverCap?absolute:Math.min(absolute,r.capHold??absolute);
+        if(r.autopilot)r.speed=Math.min(r.speed,cap);
+        else{const sp=Math.hypot(r.va,r.vd);if(sp>cap){const k=cap/sp;r.va*=k;r.vd*=k;}r.speed=Math.hypot(r.va,r.vd);}
       }
     } else {
       for (const r of sim.racers) { const f = frameAt(r.path, r.s, _fb); hoverStep(r, f.path.KN[f.i], 0, h); if (!r.isAI) r.thr = lerp(r.thr, r.input.up ? 1 : 0, Math.min(1, h * 8)); }
@@ -792,6 +801,6 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function racerState(id) { const r = sim.racers.find(x => x.id === id); return r ? encObj(r) : null; }
   function setRacerState(id, o) { const r = sim.racers.find(x => x.id === id); if (!r) return false; const inp = r.input; for (const k in r) if (!SKIP.has(k)) delete r[k]; Object.assign(r, dec(o)); if (inp) { Object.assign(inp, r.input); r.input = inp; } pose(r); return true; }
   Object.assign(sim, { racerState, setRacerState, snapshot, importSnapshot, addSeats, setTrack, setMode, setPickupSeed,setRaceLaps, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
-    frameAt, kgAt, raceS, rdist });
+    trafficVisibility:s=>trafficAlpha(traffic,s), frameAt, kgAt, raceS, rdist });
   return sim;
 }

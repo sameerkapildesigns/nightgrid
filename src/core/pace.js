@@ -14,19 +14,19 @@ export const MODE = {
 // curvature-based corner speed v = sqrt(A / k) (AI targets, Assisted corner easing).
 // Tight-corner targets (km/h) at each map's tightest curvature: see PACE_TARGETS.
 export const PACE = {
-  velocity: { assisted: { kmh: [240, 315], cornerA: 64 }, expert: { kmh: [310, 400], cornerA: 104 } },
-  technical: { assisted: { kmh: [180, 235], cornerA: 54 }, expert: { kmh: [240, 315], cornerA: 95 } },
-  casino: { assisted: { kmh: [210, 280], cornerA: 60 }, expert: { kmh: [280, 370], cornerA: 100 } },
-  summit: { assisted: { kmh: [205, 275], cornerA: 62 }, expert: { kmh: [275, 355], cornerA: 103 } },
-  drift:{assisted:{kmh:[185,240],cornerA:12},expert:{kmh:[245,320],cornerA:26}},
-  legacy: { assisted: { kmh: [210, 275], cornerA: 67 }, expert: { kmh: [280, 360], cornerA: 115 } }
+  velocity: { assisted: { kmh: [276, 305], cornerA: 64 }, expert: { kmh: [345, 380], cornerA: 104 } },
+  technical: { assisted: { kmh: [207, 230], cornerA: 54 }, expert: { kmh: [270, 300], cornerA: 95 } },
+  casino: { assisted: { kmh: [242, 268], cornerA: 60 }, expert: { kmh: [315, 350], cornerA: 100 } },
+  summit: { assisted: { kmh: [236, 260], cornerA: 62 }, expert: { kmh: [310, 340], cornerA: 103 } },
+  drift:{assisted:{kmh:[213,235],cornerA:12},expert:{kmh:[275,305],cornerA:26}},
+  legacy: { assisted: { kmh: [242, 268], cornerA: 67 }, expert: { kmh: [315, 345], cornerA: 115 } }
 };
 export const PACE_TARGETS = {   // tight-corner speed ranges (km/h), user candidate hypotheses
-  velocity: { assisted: [220, 245], expert: [290, 325] },
+  velocity: { assisted: [255, 290], expert: [325, 370] },
   technical: { assisted: [90, 125], expert: [125, 165] },
-  casino: { assisted: [190, 215], expert: [250, 285] },
+  casino: { assisted: [225, 255], expert: [300, 345] },
   summit: { assisted: [190, 215], expert: [250, 285] },
-  drift:{assisted:[100,150],expert:[130,190]},
+  drift:{assisted:[100,150],expert:[185,225]},
   legacy: { assisted: [130, 155], expert: [170, 205] }
 };
 export const FASTEST_MOD = 1.035;

@@ -4,7 +4,7 @@
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export function bodyLean(r, car) {
   const roll = r.autopilot ? r.rollAI : r.steer * .34 * Math.min(1, r.speed / 40) - r.vl * .008;
-  return -roll * (car ? .45 : 1);
+  return clamp(-roll * (car ? .45 : 1),-.12,.12);
 }
 export function cameraLean(yawVelocity, speed01) {
   return clamp(-yawVelocity * .05 * speed01, -.12, .12);

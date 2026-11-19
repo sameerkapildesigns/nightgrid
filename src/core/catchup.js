@@ -14,8 +14,8 @@
 
 export const CATCHUP = Object.freeze({
   startSec: 4,       // below this gap to the car ahead: no assist at all
-  fullSec: 20,       // at or beyond this gap: full assist
-  maxCap: 0.25,      // +25 % on the player's own speed caps, never more
+  fullSec: 18,       // at or beyond this gap: full assist
+  maxCap: 0.30,      // +30 % on the player's own speed caps, never more
   progPerSec: 62     // metres of progress per second of gap (same constant as the NPC rubber band)
 });
 

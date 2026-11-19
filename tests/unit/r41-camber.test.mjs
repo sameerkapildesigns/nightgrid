@@ -52,8 +52,8 @@ test('R4.1 records preserve R4 values without comparing different camber',async(
   assert.equal(st.get(recordKey('expert',key)),Infinity);
   assert.equal(mem.getItem(RECORD_PREFIX+old),'90');
  }
- assert.equal(recordKey('expert','drift'),'m3_expert_r4_drift');
- assert.equal(recordKey('expert','legacy'),'m3_expert_r4_legacy');
+ assert.equal(recordKey('expert','drift'),'m3_expert_r5_drift');
+ assert.equal(recordKey('expert','legacy'),'m3_expert_r5_legacy');
 });
 
 test('snapshot array gaps are JSON-canonical before transport',async()=>{
