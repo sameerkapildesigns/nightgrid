@@ -54,3 +54,7 @@ R2 had a 360m loop piece and 250m barrel; R4 shortened these to 230m/170m and re
 Kage and Legacy feel good to Sameer. Preserve their route/handling identity. Velocity, Casino, Summit and Shinrai feel alike and need distinct identities in the next design pass. Shared menu, pickup and visual-lean fixes still apply unless otherwise directed.
 
 Next design pass for Velocity/Casino/Summit/Shinrai: distinct vertical/upside-down sections, larger jumps and longer air time, with stable upright controllable landings. Preserve Kage/Legacy's preferred identity. This calls for deliberate airborne/landing behavior review, not merely a visual ramp, and is not implemented in the held R4.1 bugfix.
+
+## Purposeful inversion rule, held next pass
+
+Replace arbitrary full 360-degree longitudinal barrels with a 180-degree half-twist into an inverted section, two or three turns while upside down, then another 180-degree half-twist back upright. No route edits have been made for this direction yet. Existing R4 barrels are Legacy Suzuka (104m, about 2.62km after start) and Velocity S3 (170m, about 4.16km after start). Legacy's Eau Rouge wall climb/inverted run/150m half-roll recovery and the Legacy shortcut/Velocity sky loops are different features, not full longitudinal barrels. Kage, Casino, Summit and Shinrai have no full barrel in their R4 builders.
