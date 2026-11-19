@@ -1,0 +1,8 @@
+{
+  "base": "f302b13516c5ab315a1ec7105ebd041245c0658e",
+  "quantization": "1e-6",
+  "geometry": {
+    "technical": "0c00e1cbafbfb4686dd76e9a08cbf8d9ee8d4909aadfb99f5068d74df6e3cc09",
+    "legacy": "5271d06e010ff694655a593b24a3df957b90e81ed0dec9041fea5e61f43720c5"
+  }
+}
