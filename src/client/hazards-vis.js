@@ -85,7 +85,7 @@ export function createHazardVis({ WORLD, sim, radialTex }) {
       }
       const dm = S ? decal : decalB, im = S ? iconS : iconB, col = PAD_COL[p.kind];
       const pulse = ready ? 0.9 + 0.1 * Math.sin(t * 5 + k) : 0.15;
-      dm.setMatrixAt(j, placeMat(M, p.s, p.d, 0.12, 5.6, 1, S ? 10 : 20)); _c.copy(col).multiplyScalar(pulse * 1.8); dm.setColorAt(j, _c);
+      dm.setMatrixAt(j, placeMat(M, p.s, p.d, 0.12, 5.6, 1, S ? 10 : 20,_m,S?0:Math.PI)); _c.copy(col).multiplyScalar(pulse * 1.8); dm.setColorAt(j, _c);
       const sc = ready ? 1.6 : 0.0001;
       im.setMatrixAt(j, placeMat(M, p.s, p.d, 1.7 + 0.25 * Math.sin(t * 2.4 + k), sc, sc, sc, _m, t * 2.2 + k));
       if (shown[k] !== ready) shown[k] = ready;
