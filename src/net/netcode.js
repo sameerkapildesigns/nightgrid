@@ -18,7 +18,7 @@ import { decodeFrame, INTERP_DELAY_MS, EXTRAP_MAX_MS } from './protocol.js';
 import { applyPads } from '../core/hazards.js';
 
 // local-car fields the renderer needs (sim.pose recomputes world/frame from these)
-export const VIEW_FIELDS = ['s', 'd', 'h', 'vh', 'psi', 'va', 'vd', 'yawV', 'steer', 'speed', 'dv', 'prog', 'lastRd', 'lap', 'lapStart', 'lapTimes', 'finished', 'finishTime', 'boost', 'meter', 'drift', 'air', 'airT', 'thr', 'vf', 'vl', 'acc', 'scrape', 'scrapeSide', 'sector', 'draftT', 'tow', 'wrongWayT', 'bestLap', 'curSplits', 'autopilot', 'rollAI', 'edgeAssist', 'cornerAssist', 'shieldT', 'surgeT', 'powCD', 'wpn', 'wpnAt', 'fireCD', 'wImmT', 'empT', 'slowT', 'slowRate', 'wBoxAt', 'lockId', 'lastAid', 'aLog', 'wDistance', 'wThreats'];
+export const VIEW_FIELDS = ['s', 'd', 'h', 'vh', 'psi', 'va', 'vd', 'yawV', 'steer', 'speed', 'dv', 'prog', 'lastRd', 'lap', 'lapStart', 'lapTimes', 'finished', 'finishTime', 'boost', 'meter', 'drift', 'air', 'airT', 'thr', 'vf', 'vl', 'acc', 'scrape', 'scrapeSide', 'sector', 'draftT', 'tow', 'wrongWayT', 'bestLap', 'curSplits', 'autopilot', 'rollAI', 'edgeAssist', 'cornerAssist', 'shieldT', 'surgeT', 'powCD', 'wpn', 'wpnAt', 'fireCD', 'wImmT', 'empT', 'slowT', 'slowRate', 'wBoxAt', 'lockId', 'lastAid', 'aLog', 'wDistance', 'wThreats','tk','tkDir','tkN','jump'];
 export const HARD_SNAP_M = 6, SMOOTH_RATE = 12, MAX_PENDING = 360, MAX_CATCHUP_STEPS = 120;   // prediction steps are cheap (one car): up to 1 s per call
 
 export class Predictor {
@@ -109,7 +109,7 @@ export class Interpolator {
     }
     if (exSec > 0 && !x[11] && !x[10]) { s += speed * Math.cos(psi) * exSec; if (!br) s = mod(s, L); }
     out.path = br ? this.td.BR : MAIN; out.s = s; out.d = d; out.h = h; out.psi = psi; out.speed = speed; out.va = speed * Math.cos(psi); out.vd = -speed * Math.sin(psi);
-    out.lap = x[7]; out.prog = x[8]; out.boost = !!x[9]; out.finished = !!x[10]; out.netCrashed = !!x[11]; out.rollNet = x[12]; out.steer = x[13]; out.drift = !!x[14]; out.thr = x[15]; out.pw = x[16] | 0;
+    out.lap = x[7]; out.prog = x[8]; out.boost = !!x[9]; out.finished = !!x[10]; out.netCrashed = !!x[11]; out.rollNet = x[12]; out.steer = x[13]; out.drift = !!x[14]; out.thr = x[15]; out.pw = x[16] | 0;out.tk=xa?(xa[17]||0)+wrapA((x[17]||0)-(xa[17]||0))*k:(x[17]||0);
     return true;
   }
   age(serverNow) { const b = this.buf; return b.length ? serverNow - b[b.length - 1].t : Infinity; }

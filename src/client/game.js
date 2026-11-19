@@ -1940,7 +1940,7 @@ function chaseTarget(dt, snap, outPos, outLook, outUp) {
   let psT = r.psi;
   if (r.speed > 8) { const vy = Math.atan2(-r.vd, r.va); const df = wrapA(vy - r.psi); if (Math.abs(df) < 1.2) psT = r.psi + df * 0.45; }
   psT *= motion.yaw;
-  if (snap) { CC.psi = psT; CC.h = 2.3; } else { CC.psi += wrapA(psT - CC.psi) * damp(5.5, dt); CC.h = lerp(CC.h, 2.15 + s01 * 0.3 - boostAmt * 0.3 * motion.boostHeight + (r.h - H0) * motion.airHeight, damp(6, dt)); }
+  if (snap) { CC.psi = psT; CC.h = 2.3; } else { CC.psi += wrapA(psT - CC.psi) * damp(5.5, dt); CC.h = lerp(CC.h, 2.15 + s01 * 0.3 - boostAmt * 0.3 * motion.boostHeight + Math.min(1.2,Math.max(0,r.h-H0)*motion.airHeight), damp(6, dt)); }
   const dist = 7.2 + s01 * 1.4 + boostAmt * 1.5 * motion.boostDistance;
   const sc = r.s - dist * Math.cos(CC.psi);
   let dc = r.d + dist * Math.sin(CC.psi);
@@ -1996,7 +1996,7 @@ function updateVisual(r, dt) {
   const rollT = bodyLean(r, car);
   const pitchT = ((r.autopilot ? 0 : -r.acc * 0.0022) + r.vh * 0.02) * (car ? 0.6 : 1);
   r.roll = lerp(r.roll, rollT, damp(8, dt)); r.pitch = lerp(r.pitch, pitchT, damp(8, dt));
-  _eb.set(r.pitch, 0, r.roll, 'YXZ'); _qb.setFromEuler(_eb);
+  _eb.set(r.pitch, 0, r.roll-(r.tk||0), 'YXZ'); _qb.setFromEuler(_eb);
   sh.root.quaternion.copy(_qa).multiply(_qb);
   sh.body.position.y = Math.sin(gameTime * 5.3 + r.phase) * (car ? 0.008 : 0.035);
   const st = r.steer, brk = (r === player && keys.down) ? 1 : 0;
@@ -2926,7 +2926,7 @@ function mpFrame(wall, dt0, nowMs = performance.now()) {
     if (r === player || !PR.sample(r.id, sn, MP_T, { ownStep })) continue;
     r.path = MP_T.path === PR.td.BR ? BR : MAIN; r.s = MP_T.s; r.d = MP_T.d; r.h = MP_T.h; r.psi = MP_T.psi; r.speed = MP_T.speed; r.va = MP_T.va; r.vd = MP_T.vd;
     r.shieldT = MP_T.pw & 1 ? 1 : 0; r.surgeT = MP_T.pw & 2 ? 1 : 0;
-    r.lap = MP_T.lap; r.prog = MP_T.prog; r.boost = MP_T.boost; r.finished = MP_T.finished; r.steer = MP_T.steer; r.drift = MP_T.drift; r.thr = MP_T.thr; r.rollAI = MP_T.rollNet; r.autopilot = true;
+    r.lap = MP_T.lap; r.prog = MP_T.prog; r.boost = MP_T.boost; r.finished = MP_T.finished; r.steer = MP_T.steer; r.drift = MP_T.drift; r.thr = MP_T.thr; r.rollAI = MP_T.rollNet; r.autopilot = true;r.tk=MP_T.tk||0;
     if (MP_T.netCrashed) { if (!(r.crashed > 0)) { sim.pose(r); r.crashed = 1.7; r.crashVel = r.F.clone().multiplyScalar(r.speed * 0.8).addScaledVector(r.Uw, 6); r.crashSpin = new V3(R(-4, 4), R(-6, 6), R(-4, 4)); } }
     else { r.crashed = 0; sim.pose(r); }
   }

@@ -5,7 +5,8 @@
 // un-acknowledged input after an authoritative correction (prediction / reconciliation).
 import { MAX_SEATS } from '../core/room.js';   // room-full text states the real cap
 import { powerFlags } from '../core/hazards.js';
-export const PROTOCOL = 3;
+import {wrapA}from'../core/math.js';
+export const PROTOCOL = 4;
 export const NET_HZ = 20, SIM_HZ = 120, STEPS_PER_TICK = SIM_HZ / NET_HZ;
 export const MAX_MSG_BYTES = 1024;          // client -> server text frame cap
 export const MAX_FRAMES_PER_MSG = 24;       // 200 ms of input per message at most
@@ -81,9 +82,9 @@ export function makeToken(getRandomValues) { const b = new Uint8Array(24); getRa
 
 // compact racer state for remote-car interpolation (rounded)
 const r3 = v => Math.round(v * 1000) / 1000, r2 = v => Math.round(v * 100) / 100;
-export const COMPACT_FIELDS = ['id', 'br', 's', 'd', 'h', 'psi', 'speed', 'lap', 'prog', 'boost', 'finished', 'crashed', 'roll', 'steer', 'drift', 'thr', 'pw'];
+export const COMPACT_FIELDS = ['id', 'br', 's', 'd', 'h', 'psi', 'speed', 'lap', 'prog', 'boost', 'finished', 'crashed', 'roll', 'steer', 'drift', 'thr', 'pw','tk'];
 export function compactRacer(r, branch) {
-  return [r.id, r.path === branch ? 1 : 0, r3(r.s), r3(r.d), r3(r.h), r3(r.psi), r2(r.speed), r.lap, r2(r.prog), r.boost ? 1 : 0, r.finished ? 1 : 0, r.crashed > 0 ? 1 : 0, r3(r.autopilot ? r.rollAI : r.steer * 0.34), r3(r.steer), r.drift ? 1 : 0, r2(r.thr), powerFlags(r)];   // pw: M8 shield/surge flags (presentation)
+  return [r.id, r.path === branch ? 1 : 0, r3(r.s), r3(r.d), r3(r.h), r3(r.psi), r2(r.speed), r.lap, r2(r.prog), r.boost ? 1 : 0, r.finished ? 1 : 0, r.crashed > 0 ? 1 : 0, r3(r.autopilot ? r.rollAI : r.steer * 0.34), r3(r.steer), r.drift ? 1 : 0, r2(r.thr), powerFlags(r),r3(wrapA(r.tk||0))];   // pw: M8 shield/surge flags (presentation)
 }
 export function expandRacer(a) { const o = {}; COMPACT_FIELDS.forEach((k, i) => { o[k] = a[i]; }); return o; }
 // human-readable error text for the lobby UI

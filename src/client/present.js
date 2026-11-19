@@ -25,6 +25,7 @@ export const SOFT_MAX_SPEED = 25;   // m/s: an offset never closes faster than t
 export const SNAP_M = 30;           // larger along-track error: snap (counted)
 export const RANK_BAND_M = 2;       // HUD: a pairwise order flips only after the gap crosses +-2 m
 
+export const VERT_HORIZON_S=.1,VERT_V_MAX=40,TK_RATE_MAX=10;
 export class RemotePresenter {
   constructor(track) {
     this.td = track; this.L = track.MAIN.L;
@@ -66,10 +67,11 @@ export class RemotePresenter {
     // When snapshots stop, HORIZON_MAX_S bounds the motion.
     const moving = !x[11];
     const vs = moving ? x[6] * Math.cos(x[5]) : 0;
-    let vd = 0;
-    if (moving && c.a && c.a[1] === x[1] && c.kb > c.ka) vd = Math.max(-LAT_V_MAX, Math.min(LAT_V_MAX, (x[3] - c.a[3]) / ((c.kb - c.ka) * SIM_DT)));
-    let s = x[2] + vs * h; if (!br) s = mod(s, L);
-    return { br, s, d: x[3] + vd * Math.min(h, LAT_HORIZON_S), prog: x[8] + vs * h, h };
+    let vd=0,vh=0,vtk=0;
+    if(moving&&c.a&&c.a[1]===x[1]&&c.kb>c.ka){const span=(c.kb-c.ka)*SIM_DT;vd=Math.max(-LAT_V_MAX,Math.min(LAT_V_MAX,(x[3]-c.a[3])/span));vh=Math.max(-VERT_V_MAX,Math.min(VERT_V_MAX,(x[4]-c.a[4])/span));vtk=Math.max(-TK_RATE_MAX,Math.min(TK_RATE_MAX,wrapA((x[17]||0)-(c.a[17]||0))/span));}
+    let s=x[2]+vs*h;if(!br)s=mod(s,L);
+    const hv=Math.min(h,VERT_HORIZON_S);
+    return{br,s,d:x[3]+vd*Math.min(h,LAT_HORIZON_S),prog:x[8]+vs*h,h,ht:Math.max(.4,x[4]+vh*hv),tk:(x[17]||0)+vtk*hv};
   }
   // write the presented state of racer `id` at local step T into `out` (same fields as Interpolator.write)
   sample(id, _serverNow, out, { ownStep }) {
@@ -86,9 +88,9 @@ export class RemotePresenter {
     c.lastT = T;
     if (this.stats.horizonS.length < 50000) this.stats.horizonS.push(e.h);
     let s = e.s + c.off.s; if (!e.br) s = mod(s, this.L);
-    out.path = e.br ? this.td.BR : this.td.MAIN; out.s = s; out.d = e.d + c.off.d; out.h = x[4]; out.psi = x[5]; out.speed = x[6];
+    out.path = e.br ? this.td.BR : this.td.MAIN; out.s = s; out.d = e.d + c.off.d; out.h = e.ht; out.psi = x[5]; out.speed = x[6];
     out.va = x[6] * Math.cos(x[5]); out.vd = -x[6] * Math.sin(x[5]);
-    out.lap = x[7]; out.prog = e.prog + c.off.s; out.boost = !!x[9]; out.finished = !!x[10]; out.netCrashed = !!x[11]; out.rollNet = x[12]; out.steer = x[13]; out.drift = !!x[14]; out.thr = x[15]; out.pw = x[16] | 0;
+    out.lap = x[7]; out.prog = e.prog + c.off.s; out.boost = !!x[9]; out.finished = !!x[10]; out.netCrashed = !!x[11]; out.rollNet = x[12]; out.steer = x[13]; out.drift = !!x[14]; out.thr = x[15]; out.pw = x[16] | 0;out.tk=e.tk;
     c.shown = out.prog;
     return true;
   }

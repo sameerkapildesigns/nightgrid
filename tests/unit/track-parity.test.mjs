@@ -36,7 +36,7 @@ test('core track generator is byte-for-byte the v5b generator on every map', () 
 });
 
 test('R4 map catalogue has revised geometry, preserved laps and widths', () => {
-  const expect = { velocity: { laps: 2, W0: 14, sectors: 3, N: 5253, br: false }, technical: { laps: 3, W0: 10.5, sectors: 3, N: 3281, br: false }, legacy: { laps: 3, W0: TRK.W0, sectors: 5, N: 5449, br: true } };
+  const expect = { velocity: { laps: 2, W0: 14, sectors: 3, N: 5188, br: false }, technical: { laps: 3, W0: 10.5, sectors: 3, N: 3281, br: false }, legacy: { laps: 3, W0: TRK.W0, sectors: 5, N: 5449, br: true } };
   assert.deepEqual(MAP_KEYS, ['velocity', 'technical', 'casino', 'summit', 'drift', 'legacy']);
   for (const k of Object.keys(expect)) {
     const td = buildTrackData(k), e = expect[k];

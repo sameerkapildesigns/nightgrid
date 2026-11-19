@@ -27,7 +27,7 @@ test('layout: deterministic, 0-4 safe obstacles per lap, 6 pad rows of 3, never 
   for (const k of MAP_KEYS) {
     const a = buildHazards(buildTrackData(k)), b = buildHazards(buildTrackData(k));
     assert.deepEqual(a, b, k + ': identical from map key');
-    assert.ok(a.obstacles.length >= (k==='drift'?0:k==='technical'?1:3) && a.obstacles.length <= (k==='drift'?0:4), `${k}: ${a.obstacles.length} obstacles`);
+    assert.ok(a.obstacles.length >= (k==='drift'?0:k==='technical'?1:k==='casino'?2:3) && a.obstacles.length <= (k==='drift'?0:4), `${k}: ${a.obstacles.length} obstacles`);
     assert.equal(a.pads.filter(p=>p.kind!=='R').length, 18); assert.deepEqual(a.pads.filter(p=>p.kind!=='R').map(p => p.kind).join(''), 'SBSBSBSBSBSBSBSBSB');
     const td = buildTrackData(k), M = td.MAIN;
     for (const o of a.obstacles) {

@@ -101,7 +101,7 @@ test('NetClient: lead-control state is per race (a rematch can raise lead again)
   const { NetClient } = await import('../../src/net/client.js');
   const { S, msg } = serverAndRaceMsg('velocity', [{ id: 'p1', kind: 'human' }], 'p1');
   const nc = new NetClient({ wsUrl: 'ws://x', WebSocketImpl: class { }, now: () => 0, build: 'b' }); nc.clock.ready = true;
-  const race = { ...msg, t: 'race', p: 3, build: 'b', countdownAt: 0 };
+  const race = { ...msg, t: 'race', p: 4, build: 'b', countdownAt: 0 };
   nc.beginRace(race); for (let i = 0; i < 40; i++) nc.onSnap({ ph: 'race', el: -50, q: 0, sn: 0, a: [], ack: -1 });
   const l1 = nc.lead; assert.ok(l1 >= 60, 'lead raised in race 1: ' + l1);
   nc.beginRace(race); const l2a = nc.lead; for (let i = 0; i < 40; i++) nc.onSnap({ ph: 'race', el: -50, q: 0, sn: 0, a: [], ack: -1 });

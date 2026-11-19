@@ -13,6 +13,7 @@ import { buildHazards, buildRacePads, HAZ, gapS, padContact } from './hazards.js
 import { updateCatchup } from './catchup.js';
 import { R5_BALANCE as BAL,downhill,downhillCap } from './balance.js';
 import {trafficProfile,trafficAlpha,trafficStarts} from './traffic.js';
+import {AIR,buildRamps,tryLaunch,airStep,settleTrick,cancelJump,respawnS} from './airjump.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
 
 export { H0, S0 };
@@ -65,7 +66,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     pickupSeed:seed|0,
     catchupStyle:'strong',catchup: false, // R2: solo-only catch-up assist (catchup.js); the page opts in, rooms never do
     hazards: false, // M8: static obstacles + shield/self-boost pads (room server and the page turn this on)
-    obstacles: [], pads: [], weapons: false, predictOnly: false, weaponSlice: 3, weaponBoxes: [], weaponState: newWeaponState(), stepIndex: 0,
+    obstacles: [], pads: [], ramps:[], weapons: false, predictOnly: false, weaponSlice: 3, weaponBoxes: [], weaponState: newWeaponState(), stepIndex: 0,
     racers: [], drones: [], player: null, finishOrder: [],
     input: { up: 0, down: 0, left: 0, right: 0, boost: 0 },
     diff: 'normal', mode: 'expert', pace: null, bestLap: Infinity, bestSplits: [], curSplits: [], wrongWayT: 0,
@@ -84,7 +85,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function setTrack(key, vr = 0) {
     td = typeof key === 'string' ? buildTrackData(key, vr) : key;
     ({ MAIN, BR, SAm, SBm, OFF, W0, LAPLEN, LAPS, HASBR, SECTORS } = td);
-    sim.pace = paceFor(td.key, sim.mode);traffic=trafficProfile(td);
+    sim.pace = paceFor(td.key, sim.mode);traffic=trafficProfile(td);sim.ramps=buildRamps(td);
     const hz = buildHazards(td); sim.obstacles = hz.obstacles;
     sim.weaponBoxes = buildWeaponBoxes(td);sim.pads=buildRacePads(td,sim.pickupSeed,sim.weaponBoxes).map(p=>({...p,readyAt:0}));combat.reset();
     for (const r of sim.racers) { r.path = MAIN; r.prevS = undefined; }
@@ -113,6 +114,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       vf: 0, vl: 0, acc: 0, phase: R(0, 10), scrape: false, scrapeSide: 0, droneT: 0, sector: 0, takeShort: false,
       draftT: 0, tow: 0, slingT: 0, crashed: 0, phA: R(0, 10), phB: R(0, 10), aiBoostT: 0, aiBoostCD: R(4, 10), blockD: 0,
       world: new Vec3(), F: new Vec3(), Uw: new Vec3(), lastSign: {}, nearRail: 0, flapK: 0,
+      jump:0,jT:0,jY:0,jVy:0,jRamp:-1,jElig:0,jAw:{},tk:0,tkDir:0,tkN:0,jWall:false,
       carMods: null, wallLim: 1.2, shieldT: 0, surgeT: 0, powCD: 0, obT: 0, passT: 0, lapIntegrity: { teleport: false, autopilot: false, debug: false, assist: false }, catchMul: 1,padTouch:{},
       input: { up: 0, down: 0, left: 0, right: 0, boost: 0, drift: 0 }, wrongWayT: 0, bestLap: Infinity, bestSplits: [], curSplits: [], id: null
     };
@@ -153,6 +155,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     r.sector = MAIN.sec[Math.round(r.s / MAIN.ds) % MAIN.N]; r.takeShort = false; r.air = false; r.airT = 0; r.aiBoostT = 0;
     r.lapIntegrity = { teleport: false, autopilot: false, debug: false, assist: false }; r.catchMul = 1;r.padTouch={};r.recoveryBoostAt=0;
     r.shieldT = 0; r.surgeT = 0; r.powCD = 0; r.obT = 0; r.passT = 0;
+    cancelJump(r);r.jAw={};r.jRamp=-1;
     resetWeaponRacer(r);
     ev.racerReset(r);
   }
@@ -172,6 +175,18 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function earn(r, txt, col, amt) {
     if (r.autopilot || r.isAI) return;
     r.meter = Math.min(1, r.meter + amt); if (isFocus(r)) ev.earn(txt, col, amt);
+  }
+  function jumpLaunched(r,rp){
+    r.jAw||={};const key='r'+rp.id;r.jElig=r.jAw[key]!==r.lap?1:0;r.jAw[key]=r.lap;r.jWall=!!r.scrape;
+    ev.racer('jump',r,rp.id);if(isFocus(r))ev.sfx('whoosh');
+  }
+  function jumpLanded(r,info){
+    const clean=!info.open&&!r.jWall&&!r.scrape&&Math.abs(r.psi)<AIR.CLEAN_PSI;
+    if(info.open){if(r.autopilot)r.speed*=AIR.MESSY_KEEP;else{r.va*=AIR.MESSY_KEEP;r.vd*=AIR.MESSY_KEEP;}}
+    const amt=clean&&r.jElig?AIR.REWARD_LAND+AIR.REWARD_ROLL*info.rolls:0;r.jElig=0;
+    ev.racer('land',r,{...info,clean,amt});
+    if(amt>0)earn(r,info.rolls===2?'DOUBLE ROLL':info.rolls===1?'BARREL ROLL':'CLEAN LANDING','#7dff4a',amt);
+    if(isFocus(r)){ev.cp(`AIR ${info.airT.toFixed(1)}s${clean?'':' · MESSY'}`);ev.sfx('thud',Math.min(.8,.3+info.rel/30));}
   }
   function hoverStep(r, kn, speed, dt) {
     const cen = clamp(-speed * speed * kn, -130, 150);
@@ -249,6 +264,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const airbrake = (!!keys.drift || brakeDrift || hardTurnDrift) && Math.abs(r.steer) > 0.25 && vf > 28;
     r.brakeT = brk ? (r.brakeT || 0) + dt : 0;
     let yawT = -r.steer * 2.2 * sf * (vf < -0.5 ? -1 : 1) * (airbrake ? 1.15 : 1) * (air ? 0.35 : 1);
+    if(r.tkDir||(r.jump&&(keys.drift||keys.down)&&Math.abs(st)>=AIR.TRICK_STEER))yawT=0;
     // racing-line assist when inverted / on the wall: gently aim back toward the middle (player still steers)
     if (sim.mode==='assisted' && (steep || pth === BR) && vf > 15) {
       const dT = 0, lat = clamp((dT - r.d) * 0.05, -0.35, 0.35);
@@ -263,7 +279,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const tow = r.tow;
     const CM = r.carMods || { vmax: 1, acc: 1, grip: 1 };
     const CU = r.catchMul || 1;   // R2 catch-up assist: 1 except solo and far behind (catchup.js)
-    const capN = PC.normal * CM.vmax / FASTEST_MOD * CU * downhillCap(f.T.y), capB = PC.boost * CM.vmax / FASTEST_MOD * CU * downhillCap(f.T.y);
+    const gy=r.jump?0:f.T.y;
+    const capN = PC.normal * CM.vmax / FASTEST_MOD * CU * downhillCap(gy), capB = PC.boost * CM.vmax / FASTEST_MOD * CU * downhillCap(gy);
     const vmax = (r.boost ? capB : capN) * (MD.draftOverCap ? 1 + BAL.draftCap * tow : 1);
     let a = 0;
     const tm = air ? 0.25 : 1;
@@ -289,12 +306,13 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (vf > 0 && !air) vf += lost * 0.32;
     r.drift = !air && ((airbrake && Math.abs(vl) > 4) || Math.abs(vl) > 12);
     r.va = vf * c + vl * sn; r.vd = -vf * sn + vl * c;
-    r.va += BAL.downhillAccel * downhill(f.T.y) * dt;
+    r.va += BAL.downhillAccel * downhill(gy) * dt;
     // advance along the curved surface
     const den = Math.max(0.3, 1 + kg * (r.d + f.off));
     const dsm = r.va * dt / den;
     r.d += r.vd * dt;
-    const ang = kg * dsm, ca = Math.cos(ang), sa = Math.sin(ang);
+    // Authored air corridors guide plan heading. Rotating velocities again here would push a roll into the outside rail.
+    const ang = r.jump?0:kg*dsm, ca = Math.cos(ang), sa = Math.sin(ang);
     const va2 = r.va * ca - r.vd * sa, vd2 = r.vd * ca + r.va * sa; r.va = va2; r.vd = vd2; r.psi = wrapA(r.psi - ang);
     r.prevS = r.s; r.s += dsm; transitions(r);
     r.vf = vf; r.vl = vl; r.acc = a; r.speed = Math.hypot(r.va, r.vd);
@@ -319,43 +337,45 @@ export function createSim({ seed = 4242, events = null } = {}) {
           if (Math.abs(r.psi) < 1.4) r.psi -= r.psi * Math.min(0.6, vn * 0.03);
           if (vn >= 2.5 && isFocus(r)) ev.wallHit(r, vn, s, _fp.R);
         }
-        r.scrape = true; r.scrapeSide = s;
+        r.scrape = true; r.scrapeSide = s;if(r.jump)r.jWall=true;
       }
     } else if (r.speed > 50 && !air) {
       const gap = Math.min((wr - lim) - r.d, r.d + (wl - lim));
       const rails = (r.d > 0 ? rrl : rl);
       if (gap < 1.1 && rails) { r.nearRail += dt; earn(r, 'NEAR MISS · RAIL', '#00f0ff', dt * 0.14); } else r.nearRail = 0;
     }
-    // hover / airtime
-    const wasAir = r.air;
-    const impact = hoverStep(r, kn, Math.max(0, r.va), dt);
-    r.air = r.h > H0 + 0.7;
-    if (r.air) { r.airT += dt; if (r.airT > 0.12) earn(r, 'AIRTIME', '#7dff4a', dt * 0.4); }
-    if (wasAir && !r.air) { if (r.airT > 0.35 && isFocus(r)) { ev.cp(`AIRTIME ${r.airT.toFixed(1)}s`); ev.sfx('thud', 0.6); ev.shake(0.35); } r.airT = 0; }
-    if (impact > 3 && isFocus(r)) ev.shake(Math.min(0.5, impact / 20));
+    const wasAir=r.air;let impact=0,landed=null;
+    if(r.jump)landed=airStep(r,td,Math.max(0,r.va),dt,keys,H0,true);
+    else{impact=hoverStep(r,kn,Math.max(0,r.va),dt);settleTrick(r,dt);r.air=r.h>H0+.7;const rp=tryLaunch(r,td,sim.ramps,Math.max(0,r.va),H0);if(rp)jumpLaunched(r,rp);}
+    if(landed)jumpLanded(r,landed);
+    if(r.air)r.airT+=dt;
+    if(wasAir&&!r.air){if(!landed&&r.airT>.35&&isFocus(r)){ev.cp(`AIRTIME ${r.airT.toFixed(1)}s`);ev.sfx('thud',.6);ev.shake(.35);}r.airT=0;}
+    if(impact>3&&isFocus(r))ev.shake(Math.min(.5,impact/20));
   }
+
   function crashOut(r, s) {
     r.crashed = 1.7;
     r.crashVel = r.F.clone().multiplyScalar(r.speed * 0.8).addScaledVector(_fp.R, s * 14).addScaledVector(_fp.U, 6);
-    r.crashSpin = new Vec3(R(-4, 4), R(-6, 6), R(-4, 4)); r.boost = false;
+    r.crashSpin = new Vec3(R(-4, 4), R(-6, 6), R(-4, 4)); r.boost = false;cancelJump(r);
     ev.racer('crash', r); if (isFocus(r)) { ev.flash('OFF THE EDGE', '#ff3355'); ev.crash(r); }
   }
   function respawn(r) {
     r.path = MAIN; r.s = HASBR ? mod(SAm - 60, MAIN.L) : mod(raceS(r.path, r.s) - 40, MAIN.L); r.d = 0; r.psi = 0; r.va = 32; r.vd = 0; r.h = H0 + 1.5; r.vh = 0; r.prevS = r.s;
+    r.s=respawnS(sim.ramps,r.s,MAIN.L);r.prevS=r.s;cancelJump(r);
     r.crashed = 0; r.yawV = 0; r.steer = 0;
     const nd = rdist(MAIN, r.s); let delta = nd - r.lastRd; if (delta > LAPLEN / 2) delta -= LAPLEN; if (delta < -LAPLEN / 2) delta += LAPLEN; r.prog += delta; r.lastRd = nd;
     ev.racer('respawn', r); if (isFocus(r)) { ev.respawn(r); ev.flash('RESPAWN', '#8a5cff'); ev.sfx('beep', 440, 0.15, 0.12); }
   }
   function stepAI(r, dt) {
     const P0 = r.pers, ref = rubberRef(), racing = sim.phase === 'race' || (sim.phase === 'finished' && !!ref);
-    const f = frameAt(r.path, r.s, _fa); const pth = f.path, i = f.i;
+    const f = frameAt(r.path, r.s, _fa); const pth = f.path, i = f.i;const gy=r.jump?0:f.T.y;
     const look = 12 + r.speed * 1.15, km = lookK(r, look), PC = sim.pace || paceFor(td.key, sim.mode);
     const kn = kgAt(r.path, r.s + 8 + r.speed * 0.3);
     const DF = DIFF[sim.diff] || DIFF.normal;
     // M3: corner speed from the mode's lateral accel (personality lat relative to 84, difficulty lat)
     // Brake toward upcoming corners instead of adopting their minimum speed the instant
     // they enter the lookahead window. Current curvature still sets an immediate limit.
-    const cornerA = PC.cornerA * (td.key==='drift'&&sim.mode==='expert'?1.35:1) * (P0 ? P0.lat / 84 : 1) * DF.lat;
+    const cornerA = PC.cornerA * (td.key==='drift'&&sim.mode==='expert'?1.65:1) * (P0 ? P0.lat / 84 : 1) * DF.lat;
     let vC = Math.sqrt(cornerA / Math.max(Math.abs(kgAt(r.path,r.s)),1e-4));
     for(let ahead=6;ahead<look;ahead+=3){const s=r.s+ahead;
       const branch=r.path===MAIN&&r.takeShort&&r.s<SAm&&s>=SAm;
@@ -363,7 +383,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       const cornerV2=cornerA/Math.max(curvature,1e-4);
       vC=Math.min(vC,Math.sqrt(cornerV2+2*(P0?P0.brake:44)*.8*Math.max(0,ahead-8)));
     }
-    if(sim.mode!=='expert'||td.key!=='technical')vC=Math.sqrt(cornerA/Math.max(km,1e-4));
+    if(sim.mode!=='expert'||!['technical','drift'].includes(td.key))vC=Math.sqrt(cornerA/Math.max(km,1e-4));
     const noise = 1 + 0.018 * Math.sin(sim.time * 0.21 + r.phA) + 0.012 * Math.sin(sim.time * 0.67 + r.phB);
     let rub = 1;
     if (r.isAI && ref && racing) {
@@ -371,7 +391,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       rub = 1 + (gapSec > 0 ? clamp(gapSec / 8, 0, 1.35) * 0.06 : clamp(gapSec / 8, -1.3, 0) * 0.065);
     }
     // M3: AI top pace scaled to the mode's cap (v5b AI ~= the fastest car's cap), personality relative to 93.75
-    let vmax = downhillCap(f.T.y) * PC.normal * ((P0 ? P0.vmax : 70) / 93.75) * DF.vmax * noise * rub * (PC.mode.draftOverCap ? 1 + 0.04 * r.tow : 1);
+    let vmax = downhillCap(gy) * PC.normal * ((P0 ? P0.vmax : 70) / 93.75) * DF.vmax * noise * rub * (PC.mode.draftOverCap ? 1 + 0.04 * r.tow : 1);
     if (r.isAI && racing) {
       r.aiBoostCD -= dt;
       if (r.aiBoostT > 0) { r.aiBoostT -= dt; r.boost = true; }
@@ -384,9 +404,9 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const vT = Math.min(vmax, vC * (r.boost ? 1.04 : 1) * Math.min(1.04, rub * noise));
     const dv = vT - r.speed;
     r.speed += dv > 0 ? Math.min(dv, ((r.isAI && r.prog<140 ? 44 : (P0 ? P0.acc : 24)) + (r.boost ? 12 : 0)) * dt) : Math.max(dv, -(P0 ? P0.brake : 44) * dt);
-    r.speed += BAL.downhillAccel * downhill(f.T.y) * dt; if (r.speed < 0) r.speed = 0;
+    r.speed += BAL.downhillAccel * downhill(gy) * dt; if (r.speed < 0) r.speed = 0;
     if (!PC.mode.draftOverCap) {   // Assisted: same hard ceiling rule as the player (AI never outruns the cap)
-      const pf = Math.min(1, (P0 ? P0.vmax : 70) / 93.75), cN = PC.normal * pf * downhillCap(f.T.y), cB = PC.boost * pf * downhillCap(f.T.y);
+      const pf = Math.min(1, (P0 ? P0.vmax : 70) / 93.75), cN = PC.normal * pf * downhillCap(gy), cB = PC.boost * pf * downhillCap(gy);
       r.capHold = r.boost ? cB : Math.max(cN, Math.min(cB, (r.capHold || cN) - 25 * dt));
       if (r.speed > r.capHold) r.speed = r.capHold;
     }
@@ -451,8 +471,10 @@ export function createSim({ seed = 4242, events = null } = {}) {
     r.drift = Math.abs(lat) > 52;
     r.yawV = r.speed * kn; r.steer = clamp(-lat * 0.02, -1, 1);
     r.speedC = r.speed;
-    hoverStep(r, pth.KN[i], r.speed, dt);
-    r.air = r.h > H0 + 0.7;
+    let landed=null;
+    if(r.jump)landed=airStep(r,td,r.speed,dt,null,H0,false);
+    else{hoverStep(r,pth.KN[i],r.speed,dt);settleTrick(r,dt);r.air=r.h>H0+.7;const rp=tryLaunch(r,td,sim.ramps,r.speed,H0);if(rp)jumpLaunched(r,rp);}
+    if(landed)jumpLanded(r,landed);
   }
   function relS(a, b) { let gp = b.s - a.s; if (a.path === MAIN) { if (gp > MAIN.L / 2) gp -= MAIN.L; if (gp < -MAIN.L / 2) gp += MAIN.L; } return gp; }
   function bumpRacer(r, ds, dd, vs, vd) {
@@ -467,7 +489,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (!sim.ghost) for (let a = 0; a < all.length; a++) for (let b = a + 1; b < all.length; b++) {
       const A = all[a], B = all[b]; if (A.path !== B.path || A.crashed || B.crashed) continue;
       const gs = relS(A, B), gd = B.d - A.d;
-      if (Math.abs(gs) > 4.8 || Math.abs(gd) > 2.8) continue;
+      if (Math.abs(gs) > 4.8 || Math.abs(gd) > 2.8 || Math.abs(A.h-B.h)>1.5) continue;
       const ovS = 4.8 - Math.abs(gs), ovD = 2.8 - Math.abs(gd);
       if (ovD < ovS) { const p = ovD * 0.5 * Math.sign(gd || 1); bumpRacer(A, 0, -p, 0, 0); bumpRacer(B, 0, p, 0, 0); }
       else { const p = ovS * 0.5 * Math.sign(gs || 1); bumpRacer(A, -p, 0, 0, 0); bumpRacer(B, p, 0, 0, 0); }
@@ -666,7 +688,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (!r || r.autopilot || r.crashed) return false;
     const f = frameAt(r.path, r.s, _fp);
     const wl = r.path === BR ? WB : MAIN.WL[f.i], wr = r.path === BR ? WB : MAIN.WR[f.i];
-    r.d = clamp(r.d, -wl + 3, wr - 3); r.psi = 0; r.va = Math.max(0, r.va) * 0.3; r.vd = 0; r.yawV = 0; r.steer = 0; r.h = H0 + 1; r.vh = 0;
+    cancelJump(r);r.d = clamp(r.d, -wl + 3, wr - 3); r.psi = 0; r.va = Math.max(0, r.va) * 0.3; r.vd = 0; r.yawV = 0; r.steer = 0; r.h = H0 + 1; r.vh = 0;
     ev.racer('reset', r); if (isFocus(r)) { ev.flash('RESET', '#8a5cff'); ev.sfx('beep', 440, 0.15, 0.12); } return true;
   }
   function rankKey(r) { return r.finished ? 1e9 - sim.finishOrder.indexOf(r) * 1e6 : r.prog; }

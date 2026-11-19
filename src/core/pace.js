@@ -25,8 +25,8 @@ export const PACE_TARGETS = {   // tight-corner speed ranges (km/h), user candid
   velocity: { assisted: [255, 290], expert: [325, 370] },
   technical: { assisted: [90, 125], expert: [125, 165] },
   casino: { assisted: [225, 255], expert: [300, 345] },
-  summit: { assisted: [190, 215], expert: [250, 285] },
-  drift:{assisted:[100,150],expert:[185,225]},
+  summit: { assisted: [225, 245], expert: [295, 325] },
+  drift:{assisted:[95,145],expert:[185,225]},
   legacy: { assisted: [130, 155], expert: [170, 205] }
 };
 export const FASTEST_MOD = 1.035;
