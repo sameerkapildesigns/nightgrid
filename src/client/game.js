@@ -205,10 +205,13 @@ const WEAPONS_AVAILABLE = import.meta.env.VITE_WEAPONS !== '0'; // Opt-in mines/
 let WVIS = null;
 let HZV = null;      // hazard visuals for the current map (src/client/hazards-vis.js)
 let variantMask=0; // This review exposes original circuits only.
+let raceNPCCount=5,raceLapsSetting=0,soloRaceRules=true;
+try{const saved=JSON.parse(localStorage.getItem('nightgrid_v4_settings')||'null');if([3,5,7].includes(saved?.npcs))raceNPCCount=saved.npcs;if([2,3,5].includes(saved?.laps))raceLapsSetting=saved.laps;}catch{}
+const soloRivals=()=>Array.from({length:raceNPCCount},(_,i)=>({name:RIVAL_ORDER[i%3]+(i>=3?' '+(1+Math.floor(i/3)):'')}));
 let MAPKEY = null, MAPDEF = null, TD, W0, SECTORS, MAIN, BR, SA, SB, OFF, SAm, SBm, LAPLEN, HASBR, SECCOL, SECSTART, LAPS = 3;
 function loadTrackData(key) {
   if(key==='legacy')variantMask &=4;if(['casino','summit'].includes(key))variantMask=0;
-  TD = sim.setTrack(key,variantMask);
+  TD = sim.setTrack(key,variantMask);sim.setRaceLaps(soloRaceRules?raceLapsSetting:0);
   ({ MAIN, BR, SA, SB, OFF, SAm, SBm, LAPLEN, HASBR, W0, SECSTART, LAPS } = TD);
   MAPKEY = key; MAPDEF = TD.def;
   SECTORS = TD.SECTORS.map(s => Object.assign({}, s, { col: new THREE.Color(s.colHex != null ? s.colHex : s.css) }));
@@ -1780,16 +1783,16 @@ function setPlayerCar() {
 }
 // Rival bodies are (re)built when their GLB arrives, so boot never waits for them.
 function setRivalCar(r) {
-  const L = RIVAL_LIV[r.name], want = L.car + ':' + assetStatus(L.car);
+  const pers=r.persKey||r.name.split(' ')[0],L = RIVAL_LIV[pers], want = L.car + ':' + assetStatus(L.car);
   if (r.carKey === want) return;
   if (r.ship) scene.remove(r.ship.root);
   r.ship = buildCar(L.car, L, 'race'); scene.add(r.ship.root); r.carKey = want; r.emPrev = null;
-  const tag = nameTag(L.name, PERS[r.name].css); tag.position.y = 1.5; r.ship.root.add(tag);
+  const tag = nameTag(r.name, PERS[pers].css); tag.position.y = 1.5; r.ship.root.add(tag);
   makeTrailsFor(r);
 }
 function refreshRacerCars() { if (!player) return; if (MP.race) return mpRefreshCars(); setPlayerCar(); for (const r of racers) if (r !== player) setRivalCar(r); }
 function buildRacers() {
-  sim.addRacers(RIVAL_ORDER.map(name => ({ name })));
+  sim.addRacers(soloRivals());
   player = sim.player;
   refreshRacerCars();
   for (const d of drones) Object.assign(d, makeDrone());
@@ -2400,7 +2403,7 @@ function update(dt, dt0) {
 
 /* ---------- settings: motion blur / camera shake (reduced-motion aware) ---------- */
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled, weapons: false };
+const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled, weapons: false, npcs:raceNPCCount,laps:raceLapsSetting };
 try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
 const BLUR_K = [0, 1, 1.8];
 function qualityUI() {
@@ -2417,6 +2420,9 @@ function applyQuality(q) {
 document.addEventListener('click', e => { const m = e.target.closest('[data-music-toggle]'); if (m) AU.setMusic(!MUSIC.enabled); const b = e.target.closest('[data-quality]'); if (b) applyQuality(b.dataset.quality); });
 function renderSettings() {
   qualityUI();
+  const locked=state!=='title'||!!MP.net?.room;
+  $('setNPCs').innerHTML=[3,5,7].map(n=>`<button data-npcs="${n}" class="${raceNPCCount===n?'on':''}" ${locked?'disabled':''}>${n} rivals</button>`).join('');
+  $('setLaps').innerHTML=[[0,'Track'],[2,'2 laps'],[3,'3 laps'],[5,'5 laps']].map(([n,label])=>`<button data-laps="${n}" class="${raceLapsSetting===n?'on':''}" ${locked?'disabled':''}>${label}</button>`).join('');
   $('setWeapons').innerHTML = WEAPONS_AVAILABLE ? [false,true].map(on=>`<button data-weapons="${on?1:0}" class="${!!SETTINGS.weapons===on?'on':''}" role="radio" aria-checked="${!!SETTINGS.weapons===on}">${on?'Mines + EMP':'Clean'}</button>`).join('') : 'Weapons unavailable';
   for (const b of document.querySelectorAll('[data-music-toggle]')) { b.textContent = MUSIC.enabled ? 'Music: On' : 'Music: Off'; b.setAttribute('aria-pressed', String(MUSIC.enabled)); }
   $('setBlur').innerHTML = ['Off', 'Mild', 'Strong'].map((n, i) => `<button class="${SETTINGS.blur === i ? 'on' : ''}" data-blur="${i}" role="radio" aria-checked="${SETTINGS.blur === i}">${n}</button>`).join('');
@@ -2430,10 +2436,12 @@ function renderSettings() {
 function saveSettings() { try { localStorage.setItem('nightgrid_v4_settings', JSON.stringify(SETTINGS)); } catch (e) { } renderSettings(); }
 $('setBlur').addEventListener('click', e => { const b = e.target.closest('[data-blur]'); if (b) { SETTINGS.blur = +b.dataset.blur; saveSettings(); } });
 $('setShake').addEventListener('click', e => { const b = e.target.closest('[data-shake]'); if (b) { SETTINGS.shake = b.dataset.shake === '1'; saveSettings(); } });
-$('setBtn').addEventListener('click', () => { $('homeMore').open = false; openSheet('setPanel'); });
+$('setBtn').addEventListener('click', () => { $('homeMore').open = false; renderSettings();openSheet('setPanel'); });
 $('setCine').addEventListener('click', e => { const b = e.target.closest('[data-cine]'); if (b) { SETTINGS.cine = b.dataset.cine === '1'; saveSettings(); } });
 $('setMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (!b || !DRIVE_MODES.includes(b.dataset.mode)) return; SETTINGS.mode = driveMode = b.dataset.mode; if (state === 'title') sim.setMode(driveMode); saveSettings(); loadRecord(); updateGarageUI(); });
 $('setDiff').addEventListener('click', e => { const b = e.target.closest('[data-diff]'); if (b) { SETTINGS.diff = b.dataset.diff; sim.diff = SETTINGS.diff; saveSettings(); } });
+$('setNPCs').addEventListener('click',e=>{const b=e.target.closest('[data-npcs]');if(!b||state!=='title'||MP.net?.room)return;raceNPCCount=SETTINGS.npcs=+b.dataset.npcs;swapRacers(()=>sim.addRacers(soloRivals()));refreshRacerCars();gridUp();saveSettings();updateGarageUI();});
+$('setLaps').addEventListener('click',e=>{const b=e.target.closest('[data-laps]');if(!b||state!=='title'||MP.net?.room)return;raceLapsSetting=SETTINGS.laps=+b.dataset.laps;saveSettings();switchMap(MAPKEY,true,variantMask,true);});
 $('setWeapons').addEventListener('click', e => { const b=e.target.closest('[data-weapons]'); if(b&&state==='title'&&!MP.race){SETTINGS.weapons=b.dataset.weapons==='1';sim.weapons=WEAPONS_AVAILABLE&&SETTINGS.weapons;saveSettings();} });
 sim.weapons=WEAPONS_AVAILABLE&&!!SETTINGS.weapons;
 renderSettings();
@@ -2578,9 +2586,9 @@ function disposeWorld() {
   return { geometries: geos.size, materials: mats.size, textures: texs.size };
 }
 let mapBusy = false, lastDispose = null;
-async function switchMap(key, persist = true, vr = variantMask) {
+async function switchMap(key, persist = true, vr = variantMask, force=false) {
   if(key==='legacy')vr &=4;if(['casino','summit'].includes(key))vr=0;
-  if (!MAPS[key] || (key === MAPKEY && vr === variantMask) || mapBusy || state !== 'title') return;
+  if (!MAPS[key] || (!force && key === MAPKEY && vr === variantMask) || mapBusy || state !== 'title') return;
   mapBusy = true; $('go').disabled = true; $('go').textContent = 'Building…'; renderMapSeg(key); await tick(); await tick();
   const t0 = performance.now();
   lastDispose = disposeWorld();
@@ -2694,7 +2702,8 @@ function mpRefreshCars() {
   }
 }
 function mpRestoreSP() {
-  swapRacers(() => sim.addRacers(RIVAL_ORDER.map(name => ({ name }))));
+  soloRaceRules=true;LAPS=sim.setRaceLaps(raceLapsSetting);
+  swapRacers(() => sim.addRacers(soloRivals()));
   sim.setMode(driveMode); refreshRacerCars(); gridUp();
   for (const r of racers) updateVisual(r, 0);
 }
@@ -2736,11 +2745,13 @@ function mpJoin(code, name) {
   if (!mpNet(name).connect(code, tok)) MP.ui.setError('bad-code');
 }
 function mpReset(errCode) {
+  soloRaceRules=true;
   if (MP.race) mpEndRaceView();
   const net = MP.net; MP.net = null; MP.results = null; if (net && net.status !== 'closed') net.leave();
   document.body.classList.remove('mpinroom');
   try { const u = new URL(location.href); if (u.searchParams.has('room')) { u.searchParams.delete('room'); history.replaceState(null, '', u); } } catch (e) { }
   if (MP.ui) { MP.ui.render(); if (errCode) MP.ui.setError(errCode); }
+  if(state==='title'&&LAPS!== (raceLapsSetting||MAPDEF.laps))switchMap(MAPKEY,true,variantMask,true);
   updateGarageUI();
 }
 function mpLeave() { mpReset(); }
@@ -2749,15 +2760,16 @@ function mpOnEvent(type, m) {
   const net = MP.net; if (!net) return;
   switch (type) {
     case 'welcome':
+      soloRaceRules=false;
       try { sessionStorage.setItem('ng_tok_' + net.code, m.token); } catch (e) { }
       document.body.classList.add('mpinroom'); mpCarChanged(); MP.ui.setError('');
       try { const u = new URL(location.href); u.searchParams.set('room', net.code); history.replaceState(null, '', u); } catch (e) { }
       if (m.notice) MP.ui.setNote('The room restarted, so the last race was cancelled.');
       break;
     case 'lobby': {
-      const room = m.room;
+      const room = m.room;soloRaceRules=false;
       for (const s of room.seats) ensureAsset(s.car);   // preload every car in the room
-      if (state === 'title' && room.phase === 'lobby' && (room.map !== MAPKEY || (room.vr||0)!==variantMask) && !mapBusy) switchMap(room.map, false, room.vr||0);   // preload the circuit
+      if (state === 'title' && room.phase === 'lobby' && (room.map !== MAPKEY || (room.vr||0)!==variantMask || LAPS!==MAPS[room.map].laps) && !mapBusy) switchMap(room.map, false, room.vr||0,true);   // preload the circuit
       if (room.phase === 'lobby' && MP.race && state !== 'countdown' && state !== 'race') { /* stay on results until the player taps back */ }
       MP.ui.render(); break;
     }
@@ -2785,7 +2797,7 @@ async function mpBeginRace(m) {
     while (mapBusy) await tick();
     if (m.map !== MAPKEY || (m.rules?.vr||0)!==variantMask) await switchMap(m.map, false,m.rules?.vr||0);
     for (const st of m.seats) ensureAsset(st.car);
-    mpSetupRacers(m); sim.setMode(m.mode); sim.weapons=!!m.rules?.weapons;
+    soloRaceRules=false;LAPS=sim.setRaceLaps(0);mpSetupRacers(m); sim.setMode(m.mode); sim.weapons=!!m.rules?.weapons;
     MP.race = { msg: m, startAt: m.countdownAt }; MP.results = null;
     // input sampling, prediction steps and sending run on their own 25 ms timer, not on render frames,
     // so a slow render frame does not decide when inputs leave (the render frame only reads state)

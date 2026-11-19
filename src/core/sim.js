@@ -84,6 +84,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     for (const r of sim.racers) { r.path = MAIN; r.prevS = undefined; }
     return td;
   }
+  function setRaceLaps(n){LAPS=[2,3,5].includes(n)?n:td.def.laps;td.LAPS=LAPS;return LAPS;}
 
   const humans = () => sim.racers.filter(r => !r.isAI);
   const isFocus = r => r === sim.player;   // presentation events only for the local focus racer (null on a server)
@@ -111,9 +112,9 @@ export function createSim({ seed = 4242, events = null } = {}) {
   }
   function addRacers(rivals) {   // single player: rivals: [{ name, css }]
     sim.player = makeRacer('YOU', false, null, '#00f0ff'); sim.player.input = sim.input; sim.player.id = 'p0';
-    for (const { name, css } of rivals) { const r = makeRacer(name, true, PERS[name], css || PERS[name].css); r.id = name; sim.racers.push(r); }
+    for (const [k,{ name, css }] of rivals.entries()) { const pers=name.split(' ')[0],r = makeRacer(name, true, PERS[pers], css || PERS[pers].css); r.persKey=pers;r.id = 'bot'+k; sim.racers.push(r); }
     sim.racers.unshift(sim.player);
-    sim.player.gridSlot = 3; sim.racers.slice(1).forEach((r, k) => { r.gridSlot = k; });
+    sim.player.gridSlot = sim.racers.length-1; sim.racers.slice(1).forEach((r, k) => { r.gridSlot = k; });
     addDrones();
   }
   // Multiplayer/server: seats in order, kind 'human' | 'bot' (bots use AI personalities). focusId: local
@@ -752,7 +753,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   };
   const encObj = (o) => { const out = {}; for (const k in o) if (!SKIP.has(k) && typeof o[k] !== 'function') out[k] = enc(o[k]); return out; };
   function snapshot() {
-    return { v: 2, weapons: !!sim.weapons, weaponSlice: sim.weaponSlice, weaponState: enc(sim.weaponState), weaponPending: combat.snapshotPending(), stepIndex: sim.stepIndex, vr: td.vr || 0, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
+    return { v: 2, laps:LAPS, weapons: !!sim.weapons, weaponSlice: sim.weaponSlice, weaponState: enc(sim.weaponState), weaponPending: combat.snapshotPending(), stepIndex: sim.stepIndex, vr: td.vr || 0, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
       bestLap: enc(sim.bestLap), bestSplits: enc(sim.bestSplits), curSplits: enc(sim.curSplits), debugTouched: sim.debugTouched,
       focus: sim.player ? sim.player.id : null, finishOrder: sim.finishOrder.map(r => r.id),
       racers: sim.racers.map(encObj), drones: sim.drones.map(encObj) };
@@ -761,7 +762,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function importSnapshot(sn) {
     if (!sn || ![1, 2].includes(sn.v)) throw new Error('bad snapshot version');
     if (!td || td.key !== sn.map || (td.vr||0)!==(sn.vr||0)) setTrack(sn.map,sn.vr||0);
-    sim.weapons = !!sn.weapons; sim.weaponSlice = sn.weaponSlice || 1; sim.weaponState = dec(sn.weaponState || newWeaponState()); sim.stepIndex = sn.stepIndex || 0; combat.restorePending(sn.weaponPending);
+    setRaceLaps(sn.laps);sim.weapons = !!sn.weapons; sim.weaponSlice = sn.weaponSlice || 1; sim.weaponState = dec(sn.weaponState || newWeaponState()); sim.stepIndex = sn.stepIndex || 0; combat.restorePending(sn.weaponPending);
     setMode(sn.mode); sim.diff = sn.diff; sim.ghost = !!sn.ghost; sim.hazards = !!sn.hazards;
     if (Array.isArray(sn.pads)) sn.pads.forEach((t, k) => { if (sim.pads[k]) sim.pads[k].readyAt = t; }); sim.time = sn.time; sim.raceStart = sn.raceStart; sim.phase = sn.phase; rng.a = sn.rng;
     sim.bestLap = dec(sn.bestLap); sim.bestSplits = dec(sn.bestSplits); sim.curSplits = dec(sn.curSplits); sim.debugTouched = sn.debugTouched;
@@ -778,7 +779,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   // one racer's full physics state (own-car prediction / server reconciliation)
   function racerState(id) { const r = sim.racers.find(x => x.id === id); return r ? encObj(r) : null; }
   function setRacerState(id, o) { const r = sim.racers.find(x => x.id === id); if (!r) return false; const inp = r.input; for (const k in r) if (!SKIP.has(k)) delete r[k]; Object.assign(r, dec(o)); if (inp) { Object.assign(inp, r.input); r.input = inp; } pose(r); return true; }
-  Object.assign(sim, { racerState, setRacerState, snapshot, importSnapshot, addSeats, setTrack, setMode, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
+  Object.assign(sim, { racerState, setRacerState, snapshot, importSnapshot, addSeats, setTrack, setMode, setRaceLaps, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
     frameAt, kgAt, raceS, rdist });
   return sim;
 }
