@@ -58,3 +58,7 @@ Next design pass for Velocity/Casino/Summit/Shinrai: distinct vertical/upside-do
 ## Purposeful inversion rule, held next pass
 
 Replace arbitrary full 360-degree longitudinal barrels with a 180-degree half-twist into an inverted section, two or three turns while upside down, then another 180-degree half-twist back upright. No route edits have been made for this direction yet. Existing R4 barrels are Legacy Suzuka (104m, about 2.62km after start) and Velocity S3 (170m, about 4.16km after start). Legacy's Eau Rouge wall climb/inverted run/150m half-roll recovery and the Legacy shortcut/Velocity sky loops are different features, not full longitudinal barrels. Kage, Casino, Summit and Shinrai have no full barrel in their R4 builders.
+
+## Motion comfort priority, awaiting clarification
+
+After about one hour of play, Sameer reported his head/brain felt a little hurt. Do not turn this into a medical diagnosis. Prioritize comfort review before adding stronger speed-camera effects: reduce extra roll, drift-heading camera swing and FOV pumping; preserve actual-speed improvements separately. He says 360-degree turns where cars seem about to fly off feel wrong. This may mean barrels, spirals/full-circle bends or vertical loops, still unconfirmed. Ask for the map/sector or a short clip before removing a feature. No motion settings or route changes have been made for this note yet.
