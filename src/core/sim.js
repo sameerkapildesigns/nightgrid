@@ -19,7 +19,7 @@ export const PERS = {
   GHOST: { vmax: 94.5, lat: 86, acc: 25, brake: 44, off: 0.0, short: 0.45, aggr: 0.0, block: 0, boostUse: 1.0, margin: 5.0, css: '#b9a6ff' },
   BLITZ: { vmax: 93.0, lat: 82, acc: 25, brake: 46, off: 0.9, short: 0.0, aggr: 0.3, block: 1, boostUse: 0.8, margin: 4.2, css: '#ffc81e' }
 };
-export const DIFF = { normal: { vmax: 0.97, lat: 0.95 }, hard: { vmax: 1.03, lat: 1.1 } };   // AI pace only
+export const DIFF = { normal: { vmax: 1.0, lat: 1.05, boost: 1 }, hard: { vmax: 1.06, lat: 1.18, boost: 1.25 } };   // AI pace only
 // Largest believable forward progress per fixed step: top speed plus collision push-out.
 export const MAX_STEP_ADVANCE = (h) => 150 * h + 5;
 const FINISH_PERS = { vmax: 60, lat: 50, acc: 20, brake: 40, off: 0, short: 0, aggr: 0, block: 0, boostUse: 0, margin: 5 };
@@ -30,14 +30,15 @@ const FINISH_PERS = { vmax: 60, lat: 50, acc: 20, brake: 40, off: 0, short: 0, a
 // ~1.6 s at race pace). Returns [metres behind the start line, lateral offset] per grid slot.
 export const MAX_RACERS = 20, GRID_FRONT = 14, GRID_ROW = 8, GRID_WIDE = 4;
 const GRID_V5B = [[14, -4.4], [14, 4.4], [28, -4.4], [28, 4.4]];
+function gridLane(n, W0, slot) { return n <= 4 ? GRID_V5B[slot][1] : (slot % GRID_WIDE - (GRID_WIDE - 1) / 2) * Math.min(5.2, (2 * W0 - 2 * 2.4) / GRID_WIDE); }
 export function gridSlots(n, W0) {
   if (n <= 4) return GRID_V5B.slice(0, Math.max(n, 4));
-  const sp = Math.min(5.2, (2 * W0 - 2 * 2.4) / GRID_WIDE), out = [];
-  for (let k = 0; k < n; k++) out.push([GRID_FRONT + GRID_ROW * Math.floor(k / GRID_WIDE), (k % GRID_WIDE - (GRID_WIDE - 1) / 2) * sp]);
+  const out = [];
+  for (let k = 0; k < n; k++) out.push([GRID_FRONT + GRID_ROW * Math.floor(k / GRID_WIDE), gridLane(n, W0, k)]);
   return out;
 }
 
-export const BOOST_REGEN_RATE = 0.04, BOOST_REGEN_DELAY = 1.5, BOOST_RELOCK = 0.05;
+export const BOOST_REGEN_RATE = 0.06, BOOST_REGEN_DELAY = 0.75, BOOST_RELOCK = 0.05;
 export function createSim({ seed = 4242, events = null } = {}) {
   // mulberry32 with exportable state (snapshot/import parity)
   const rng = { a: seed | 0 };
@@ -334,7 +335,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (r.isAI && racing) {
       r.aiBoostCD -= dt;
       if (r.aiBoostT > 0) { r.aiBoostT -= dt; r.boost = true; }
-      else { r.boost = false; if (r.aiBoostCD <= 0 && vC > vmax * 1.4 && r.speed > 60) { r.aiBoostT = R(1.2, 2.2) * P0.boostUse; r.aiBoostCD = R(9, 16) / P0.boostUse; } }
+      else { r.boost = false; if (r.aiBoostCD <= 0 && vC > vmax * 1.15 && r.speed > PC.normal * 0.65) { r.aiBoostT = R(1.2, 2.2) * P0.boostUse; r.aiBoostCD = R(9, 16) / (P0.boostUse * DF.boost); } }
       if (r.boost) vmax = Math.min(vmax * 1.24, PC.boost * Math.min(1, (P0 ? P0.vmax : 70) / 93.75));
     } else r.boost = false;
     if (r.surgeT > 0 && racing) { r.boost = true; vmax = Math.min(vmax * 1.24, PC.boost * Math.min(1, (P0 ? P0.vmax : 70) / 93.75)); }
@@ -378,6 +379,10 @@ export function createSim({ seed = 4242, events = null } = {}) {
       let gp = dr.s - r.s; if (gp > MAIN.L / 2) gp -= MAIN.L; if (gp < -MAIN.L / 2) gp += MAIN.L;
       if (gp > -4 && gp < 40 && Math.abs(dr.d - r.d) < 4.6) { dT = dr.d + (r.d >= dr.d ? 5.2 : -5.2); if (gp < 12 && Math.abs(dr.d - r.d) < 3.2) r.speed = Math.min(r.speed, dr.speed + 10); }
     }
+    // Hold the grid lane for the opening 140 m, then blend into the racing line over 80 m.
+    // Obstacles still override this below; launch never changes human steering.
+    const launch = r.isAI && racing ? clamp((220 - Math.max(0, r.prog)) / 80, 0, 1) : 0;
+    if (launch > 0) { const lane = gridLane(sim.racers.length, W0, r.gridSlot); dT = lane * launch + dT * (1 - launch); }
     // M8: static obstacles have the last word (dodge to the side the car is already on)
     if (sim.hazards && r.path === MAIN) for (const o of sim.obstacles) {
       const gp = gapS(r.s, o.s, MAIN.L), reach = o.hw + HAZ.CAR_HALF_W + 1.2;

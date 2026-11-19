@@ -19,7 +19,7 @@ export function cleanName(name) {
   const s = String(name == null ? '' : name).replace(/[\u0000-\u001f\u007f<>&"'`]/g, '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
   return s || 'Player';
 }
-export function createRoom({ code, build, now = 0, map = 'velocity', mode = 'assisted' }) {
+export function createRoom({ code, build, now = 0, map = 'velocity', mode = 'expert' }) {
   return { code, build, phase: 'lobby', hostId: null, seats: [], map, mode, seed: 0, countdownAt: 0, createdAt: now, nextBot: 1, nextHuman: 1, version: 0, results: null };
 }
 const seatOf = (room, id) => room.seats.find(s => s.id === id);

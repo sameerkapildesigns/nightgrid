@@ -22,14 +22,14 @@ function mkSim(map, n = 1, events = null, seed = 11) {
 // put racer r at track position (s, d) moving straight ahead at v m/s
 function put(sim, r, s, d, v) { r.s = mod(s, sim.track.MAIN.L); r.d = d; r.va = v; r.vd = 0; r.psi = 0; r.yawV = 0; r.prevS = undefined; r.lastRd = sim.rdist(r.path, r.s); sim.pose(r); }
 
-test('layout: deterministic, 3-4 obstacles per lap, 2 pad rows of 3, never near start/finish, seam, tunnel, loop or blind corner', () => {
+test('layout: deterministic, 3-4 obstacles per lap, 6 pad rows of 3, never near start/finish, seam, tunnel, loop or blind corner', () => {
   for (const k of MAP_KEYS) {
     const a = buildHazards(buildTrackData(k)), b = buildHazards(buildTrackData(k));
     assert.deepEqual(a, b, k + ': identical from map key');
     assert.ok(a.obstacles.length >= 3 && a.obstacles.length <= 4, `${k}: ${a.obstacles.length} obstacles`);
-    assert.equal(a.pads.length, 6); assert.deepEqual(a.pads.map(p => p.kind).join(''), 'SBSBSB');
+    assert.equal(a.pads.length, 18); assert.deepEqual(a.pads.map(p => p.kind).join(''), 'SBSBSBSBSBSBSBSBSB');
     const td = buildTrackData(k), M = td.MAIN;
-    for (const o of a.obstacles.concat(a.pads)) {
+    for (const o of a.obstacles) {
       const fromLine = Math.min(mod(o.s - S0, M.L), mod(S0 - o.s, M.L));
       assert.ok(fromLine >= HAZ.START_CLEAR, `${k}: ${o.s} is ${fromLine} m from the line`);
       assert.ok(Math.min(o.s, M.L - o.s) >= HAZ.SEAM_CLEAR, `${k}: seam`);
@@ -37,6 +37,11 @@ test('layout: deterministic, 3-4 obstacles per lap, 2 pad rows of 3, never near 
         const i = mod(Math.round(o.s / M.ds) + j, M.N);
         assert.ok(!(M.tag[i] & 1) && M.U[i].y >= HAZ.MIN_UPY && Math.abs(M.KG[i]) <= HAZ.RUNUP_K, `${k}: ${o.s}+${j} tunnel/inverted/corner`);
       }
+    }
+    for (const p of a.pads) {
+      const fromLine = Math.min(mod(p.s - S0, M.L), mod(S0 - p.s, M.L)); assert.ok(fromLine >= 160, k + ': pickup start clear');
+      for (let j = -30; j <= 30; j++) { const i = mod(Math.round(p.s / M.ds) + j, M.N); assert.ok(!(M.tag[i] & 1) && M.U[i].y >= HAZ.MIN_UPY && Math.abs(M.KG[i]) <= 1/100, k + ': pickup safe station'); }
+      for (const o of a.obstacles) assert.ok(Math.abs(gapS(o.s,p.s,M.L)) >= HAZ.PAD_CLEAR, k + ': pickup not on obstacle');
     }
     for (const o of a.obstacles) {
       // the open side is always >= 3 car widths; the block never spans the road
@@ -52,7 +57,7 @@ test('layout: deterministic, 3-4 obstacles per lap, 2 pad rows of 3, never near 
 test('obstacle: nose hit at race speed is bounded (keeps >= 60 %, loses <= 35 m/s), deflects to the open side, one event, never stops the car', () => {
   for (const v of [40, 70, 100]) {
     const { sim, ev } = mkSim('velocity');
-    const o = sim.obstacles[0], me = sim.player; sim.startRace();
+    const o = sim.obstacles[0], me = sim.player; sim.pads.length = 0; sim.startRace();
     put(sim, me, o.s - 12, o.d, v);
     decodeFrame(encodeFrame({ up: 1 }), sim.input);
     let minV = Infinity, maxDrop = 0, prev = me.va;
@@ -68,19 +73,19 @@ test('obstacle: nose hit at race speed is bounded (keeps >= 60 %, loses <= 35 m/
 });
 
 test('obstacle: side scrape pushes out without a speed penalty; airborne car clears; shield absorbs once and is consumed', () => {
-  { const { sim, ev } = mkSim('technical'); const o = sim.obstacles[0], me = sim.player; sim.startRace();
+  { const { sim, ev } = mkSim('technical'); const o = sim.obstacles[0], me = sim.player; sim.pads.length = 0; sim.startRace();
     put(sim, me, o.s, o.d + (o.hw + HAZ.CAR_HALF_W) * Math.sign(-o.d) * 0.8, 60); me.vd = 3 * Math.sign(o.d);
     sim.step(SIM_DT); assert.ok(me.va > 59, 'no nose penalty on a side contact'); assert.ok(Math.abs(me.d - o.d) >= o.hw + HAZ.CAR_HALF_W - 1e-6); }
   { const { sim, ev } = mkSim('velocity'); const o = sim.obstacles[1], me = sim.player; sim.startRace();
     put(sim, me, o.s - 4, o.d, 70); me.h = 1 + o.h + 0.3;
     sim.step(SIM_DT); assert.equal(ev.list.filter(e => e[0] === 'obstacle').length, 0, 'airborne clears'); }
-  { const { sim, ev } = mkSim('velocity'); const o = sim.obstacles[0], me = sim.player; sim.startRace();
+  { const { sim, ev } = mkSim('velocity'); const o = sim.obstacles[0], me = sim.player; sim.pads.length = 0; sim.startRace();
     me.shieldT = 5; put(sim, me, o.s - 8, o.d, 70);
     for (let i = 0; i < 60; i++) sim.step(SIM_DT);
     assert.equal(ev.list.filter(e => e[0] === 'obstacle').length, 0, 'no hit with shield');
     assert.deepEqual(ev.list.filter(e => e[0] === 'shield').map(e => e[2]), ['obstacle']);
     assert.equal(me.shieldT, 0, 'shield consumed');
-    const c = mkSim('velocity').sim; c.startRace(); put(c, c.player, o.s + 200, o.d, 70); for (let i = 0; i < 60; i++) c.step(SIM_DT);
+    const c = mkSim('velocity').sim; c.pads.length = 0; c.startRace(); put(c, c.player, o.s + 200, o.d, 70); for (let i = 0; i < 60; i++) c.step(SIM_DT);
     assert.ok(Math.abs(me.va - c.player.va) < 0.5, `no penalty (${me.va} vs free ${c.player.va})`); }
 });
 
@@ -160,7 +165,7 @@ test('snapshot: hazards flag + pad state + racer power fields survive export/imp
   };
   const a = run(-1), b = run(37);
   assert.equal(a, b);
-  const sn = JSON.parse(a); assert.equal(sn.hazards, true); assert.equal(sn.pads.length, 6);
+  const sn = JSON.parse(a); assert.equal(sn.hazards, true); assert.equal(sn.pads.length, 18);
   assert.ok('shieldT' in sn.racers[0] && 'surgeT' in sn.racers[0]);
 });
 

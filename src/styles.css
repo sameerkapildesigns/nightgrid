@@ -404,3 +404,122 @@ body.mprace #resScroll{flex:1 1 auto;min-height:0;overflow-y:auto;-webkit-overfl
 body.mprace #resTable th{position:sticky;top:0;z-index:1;background:#0a0616;box-shadow:0 1px 0 rgba(0,240,255,.3);padding-top:5px;padding-bottom:5px}
 body.mprace #resTable{margin-top:0}body.mprace #resScroll{margin-top:10px}
 body.mprace #results .card>*:not(#resScroll){flex:0 0 auto}
+/* Mobile hierarchy proposal. Separate from the NPC candidate. */
+@media (orientation:landscape) and (max-height:520px){
+ body.touchmode #gTop{padding:8px 16px;height:48px}
+ body.touchmode #gTop .chip{min-height:44px;border:0;background:none;padding:8px;font-size:11px}
+ body.touchmode #gBar{inset:56px 0 0;display:block;padding:0;background:none;pointer-events:none}
+ body.touchmode #gBar section{position:absolute;pointer-events:auto}
+ body.touchmode .gcar{left:18px;top:0;width:174px}
+ body.touchmode #gBar #carTitle{text-align:left;font-size:10px;color:#8b9dac}
+ body.touchmode .gname{grid-template-columns:1fr;width:174px;gap:0}
+ body.touchmode #carNick{text-align:left;font-size:26px}
+ body.touchmode #gBar .nav{position:absolute;top:52px;width:44px;height:44px;border-radius:8px}
+ body.touchmode #prevCar{left:0}body.touchmode #nextCar{left:52px}
+ body.touchmode #carDots{display:none}
+ body.touchmode .gspec{left:18px;top:116px;width:174px}
+ body.touchmode #carStats{display:none}
+ body.touchmode #paints{gap:4px;margin:0}
+ body.touchmode #paints .sw2{width:32px;height:36px;border:8px solid #11141c;outline-offset:0}
+ body.touchmode #paints .pname{display:none}
+ body.touchmode .gmap{left:18px;bottom:18px;width:174px}
+ body.touchmode .gmap .glbl{font-size:10px;margin-bottom:3px}
+ body.touchmode .gmap .seg{background:none;border:0;padding:0;gap:0;flex-wrap:nowrap}
+ body.touchmode .gmap .seg button{padding:6px;font-size:10px;min-height:44px}
+ body.touchmode .gmap .seg button small{display:none}
+ body.touchmode #record{display:none}
+ body.touchmode .ggo{right:16px;bottom:12px;width:208px;display:flex;flex-direction:row-reverse;gap:10px;align-items:center}
+ body.touchmode #gBar #go{width:112px;padding:10px 12px;font-size:16px;min-height:44px;clip-path:none;border-radius:8px}
+ body.touchmode #mpBtn{margin:0;min-height:44px;width:86px;font-size:0;border:0;background:none;color:#a9bacb}
+ body.touchmode #mpBtn::after{content:'Friends';font:500 12px Inter,sans-serif}
+ body.touchmode #gBar #load:not(.done){position:absolute;bottom:52px;right:0;width:208px}
+ body.touchmode #touch button{width:60px;height:60px;bottom:16px;font-size:26px;border-radius:18px;background:rgba(10,12,22,.25)}
+ body.touchmode #touch [data-k=left]{left:calc(16px + env(safe-area-inset-left));bottom:calc(16px + env(safe-area-inset-bottom))}
+ body.touchmode #touch [data-k=right]{left:auto;right:calc(16px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom))}
+ body.touchmode #touch [data-k=boost]{right:calc(16px + env(safe-area-inset-right));bottom:calc(90px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:12px;border-radius:50%}
+ body.touchmode #touch [data-k=down]{right:auto;left:calc(90px + env(safe-area-inset-left));bottom:calc(16px + env(safe-area-inset-bottom));width:48px;height:48px;font-size:10px;border-radius:14px}
+ body.touchmode #br{left:50%;bottom:0;transform:translateX(-50%) scale(.38)}
+ body.touchmode #credits{display:none}
+}
+#homeMore{position:relative;font:500 12px Inter,sans-serif}
+#homeMore summary{list-style:none;cursor:pointer;min-width:64px;min-height:44px;display:flex;align-items:center;justify-content:center}
+#homeMore summary::-webkit-details-marker{display:none}
+#homeMore .gtools{position:absolute;top:44px;right:0;z-index:8;flex-direction:column;min-width:150px;background:#0c1020;padding:8px;border:1px solid #334050;border-radius:10px}
+#raceMenuBtn{display:none;position:fixed;right:calc(12px + env(safe-area-inset-right));top:calc(8px + env(safe-area-inset-top));z-index:9;min-width:52px;min-height:44px;border:1px solid #526171;border-radius:10px;color:#eef5ff;background:#101724bb;font:500 11px Inter,sans-serif}
+body.touchmode.racing #raceMenuBtn{display:block}
+body.touchmode #tr{right:calc(80px + env(safe-area-inset-right))}
+body.touchmode.mprace #mpLeave{display:none}
+#pause{z-index:15;overflow:auto}
+#pause .card{width:min(460px,94vw);padding:20px}
+#pauseHeading{font:700 32px 'Chakra Petch',sans-serif!important}
+#pause .kicker,#pause .small:first-of-type{display:none}
+#pause #resumeBtn{display:block;min-width:160px;min-height:44px;font-size:16px;padding:8px 16px;margin:12px auto}
+.menuActions{display:flex;gap:8px;justify-content:center}
+.menuActions button{min-height:44px;padding:8px 14px;background:#182131;border:1px solid #485363;border-radius:8px;color:#eef5ff;font:500 12px Inter,sans-serif;cursor:pointer}
+.menuActions [hidden]{display:none}
+#raceOptions{padding-top:12px}
+#raceOptions .seg{justify-content:center}
+.qualityNote{font:400 11px/1.5 Inter,sans-serif;color:#9cadbd;margin:8px 0 12px}
+#raceOptions[hidden]{display:none}
+@media (orientation:landscape) and (max-height:520px){body.touchmode #tr{right:calc(80px + env(safe-area-inset-right))}body.touchmode #minimap{width:104px;height:104px;opacity:1}body.touchmode #pos{font-size:24px}#pause .card{padding:12px}#pauseNote{font:400 12px Inter,sans-serif}}
+#minimap{background:none;backdrop-filter:none;-webkit-backdrop-filter:none;clip-path:none;filter:drop-shadow(0 1px 3px #02050a)}
+#mobileReadout,#raceProgress{display:none}
+@media (orientation:landscape) and (max-height:520px){
+ body.touchmode #tl{display:none}
+ body.touchmode #tr{right:auto;left:calc(12px + env(safe-area-inset-left));top:calc(8px + env(safe-area-inset-top));align-items:flex-start;gap:4px}
+ body.touchmode #pos{border:0;border-left:2px solid var(--m);clip-path:none;background:#080f1c66;backdrop-filter:none;padding:4px 8px;font-size:24px}
+ body.touchmode #minimap{width:104px;height:104px}
+ body.touchmode #mobileReadout{display:block;position:fixed;right:calc(82px + env(safe-area-inset-right));top:calc(8px + env(safe-area-inset-top));z-index:4;text-align:right;color:#fff;font:600 10px Inter,sans-serif;text-shadow:0 1px 4px #000}
+ #mobileReadout b{font:700 italic 32px/1 'Chakra Petch',sans-serif}#mobileReadout small{font-size:8px;color:#adbfcc}#mobileReadout div{margin-top:4px;font-size:10px}
+ body.touchmode #br{left:0;right:auto;top:0;bottom:auto;width:0;height:0;transform:none}
+ body.touchmode #speedo,body.touchmode #blbl,body.touchmode #dlbl{display:none}
+ body.touchmode #boost{position:fixed;top:calc(15px + env(safe-area-inset-top));left:50%;right:auto;bottom:auto;transform:translateX(-50%) skewX(-14deg);width:150px;height:8px}
+ body.touchmode #draft{position:fixed;top:calc(28px + env(safe-area-inset-top));left:50%;right:auto;bottom:auto;transform:translateX(-50%);width:150px;height:3px}
+ body.touchmode #pwr{position:fixed;top:calc(62px + env(safe-area-inset-top));left:50%;right:auto;bottom:auto;transform:translateX(-50%);font:600 10px Inter,sans-serif;white-space:nowrap}
+ body.touchmode #raceProgress:not([hidden]){display:block;position:fixed;left:50%;top:calc(43px + env(safe-area-inset-top));width:142px;height:2px;background:#7a8a9a80;transform:translateX(-50%);z-index:4;pointer-events:none}
+ #raceProgress i{position:absolute;top:50%;transform:translate(-50%,-50%);font:600 8px Inter,sans-serif;font-style:normal;border:1px solid var(--r);background:#09111d;color:#fff;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center}
+ body.touchmode #pause{background:linear-gradient(90deg,#04081022,#04081088);justify-content:flex-end;align-items:stretch}
+ body.touchmode #pause .card{width:270px;min-width:0;max-width:65vw;height:100%;overflow:auto;clip-path:none;background:#090f1de8;border:0;border-left:1px solid #344659;text-align:left;padding:20px 18px;box-shadow:none}
+ body.touchmode #pauseHeading{font-size:24px!important;margin:0 0 8px;letter-spacing:0}
+ body.touchmode #pauseHeading::before,body.touchmode #pauseHeading::after{display:none}
+ body.touchmode #pause .small{display:none}
+ body.touchmode #pause #pauseNote{display:block;font:400 11px/1.4 Inter,sans-serif;color:#9cafc0;margin:0 0 12px;letter-spacing:0}
+ body.touchmode #pause #resumeBtn{width:100%;min-width:0;clip-path:none;border-radius:6px;margin:0 0 8px;font:700 14px Inter,sans-serif;letter-spacing:0}
+ body.touchmode #pause .menuActions{display:flex;flex-direction:column;gap:8px}
+ body.touchmode #pause .menuActions button{text-align:left}
+ body.touchmode #menuSettings{order:-1}
+ body.touchmode #pause .qualityOptions{flex-wrap:wrap}
+ body.touchmode #pause .qualityOptions button{min-height:44px;padding:6px 9px;font-size:11px}
+}
+@media (min-height:521px),(pointer:fine){
+ body:not(.touchmode) #tl{display:none}
+ body:not(.touchmode) #tr{left:24px;right:auto;top:20px;align-items:flex-start;gap:8px}
+ body:not(.touchmode) #pos{border:0;border-left:2px solid var(--m);clip-path:none;background:#080f1c66;backdrop-filter:none;font-size:32px;padding:4px 10px}
+ body:not(.touchmode) #minimap{width:154px;height:154px}
+ body:not(.touchmode) #gaps,body:not(.touchmode) #closing{display:none}
+ body:not(.touchmode) #mobileReadout{display:block;position:fixed;right:100px;top:20px;z-index:4;text-align:right;font:600 12px Inter,sans-serif;text-shadow:0 1px 4px #000}
+ body:not(.touchmode) #mobileReadout b{font:700 italic 48px/1 'Chakra Petch',sans-serif}
+ body:not(.touchmode) #mobileReadout small{font-size:10px;color:#adbfcc}
+ body:not(.touchmode) #br{left:0;right:auto;top:0;bottom:auto;width:0;height:0;transform:none}
+ body:not(.touchmode) #speedo,body:not(.touchmode) #blbl,body:not(.touchmode) #dlbl{display:none}
+ body:not(.touchmode) #boost{position:fixed;top:24px;left:50%;right:auto;bottom:auto;transform:translateX(-50%) skewX(-14deg);width:220px;height:10px}
+ body:not(.touchmode) #draft{position:fixed;top:40px;left:50%;right:auto;bottom:auto;transform:translateX(-50%);width:220px;height:3px}
+ body:not(.touchmode) #pwr{position:fixed;top:55px;left:50%;right:auto;bottom:auto;transform:translateX(-50%);font:600 11px Inter,sans-serif;white-space:nowrap}
+ body:not(.touchmode) #bl{font:400 10px Inter,sans-serif;opacity:.55}
+}
+body.racing #raceMenuBtn{display:block}
+#pause:not(.hide){transition:opacity .18s}
+body.touchmode #paints .sw2{width:44px;height:44px;border-width:14px}
+body.touchmode #paints{gap:0}
+body:not(.touchmode) #pause{justify-content:flex-end;align-items:stretch;background:linear-gradient(90deg,#04081022,#04081088)}
+body:not(.touchmode) #pause .card{width:320px;min-width:0;max-width:90vw;height:100%;overflow:auto;clip-path:none;background:#090f1de8;border:0;border-left:1px solid #344659;text-align:left;padding:30px 22px;box-shadow:none}
+body:not(.touchmode) #pauseHeading::before,body:not(.touchmode) #pauseHeading::after{display:none}
+body:not(.touchmode) #pause .small{display:none}
+body:not(.touchmode) #pause #pauseNote{display:block;font:400 12px/1.5 Inter,sans-serif;letter-spacing:0;margin-bottom:16px}
+body:not(.touchmode) #pause #resumeBtn{width:100%;clip-path:none;border-radius:6px;min-width:0}
+body:not(.touchmode) #pause .menuActions{flex-direction:column}
+body:not(.touchmode) #pause .menuActions button{text-align:left}
+body:not(.touchmode) #menuSettings{order:-1}
+body:not(.racing) #mobileReadout,body:not(.racing) #raceProgress{display:none!important}
+body:not(.touchmode).racing #raceProgress:not([hidden]){display:block;position:fixed;left:50%;top:57px;width:210px;height:2px;background:#7a8a9a80;transform:translateX(-50%);z-index:4;pointer-events:none}
+#raceProgress i{position:absolute;top:50%;transform:translate(-50%,-50%);font:600 8px Inter,sans-serif;font-style:normal;border:1px solid var(--r);background:#09111d;color:#fff;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center}

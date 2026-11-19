@@ -35,7 +35,7 @@ test('host-only controls; settings change un-readies humans only when something 
   assert.equal(R.addBot(r, h2).error, 'not-host'); assert.ok(R.addBot(r, h1).ok);
   assert.equal(R.removeBot(r, h2, 'bot1').error, 'not-host'); assert.ok(R.removeBot(r, h1, 'bot1').ok); assert.equal(R.removeBot(r, h1, 'bot1').error, 'no-such-bot');
   R.setReady(r, h1, true); R.setReady(r, h2, true);
-  assert.ok(R.configure(r, h1, { map: 'velocity', mode: 'assisted' }).ok); assert.equal(r.seats.every(s => s.ready), true, 'no-op config keeps ready');
+  assert.ok(R.configure(r, h1, { map: 'velocity', mode: 'expert' }).ok); assert.equal(r.seats.every(s => s.ready), true, 'no-op config keeps ready');
   assert.equal(R.configure(r, h2, { map: 'legacy' }).error, 'not-host');
   assert.ok(R.configure(r, h1, { map: 'legacy', mode: 'expert' }).ok); assert.equal(r.seats.some(s => s.ready), false);
   assert.equal(R.configure(r, h1, { map: 'moon' }).error, 'bad-map'); assert.equal(R.configure(r, h1, { mode: 'god' }).error, 'bad-mode');

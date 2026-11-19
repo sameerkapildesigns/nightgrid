@@ -86,11 +86,19 @@ test('input integrity: out-of-order / duplicate frames ignored, far-future frame
   run(100); assert.ok(S.inputs.get('p1').buf.size <= QUEUE_DROP_FRAMES, 'queue bounded: ' + S.inputs.get('p1').buf.size);
 });
 test('stale input: a human who stops sending has every input released after 250 ms (no stuck accelerator)', () => {
-  const { S, run, cs: [a] } = startRace(S => { const h = player(S, 'A'); msg(S, h, { t: 'addBot' }); return [h]; });
+  const { S, run, cs: [a] } = startRace(S => { const h = player(S, 'A'); msg(S, h, { t: 'config', mode: 'assisted' }); msg(S, h, { t: 'addBot' }); return [h]; });
   const fa = feeder(S, a, () => UP); run(4500);
   for (let i = 0; i < 40; i++) { fa.tick(S.step); run(50); }
   const r = S.sim.racers[0]; const v0 = r.speed; assert.ok(v0 > 40);
   run(1500); assert.equal(r.input.up, 0); assert.ok(r.speed < v0 - 5, `coasting down ${v0} -> ${r.speed}`);
+});
+test('Expert default: stale input releases throttle and the car coasts, without an Assisted cap dependency', () => {
+  const { S, run, cs: [a] } = startRace(S => { const h = player(S, 'A'); msg(S, h, { t: 'addBot' }); return [h]; });
+  assert.equal(S.room.mode, 'expert');
+  const fa = feeder(S, a, () => UP); run(4500);
+  for (let i = 0; i < 40; i++) { fa.tick(S.step); run(50); }
+  const r = S.sim.racers[0], v0 = r.speed;
+  run(1500); assert.equal(r.input.up, 0); assert.equal(r.input.boost, 0); assert.ok(r.speed < v0, `coasting ${v0} -> ${r.speed}`);
 });
 test('disconnect/reconnect mid-race: token restores the same seat + full race snapshot; expiry after 15 s retires the car (DNF, server AI)', () => {
   const { S, run, cs: [a, b] } = startRace(S => [player(S, 'A'), player(S, 'B')]);

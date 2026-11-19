@@ -233,7 +233,7 @@ try {
     let overlap = false; for (let i = 0; i < L.bs.length; i++) for (let j = i + 1; j < L.bs.length; j++) if (ov(L.bs[i], L.bs[j])) overlap = true;
     C(`touch (${label} ${w}x${h}): 4 controls visible, >=44 px, on-screen, non-overlapping`, L.bs.length === 4 && L.bs.every(b => b.vis) && big && inside && !overlap, L.bs.map(b => `${b.k}:${Math.round(b.w)}x${Math.round(b.h)}@${Math.round(b.x)},${Math.round(b.y)}`).join(' '));
     const credOver = L.bs.some(b => ov(b, { x: L.cred.x, y: L.cred.y, w: L.cred.w, h: L.cred.h }));
-    const spd = await page.evaluate(() => { const r = document.getElementById('br').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+    const spd = await page.evaluate(() => { const r = document.getElementById('mobileReadout').getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
     const spdOn = spd.x >= 0 && spd.y >= 0 && spd.x + spd.w <= L.vw + 0.5 && spd.y + spd.h <= L.vh + 0.5;
     C(`touch (${label}): Brake/Boost and steer pads do not cover the speedometer cluster`, spdOn && !L.bs.some(b => ov(b, spd)), JSON.stringify(spd, (k, v) => typeof v === 'number' ? Math.round(v) : v));
     C(`touch (${label}): compact credits on-screen and clear of controls`, !L.cred.vis || (L.cred.h <= 40 && L.cred.r <= L.vw + 0.5 && !credOver), JSON.stringify({ h: Math.round(L.cred.h), w: Math.round(L.cred.w), visible: L.cred.vis }));
@@ -261,16 +261,16 @@ try {
       await page.evaluate(() => __ng.sim(3.4));
       await page.waitForFunction(() => document.body.classList.contains('racing'), null, { timeout: 5000 });
       await page.evaluate(() => __ng.sim(2));
-      const R = { tl: await rect(page, '#tl'), pos: await rect(page, '#pos'), mm: await rect(page, '#minimap'), spd: await rect(page, '#spdT'), boost: await rect(page, '#boost') };
+      const R = { tl: await rect(page, '#mobileReadout'), pos: await rect(page, '#pos'), mm: await rect(page, '#minimap'), spd: await rect(page, '#mobileSpeed'), boost: await rect(page, '#boost') };
       const pads = await page.evaluate(() => [...document.querySelectorAll('#touch button')].map(b => { const r = b.getBoundingClientRect(); return { k: b.dataset.k, x: r.left, y: r.top, w: r.width, h: r.height }; }));
       const inV = r => r.x >= -0.5 && r.y >= -0.5 && r.x + r.w <= w + 0.5 && r.y + r.h <= h + 0.5;
       const hud = [R.tl, R.pos, R.mm, R.spd, R.boost];
       const road = { x: w * 0.3, y: h * 0.25, w: w * 0.4, h: h * 0.4 };   // centre of the road / car view
-      C(`mobile ${w}x${h}: HUD placement (lap/time top-left, position + small minimap top-right, speed/boost bottom-centre)`,
-        hud.every(inV) && (await page.evaluate(() => getComputedStyle(document.querySelector('#tl .row')).display !== 'none' && /\d:\d\d\.\d{3}/.test(document.getElementById('time').textContent))) && R.tl.x < w * 0.3 && R.tl.y < h * 0.3 && R.pos.x > w * 0.6 && R.pos.y < h * 0.3 && R.mm.w <= 90 && R.mm.x > w * 0.6 && Math.abs((R.spd.x + R.spd.w / 2) - w / 2) < w * 0.12 && R.spd.y > h * 0.6,
+      C(`mobile ${w}x${h}: HUD placement (position + outline minimap top-left, speed/time top-right, boost top-centre)`,
+        hud.every(inV) && R.pos.x < w * .3 && R.pos.y < h * .3 && R.mm.w >= 100 && R.mm.w <= 110 && R.mm.x < w * .3 && R.spd.x > w * .6 && R.spd.y < h * .3 && Math.abs(R.boost.x + R.boost.w / 2 - w / 2) < 2,
         JSON.stringify(R, (k, v) => typeof v === 'number' ? Math.round(v) : v));
       C(`mobile ${w}x${h}: HUD keeps the road centre clear`, !hud.some(r => ov(r, road)));
-      C(`mobile ${w}x${h}: pads >=44px, steer bottom-left, Brake/Boost bottom-right, no HUD overlap`, pads.every(b => b.w >= 44 && b.h >= 44 && inV(b)) && pads.filter(b => /left|right/.test(b.k)).every(b => b.x < w * 0.35) && pads.filter(b => /down|boost/.test(b.k)).every(b => b.x > w * 0.65) && !pads.some(b => hud.some(r => ov(b, r))), pads.map(b => `${b.k}@${Math.round(b.x)},${Math.round(b.y)}`).join(' '));
+      C(`mobile ${w}x${h}: pads >=44px, steer opposite corners, Brake left and Boost right, no HUD overlap`, pads.every(b => b.w >= 44 && b.h >= 44 && inV(b)) && pads.filter(b => /left|down/.test(b.k)).every(b => b.x < w * .35) && pads.filter(b => /right|boost/.test(b.k)).every(b => b.x > w * .65) && !pads.some(b => hud.some(r => ov(b, r))), pads.map(b => `${b.k}@${Math.round(b.x)},${Math.round(b.y)}`).join(' '));
       await page.evaluate(() => __ng.render()); await shot(page, `mobile-hud-${w}x${h}`);
       // REAL browser touch input via CDP (DOM-dispatched events cannot catch overlay hit-testing bugs)
       {
@@ -330,10 +330,10 @@ try {
       await shot(page, 'mobile-portrait-390x844');
       await ctx.close();
     }
-    { // desktop unchanged: no rotate panel, no resume button, full HUD sizes
+    { // Desktop uses the shared clean HUD and keyboard-accessible Resume.
       const { ctx, page } = await openGame(browser, { width: 1280, height: 675 });
       const d = await page.evaluate(() => ({ rot: getComputedStyle(document.getElementById('rotate')).display, res: getComputedStyle(document.getElementById('resumeBtn')).display, mm: document.getElementById('minimap').getBoundingClientRect().width }));
-      C('desktop: no rotate panel / resume button, HUD sizes unchanged', d.rot === 'none' && d.res === 'none' && d.mm === 200, JSON.stringify(d));
+      C('desktop: no rotate panel, accessible Resume, clean 154px minimap', d.rot === 'none' && d.res === 'block' && d.mm === 154, JSON.stringify(d));
       await ctx.close();
     }
   }
@@ -353,7 +353,7 @@ try {
       await page.goto(TEST + '?touch'); await waitRaceBtn(page);
       const calls0 = await page.evaluate(() => window.__permCalls);
       C(`tilt (${mode}): no permission prompt on page load; Touch is default`, calls0 === 0 && (await page.evaluate(() => NG_DEBUG.tilt.pref)) === 'touch');
-      await page.tap('#setBtn'); await page.tap('[data-steer="tilt"]'); await page.waitForFunction(() => !/Checking/.test(NG_DEBUG.tilt.msg), null, { timeout: 15000 });
+      await page.tap('#homeMore summary'); await page.tap('#setBtn'); await page.tap('[data-steer="tilt"]'); await page.waitForFunction(() => !/Checking/.test(NG_DEBUG.tilt.msg), null, { timeout: 15000 });
       const t = await page.evaluate(() => ({ ...NG_DEBUG.tilt, calls: window.__permCalls }));
       if (mode === 'denied') C('tilt (denied): clear message, Touch fallback', t.pref === 'touch' && /not granted/.test(t.msg) && t.calls === 1, t.msg);
       if (mode === 'nomethod') C('tilt (no permission API, no events): clear message, Touch fallback', t.pref === 'touch' && /No tilt sensor events/.test(t.msg), t.msg);
@@ -385,7 +385,7 @@ try {
     { const { ctx, page } = await openGame(browser, { width: 1280, height: 675 });
       const d0 = await page.evaluate(() => NG_DEBUG.drive);
       C('mode: desktop default is Expert (pace caps applied to the sim)', d0.mode === 'expert' && d0.simMode === 'expert' && d0.pace.normalKmh === 310 && /Expert/.test(d0.recordLabel), JSON.stringify(d0));
-      await page.click('#setBtn'); await page.click('[data-mode="assisted"]');
+      await page.click('#homeMore summary'); await page.click('#setBtn'); await page.click('[data-mode="assisted"]');
       const d1 = await page.evaluate(() => NG_DEBUG.drive);
       await page.reload(); await page.waitForFunction(() => window.NG_DEBUG && NG_DEBUG.state === 'title', null, { timeout: 180000 });
       const d2 = await page.evaluate(() => NG_DEBUG.drive);
@@ -393,7 +393,7 @@ try {
       await ctx.close(); }
     { const { ctx, page } = await openGame(browser, { width: 844, height: 390, query: '?touch', ctxOpts: { isMobile: true, hasTouch: true } });
       const d = await page.evaluate(() => NG_DEBUG.drive);
-      C('mode: phone (touch) default is Assisted', d.mode === 'assisted' && d.pace.normalKmh === 240, JSON.stringify(d));
+      C('mode: phone (touch) default is Expert', d.mode === 'expert' && d.pace.normalKmh === 310, JSON.stringify(d));
       await ctx.close(); }
   }
 

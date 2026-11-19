@@ -1,3 +1,5 @@
+import { createMusic } from './music.js';
+import { QUALITY, qualityLimits, qualitySample } from './quality.js';
 // NIGHTGRID client: rendering, world building, car models, garage, FX, HUD, audio, input,
 // cinematics. Moved from v5b game.html; simulation rules live in ../core (pure modules).
 import * as THREE from 'three';
@@ -63,7 +65,10 @@ const NEON_CSS = ['#00f0ff', '#ff2bd6', '#8a5cff', '#ffc23f', '#ff3355', '#7dff4
 
 /* ============================== renderer ============================== */
 const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: 'high-performance', stencil: false });
-let PR = Math.min(window.devicePixelRatio || 1, 1.5);
+let qualityMode = 'auto';
+try { const q = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null')?.quality; if (QUALITY.includes(q)) qualityMode = q; } catch {}
+let qualityState = { pr: qualityLimits(qualityMode, devicePixelRatio).max, bloom: qualityMode !== 'battery' };
+let PR = qualityState.pr;
 renderer.setPixelRatio(PR);
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -107,6 +112,7 @@ composer.addPass(renderPass);
 renderer.info.autoReset = false;
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / 2, innerHeight / 2), 0.72, 0.42, 0.92);
 { const o = bloom.setSize.bind(bloom); bloom.setSize = (w, h) => o(Math.max(1, Math.round(w * 0.5)), Math.max(1, Math.round(h * 0.5))); }
+bloom.enabled = qualityState.bloom;
 composer.addPass(bloom);
 const fxPass = new ShaderPass(FXShader);
 composer.addPass(fxPass);
@@ -1194,6 +1200,9 @@ function drawSpeedLines(intensity, draft, dt) {
 }
 
 /* ============================== audio ============================== */
+const MUSIC = createMusic();
+document.addEventListener('pointerdown', () => MUSIC.unlock(), { capture: true });
+document.addEventListener('keydown', () => MUSIC.unlock(), { capture: true });
 const AU = {
   ctx: null, music: true,
   init() {
@@ -1224,7 +1233,7 @@ const AU = {
     this.mus = c.createGain(); this.mus.gain.value = this.music ? 0.2 : 0; this.mus.connect(m);
     const dl = this.dl = c.createDelay(1); dl.delayTime.value = 60 / 108 * 0.75; const fb = c.createGain(); fb.gain.value = 0.32;
     const dlf = c.createBiquadFilter(); dlf.type = 'lowpass'; dlf.frequency.value = 2400; dl.connect(dlf); dlf.connect(fb); fb.connect(dl); dlf.connect(this.mus);
-    this.step = 0; this.nt = c.currentTime + 0.1; setInterval(() => this.sched(), 25);
+    // Licensed audio loops replace the procedural backing track; engine and effects remain procedural.
   },
   engine(s01, thr, boost, drift, slip) {
     if (!this.ctx) return; const t = this.ctx.currentTime;
@@ -1264,7 +1273,7 @@ const AU = {
   },
   chime() { [0, 4, 7, 12].forEach((n, k) => setTimeout(() => this.beep(880 * Math.pow(2, n / 12), 0.25, 0.12), k * 70)); },
   crash() { const c = this.ctx; if (!c) return; const t = c.currentTime; this.thud(1); this.noiseHit(t, 'lowpass', 2500, 120, 1.4, 0.8, 0.7); },
-  setMusic(on) { this.music = on; if (this.mus) this.mus.gain.setTargetAtTime(on ? 0.2 : 0, this.ctx.currentTime, 0.2); },
+  setMusic(on) { this.music = on; MUSIC.setEnabled(on); SETTINGS.music = !!on; saveSettings(); if (this.mus) this.mus.gain.setTargetAtTime(on ? 0.2 : 0, this.ctx.currentTime, 0.2); },
   sched() {
     const c = this.ctx; if (!c || c.state !== 'running') return;
     if (this.nt < c.currentTime) this.nt = c.currentTime + 0.05;
@@ -1592,6 +1601,7 @@ function garageFreeRect() {
   const T = r('gTop'), Bb = r('gBar'), sheet = [...document.querySelectorAll('.sheet:not(.hide)')].map(e => e.getBoundingClientRect())[0];
   let x0 = 0, x1 = W, y0 = T ? T.bottom : 0, y1 = Bb ? Bb.top + 44 : H;
   if (sheet && W > 900) x1 = sheet.left - 10;
+  if (document.body.classList.contains('touchmode') && W > H && H <= 520 && !sheet) return { x0: 208, x1: W - 12, y0: 52, y1: H - 70 };
   if (y1 - y0 < 140) y1 = y0 + 140;
   return { x0, x1, y0, y1 };
 }
@@ -1786,8 +1796,8 @@ const RECORD_STORAGE = DEBUG ? memoryStorage() : (() => { try { return window.lo
 const records = createRecordStore(RECORD_STORAGE, { lapLenOf: k => (k.endsWith('_' + MAPKEY) ? LAPLEN : NaN) });
 let recordLap = Infinity, lastRecordOffer = null;
 // M3 driving mode (Assisted / Expert): separate from AI difficulty and from the input method.
-// Default: Assisted on touch (coarse-pointer) devices, Expert otherwise; the choice persists.
-let driveMode = (() => { try { const v = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (v && DRIVE_MODES.includes(v.mode)) return v.mode; } catch (e) { } const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) || new URLSearchParams(location.search).has('touch'); return coarse ? 'assisted' : 'expert'; })();
+// Fresh settings use Expert on every device; explicit saved choices persist.
+let driveMode = (() => { try { const v = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (v && DRIVE_MODES.includes(v.mode)) return v.mode; } catch (e) { } return 'expert'; })();
 sim.setMode(driveMode);
 const modeLabel = () => (driveMode === 'assisted' ? 'Assisted' : 'Expert');
 function loadRecord() { recordLap = records.get(recordKey(driveMode, MAPKEY)); }
@@ -1808,7 +1818,7 @@ function earnPopup(txt, col) {   // boost meter itself is credited by the simula
 /* ---------- M8 hazards: pickup / shield / obstacle presentation (own car only; remote shields from pw) ---------- */
 function hazardEvents(me) {
   return {
-    pickup: (r, kind) => { const k = typeof r === 'string' ? r : kind; if (k === 'S') { flash('SHIELD', '#4fd8ff'); AU.chime(); } else { flash('OVERDRIVE', '#ffb21c'); AU.whoosh(); CC.kick += 6; } },
+    pickup: (r, kind) => { const k = typeof r === 'string' ? r : kind; if (k === 'S') { flash('SHIELD · 1 HIT', '#4fd8ff'); AU.chime(); } else { flash('OVERDRIVE', '#ffb21c'); AU.whoosh(); CC.kick += 6; } },
     shieldPop: (r, what) => { const w = typeof r === 'string' ? r : what; const p = me(); if (w === 'expired') return; cpFlash('SHIELD ABSORBED'); AU.thud(0.4); for (let k = 0; k < 30; k++) spark(p.world.x, p.world.y + 0.6, p.world.z, R(-10, 10), R(-2, 9), R(-10, 10), SPARK_CY, R(0.3, 0.7)); },
     obstacleHit: () => { const p = me(); CC.shake += 0.7; hitFlash = Math.min(1, hitFlash + 0.6); AU.thud(0.9); for (let k = 0; k < 36; k++) spark(p.world.x, p.world.y + 0.4, p.world.z, R(-11, 11), R(-1, 9), R(-11, 11), k % 2 ? SPARK_HOT : FLAME, R(0.3, 0.9)); }
   };
@@ -1818,7 +1828,7 @@ function updatePowerHUD() {
   const p = player; if (!p) return;
   const parts = [];
   const cf = MP.race ? mpPw() : PW_SHIELD | PW_SURGE;   // rooms: only server-confirmed powers (prediction can lose a contest)
-  if (p.shieldT > 0 && (cf & PW_SHIELD)) parts.push(`<span class="pw s">⬢ SHIELD ${Math.ceil(p.shieldT)}</span>`);
+  if (p.shieldT > 0 && (cf & PW_SHIELD)) parts.push(`<span class="pw s">⬢ SHIELD 1 HIT · ${Math.ceil(p.shieldT)}s</span>`);
   if (p.surgeT > 0 && (cf & PW_SURGE)) parts.push('<span class="pw b">▲ OVERDRIVE</span>');
   const h = parts.join(''); if (h !== pwCache) { pwCache = h; $('pwr').innerHTML = h; }
 }
@@ -1982,7 +1992,7 @@ function updateDrones() {   // drone motion is simulated in core; this only plac
 }
 
 /* ---------- HUD ---------- */
-const mm = $('minimap'), mg = mm.getContext('2d'); let mmBase, mmT;
+const mm = $('minimap'), mg = mm.getContext('2d'); let mmBase, mmT; const mmPlayerFrame = mkF();
 function arcPath(cx, cy, r, a0, a1) { const p = a => [cx + Math.cos(a) * r, cy + Math.sin(a) * r]; const [x0, y0] = p(a0), [x1, y1] = p(a1); return `M ${x0} ${y0} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1} ${y1}`; }
 function initHUD() {
   const d = arcPath(162, 112, 92, Math.PI * 0.8, Math.PI * 2.2);
@@ -1997,11 +2007,12 @@ function initHUD() {
   mmT = (x, z) => [S - (ox + (x - minX) * sc), S - (oz + (z - minZ) * sc)];
   mmBase = document.createElement('canvas'); mmBase.width = mmBase.height = S; const g = mmBase.getContext('2d');
   g.lineJoin = 'round'; g.lineCap = 'round';
-  // draw low parts first, then high parts on top so overpasses read
-  const segs = []; for (let i = 0; i < MAIN.N; i += 5) segs.push([i, MAIN.P[i].y]); segs.sort((a, b) => a[1] - b[1]);
-  for (const [i] of segs) { const j = (i + 5) % MAIN.N; const [x0, y0] = mmT(MAIN.P[i].x, MAIN.P[i].z), [x1, y1] = mmT(MAIN.P[j].x, MAIN.P[j].z); const y = MAIN.P[i].y; g.strokeStyle = 'rgba(10,5,25,0.9)'; g.lineWidth = 7 * dpr; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); g.strokeStyle = SECTORS[MAIN.sec[i]].css; g.globalAlpha = 0.55 + Math.min(0.45, y / 60); g.lineWidth = (2.2 + Math.min(2, y / 30)) * dpr; g.stroke(); g.globalAlpha = 1; }
-  g.setLineDash([3 * dpr, 3 * dpr]); g.strokeStyle = '#ff8a2a'; g.lineWidth = 1.6 * dpr; g.beginPath(); if (HASBR) for (let i = 0; i < BR.N; i += 4) { const [x, y] = mmT(BR.P[i].x, BR.P[i].z); i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.setLineDash([]);
-  const si = Math.round(S0 / MAIN.ds); const [sx, sy] = mmT(MAIN.P[si].x, MAIN.P[si].z); g.fillStyle = '#fff'; g.fillRect(sx - 4 * dpr, sy - 4 * dpr, 8 * dpr, 8 * dpr);
+  // One clear ribbon, dark edge, neutral rivals and a cyan directional player marker.
+  const trackPath = (path, stride, closed = true) => { g.beginPath(); for (let i = 0; i < path.N; i += stride) { const [x, y] = mmT(path.P[i].x, path.P[i].z); i ? g.lineTo(x, y) : g.moveTo(x, y); } if (closed) g.closePath(); };
+  trackPath(MAIN, 3); g.strokeStyle = '#07101b'; g.lineWidth = 11 * dpr; g.stroke();
+  g.strokeStyle = '#d9e5ef'; g.lineWidth = 5.5 * dpr; g.stroke();
+  if (HASBR) { trackPath(BR, 3, false); g.setLineDash([5 * dpr, 5 * dpr]); g.lineWidth = 3 * dpr; g.strokeStyle = '#8197aa'; g.stroke(); g.setLineDash([]); }
+  const si = Math.round(S0 / MAIN.ds); const [sx, sy] = mmT(MAIN.P[si].x, MAIN.P[si].z); g.fillStyle = '#fff'; g.fillRect(sx - 3 * dpr, sy - 3 * dpr, 6 * dpr, 6 * dpr);
   mm.dpr = dpr;
   $('record').textContent = isFinite(recordLap) ? `${modeLabel()} record ${fmt(recordLap)}` : `No ${modeLabel()} record yet`;
 }
@@ -2035,6 +2046,10 @@ function updateHUD(dt) {
   $('closing').classList.toggle('on', !!closing); if (closing) setT('closing', `▲ ${behind.name} CLOSING`);
   const kmh = Math.round(player.speed * 3.6);
   setT('spdT', String(kmh));
+  setT('mobileSpeed', String(kmh)); setT('mobileTime', fmt(rt)); setT('mobileLap', `${Math.min(player.lap + 1, LAPS)}/${LAPS}`);
+  const progress = $('raceProgress');
+  progress.hidden = racers.length > 4;
+  if (!progress.hidden) setH('raceProgress', racers.map(r => `<i style="left:${clamp(r.prog / (LAPLEN * LAPS), 0, 1) * 100}%;--r:${r === player ? '#00f0ff' : r.css};z-index:${r === player ? 2 : 1}" title="${escHtml(r.name)}">${escHtml(r.name[0])}</i>`).join(''));
   $('arcfg').setAttribute('stroke-dashoffset', String(100 - clamp(kmh / 460, 0, 1) * 100));
   $('boost').firstElementChild.style.width = (player.meter * 100).toFixed(1) + '%';
   $('boost').classList.toggle('on', player.boost); $('boost').classList.toggle('full', player.meter > 0.99);
@@ -2043,12 +2058,17 @@ function updateHUD(dt) {
   $('draft').firstElementChild.style.width = (clamp(player.draftT / 1.5, 0, 1) * 100).toFixed(0) + '%';
   $('ww').classList.toggle('on', sim.wrongWayT > 0.8);
   if ((mmFrame++ & 1) === 0) {
-    const S = mm.width, d = mm.dpr; mg.clearRect(0, 0, S, S); mg.fillStyle = 'rgba(8,4,22,0.55)'; mg.fillRect(0, 0, S, S); mg.drawImage(mmBase, 0, 0);
-    for (const dr of drones) { const [x, y] = mmT(dr.world.x, dr.world.z); mg.fillStyle = 'rgba(255,170,60,0.7)'; mg.fillRect(x - 1.5 * d, y - 1.5 * d, 3 * d, 3 * d); }
-    for (const r of [...racers].reverse()) {
-      const [x, y] = mmT(r.world.x, r.world.z); mg.fillStyle = r === player ? '#fff' : r.css; mg.shadowColor = r.css; mg.shadowBlur = 10 * d;
-      mg.beginPath(); mg.arc(x, y, (r === player ? 5 : 4) * d, 0, 7); mg.fill();
+    const S = mm.width, d = mm.dpr; mg.clearRect(0, 0, S, S); mg.drawImage(mmBase, 0, 0);
+    for (const r of racers.filter(r => r !== player)) {
+      const [x, y] = mmT(r.world.x, r.world.z); mg.fillStyle = '#8298ab'; mg.strokeStyle = '#08111d'; mg.lineWidth = 2 * d;
+      mg.beginPath(); mg.arc(x, y, 4.5 * d, 0, 7); mg.fill(); mg.stroke();
     }
+    const [px, py] = mmT(player.world.x, player.world.z);
+    const pf = frameAt(player.path, player.s, mmPlayerFrame);
+    const [fx, fy] = mmT(player.world.x + pf.T.x * 10, player.world.z + pf.T.z * 10);
+    mg.save(); mg.translate(px, py); mg.rotate(Math.atan2(fy - py, fx - px) + Math.PI / 2);
+    mg.beginPath(); mg.moveTo(0, -9 * d); mg.lineTo(6 * d, 7 * d); mg.lineTo(0, 4 * d); mg.lineTo(-6 * d, 7 * d); mg.closePath();
+    mg.fillStyle = '#00eeff'; mg.strokeStyle = '#fff'; mg.lineWidth = 1.5 * d; mg.fill(); mg.stroke(); mg.restore();
     mg.shadowBlur = 0;
   }
 }
@@ -2131,8 +2151,30 @@ function restart() {
 function togglePause() {
   if (MP.race) return;   // multiplayer races cannot be paused (the server keeps racing); use Leave race
   if (!(state === 'race' || state === 'countdown')) return;
+  $('pauseHeading').textContent = 'PAUSED';
   paused = !paused; releaseAllInputs(); $('pause').classList.toggle('hide', !paused); AU.pause(paused); $('pauseNote').textContent = '';
 }
+function closeRaceMenu() {
+  $('raceOptions').hidden = true;
+  if (MP.race) $('pause').classList.add('hide');
+  else if (paused && !isPortrait()) togglePause();
+}
+$('raceMenuBtn').addEventListener('click', () => {
+  menuLeaveArm = 0; $('raceOptions').hidden = true;
+  releaseAllInputs();
+  if (MP.race) $('pause').classList.remove('hide'); else if (!paused) togglePause();
+  $('pauseHeading').textContent = MP.race ? 'RACE MENU' : 'PAUSED';
+  $('pauseNote').textContent = MP.race ? 'Online race continues. Other racers do not pause.' : 'Solo race paused.';
+  $('menuRestart').hidden = !!MP.race;
+  $('menuLeave').textContent = MP.race ? 'Leave race' : 'Garage';
+});
+$('menuSettings').addEventListener('click', () => { $('raceOptions').hidden = !$('raceOptions').hidden; });
+$('menuRestart').addEventListener('click', () => { if (!MP.race) { releaseAllInputs(); restart(); } });
+let menuLeaveArm = 0;
+$('menuLeave').addEventListener('click', () => {
+  if (MP.race && performance.now() - menuLeaveArm > 3000) { menuLeaveArm = performance.now(); $('menuLeave').textContent = 'Tap again to leave'; return; }
+  $('pause').classList.add('hide'); releaseAllInputs(); if (MP.race) mpLeave(); else toGarage();
+});
 $('go').addEventListener('click', () => { if (isPortrait()) return; if (TOUCH) requestLandscape(); startRace(); });
 $('again').addEventListener('click', () => { $('again').blur(); restart(); });
 $('toGarage').addEventListener('click', () => { $('toGarage').blur(); if (MP.race) mpEndRaceView(); else toGarage(); });
@@ -2141,8 +2183,8 @@ $('nextCar').addEventListener('click', () => cycleCar(1));
 $('paints').addEventListener('click', e => { const p = e.target.closest('[data-p]'); if (p) setPaint(+p.dataset.p); });
 $('carDots').addEventListener('click', e => { const p = e.target.closest('[data-car]'); if (p) selectCar(p.dataset.car); });
 const openSheet = id => { for (const s of document.querySelectorAll('.sheet')) s.classList.toggle('hide', s.id !== id || !s.classList.contains('hide')); GAR.fit = null; };
-$('credBtn').addEventListener('click', () => openSheet('credPanel'));
-$('ctrlBtn').addEventListener('click', () => openSheet('ctrlPanel'));
+$('credBtn').addEventListener('click', () => { $('homeMore').open = false; openSheet('credPanel'); });
+$('ctrlBtn').addEventListener('click', () => { $('homeMore').open = false; openSheet('ctrlPanel'); });
 for (const b of document.querySelectorAll('[data-close]')) b.addEventListener('click', () => { b.closest('.sheet').classList.add('hide'); GAR.fit = null; });
 if (DEBUG) $('qa').addEventListener('click', e => { const b = e.target.closest('[data-qa]'); if (!b) return; b.blur(); const m = b.dataset.qa;
   if (m === 'garage') qaGarageNext(); else if (m === 'boost') qaBoostDemo(false); else if (m === 'inverted') qaBoostDemo(true); else if (m === 'exit') { toGarage(); qaInfo('back in garage'); } else if (m === 'close') $('qa').classList.add('hide'); });
@@ -2164,8 +2206,9 @@ addEventListener('keydown', e => {
   if (e.code === 'Enter' && !MP.race && !(MP.net && MP.net.room)) { if (state === 'title') startRace(); else if (state === 'finished' || paused) restart(); }
   if (e.code === 'KeyR' && state === 'race' && !paused && !MP.race) sim.resetPlayer();
   if (e.code === 'Escape' && state === 'title') { for (const s of document.querySelectorAll('.sheet')) s.classList.add('hide'); GAR.fit = null; }
-  if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
-  if (e.code === 'KeyM') { AU.setMusic(!AU.music); flash(AU.music ? 'MUSIC ON' : 'MUSIC OFF', '#8a5cff'); }
+  if (e.code === 'Escape' && MP.race) { if ($('pause').classList.contains('hide')) $('raceMenuBtn').click(); else closeRaceMenu(); }
+  else if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
+  if (e.code === 'KeyM') { AU.setMusic(!MUSIC.enabled); flash(MUSIC.enabled ? 'MUSIC ON' : 'MUSIC OFF', '#8a5cff'); }
 });
 addEventListener('keyup', e => { const k = KEYMAP[e.code]; if (k) { keys[k] = 0; e.preventDefault(); mpPushKeys(); } });
 addEventListener('blur', () => { for (const k in keys) keys[k] = 0; mpPushKeys(true); });
@@ -2198,18 +2241,19 @@ function frame(now) {
 }
 let fxLowT = 0, fxHighT = 0, fxFallbacks = 0;
 function advanceFrame(now, render = true) {
+  document.body.classList.toggle('racing', state === 'race' || state === 'countdown');
+  MUSIC.update(state, MAPKEY, paused);
   const wall = Math.max(0, (now - last) / 1000); last = now;
   RDT = Math.min(1.0, wall);
   const nBefore = fpsMeter.n; fpsMeter.frame(wall);
   if (fpsMeter.n === 0 && nBefore > 0) {   // a 1 s FPS window just closed (wall-clock based)
     lastFps = fpsMeter.fps;
-    if (lastFps < 48 && state !== 'loading') { lowT++; if (lowT >= 2 && PR > 0.75) { PR = Math.max(0.75, PR - 0.25); renderer.setPixelRatio(PR); composer.setPixelRatio(PR); resize(); lowT = 0; } } else lowT = 0;
-    // low-FPS fallback (M4 perf): only once resolution is already at its 0.75 floor and FPS stays < 30 for
-    // 3 s, bloom is switched off (car geometry/detail and resolution floor unchanged); it returns after
-    // 5 s above 50 FPS. Normal devices never reach this.
-    if (state !== 'loading') {
-      if (bloom.enabled && PR <= 0.75 && lastFps < 30) { if (++fxLowT >= 3) { bloom.enabled = false; fxLowT = 0; fxFallbacks++; } } else if (bloom.enabled) fxLowT = 0;
-      if (!bloom.enabled && lastFps > 50) { if (++fxHighT >= 5) { bloom.enabled = true; fxHighT = 0; } } else if (!bloom.enabled) fxHighT = 0;
+    if (state !== 'loading' && !paused) {
+      const before = qualityState.bloom;
+      qualityState = qualitySample(qualityState, lastFps, qualityLimits(qualityMode, devicePixelRatio));
+      if (before && !qualityState.bloom) fxFallbacks++;
+      bloom.enabled = qualityState.bloom;
+      if (PR !== qualityState.pr) { PR = qualityState.pr; renderer.setPixelRatio(PR); composer.setPixelRatio(PR); resize(); }
     }
   }
   if (state === 'loading' || window.__ngFreeze) return;
@@ -2329,10 +2373,24 @@ function update(dt, dt0) {
 
 /* ---------- settings: motion blur / camera shake (reduced-motion aware) ---------- */
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode };
+const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled };
 try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
 const BLUR_K = [0, 1, 1.8];
+function qualityUI() {
+  for (const el of document.querySelectorAll('.qualityOptions')) el.innerHTML = QUALITY.map(q => `<button type="button" data-quality="${q}" role="radio" aria-checked="${q === qualityMode}" class="${q === qualityMode ? 'on' : ''}">${q[0].toUpperCase() + q.slice(1)}</button>`).join('');
+}
+function applyQuality(q) {
+  if (!QUALITY.includes(q)) return;
+  SETTINGS.quality = qualityMode = q;
+  const limits = qualityLimits(q, devicePixelRatio);
+  qualityState = { pr: limits.max, bloom: limits.bloom };
+  PR = qualityState.pr; bloom.enabled = qualityState.bloom;
+  renderer.setPixelRatio(PR); composer.setPixelRatio(PR); resize(); composer.render(); saveSettings();
+}
+document.addEventListener('click', e => { const m = e.target.closest('[data-music-toggle]'); if (m) AU.setMusic(!MUSIC.enabled); const b = e.target.closest('[data-quality]'); if (b) applyQuality(b.dataset.quality); });
 function renderSettings() {
+  qualityUI();
+  for (const b of document.querySelectorAll('[data-music-toggle]')) { b.textContent = MUSIC.enabled ? 'Music: On' : 'Music: Off'; b.setAttribute('aria-pressed', String(MUSIC.enabled)); }
   $('setBlur').innerHTML = ['Off', 'Mild', 'Strong'].map((n, i) => `<button class="${SETTINGS.blur === i ? 'on' : ''}" data-blur="${i}" role="radio" aria-checked="${SETTINGS.blur === i}">${n}</button>`).join('');
   $('setShake').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+SETTINGS.shake === i ? 'on' : ''}" data-shake="${i}" role="radio" aria-checked="${+SETTINGS.shake === i}">${n}</button>`).join('');
   $('setMode').innerHTML = [['assisted', 'Assisted'], ['expert', 'Expert']].map(([k, n]) => `<button class="${driveMode === k ? 'on' : ''}" data-mode="${k}" role="radio" aria-checked="${driveMode === k}">${n}</button>`).join('');
@@ -2344,7 +2402,7 @@ function renderSettings() {
 function saveSettings() { try { localStorage.setItem('nightgrid_v4_settings', JSON.stringify(SETTINGS)); } catch (e) { } renderSettings(); }
 $('setBlur').addEventListener('click', e => { const b = e.target.closest('[data-blur]'); if (b) { SETTINGS.blur = +b.dataset.blur; saveSettings(); } });
 $('setShake').addEventListener('click', e => { const b = e.target.closest('[data-shake]'); if (b) { SETTINGS.shake = b.dataset.shake === '1'; saveSettings(); } });
-$('setBtn').addEventListener('click', () => openSheet('setPanel'));
+$('setBtn').addEventListener('click', () => { $('homeMore').open = false; openSheet('setPanel'); });
 $('setCine').addEventListener('click', e => { const b = e.target.closest('[data-cine]'); if (b) { SETTINGS.cine = b.dataset.cine === '1'; saveSettings(); } });
 $('setMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (!b || !DRIVE_MODES.includes(b.dataset.mode)) return; SETTINGS.mode = driveMode = b.dataset.mode; if (state === 'title') sim.setMode(driveMode); saveSettings(); loadRecord(); updateGarageUI(); });
 $('setDiff').addEventListener('click', e => { const b = e.target.closest('[data-diff]'); if (b) { SETTINGS.diff = b.dataset.diff; sim.diff = SETTINGS.diff; saveSettings(); } });
@@ -2404,7 +2462,7 @@ async function requestLandscape() {
   try { const el = document.documentElement; if (el.requestFullscreen && !document.fullscreenElement) { orientLock.fullscreen = 'pending'; await el.requestFullscreen({ navigationUI: 'hide' }); orientLock.fullscreen = 'ok'; } else orientLock.fullscreen = 'unsupported'; } catch (e) { orientLock.fullscreen = 'rejected'; }
   try { if (screen.orientation && screen.orientation.lock) { orientLock.lock = 'pending'; await screen.orientation.lock('landscape'); orientLock.lock = 'ok'; } else orientLock.lock = 'unsupported'; } catch (e) { orientLock.lock = 'rejected'; }
 }
-$('resumeBtn').addEventListener('click', e => { e.preventDefault(); if (paused && !isPortrait()) { releaseAllInputs(); togglePause(); } });
+$('resumeBtn').addEventListener('click', e => { e.preventDefault(); releaseAllInputs(); closeRaceMenu(); });
 addEventListener('resize', checkOrientation);
 if (screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', checkOrientation);
 
@@ -2437,7 +2495,7 @@ async function enableTilt() {   // must be called from a user tap
 }
 function applyTilt() {   // called every frame
   if (SETTINGS.steer !== 'tilt' || !TOUCH) return;
-  const racing = (state === 'race' || state === 'countdown') && !paused && !isPortrait();
+  const racing = (state === 'race' || state === 'countdown') && !paused && !isPortrait() && $('pause').classList.contains('hide');
   if (!racing || !tiltLive) { if (tilt.steer !== 0) { tilt.reset(); keys.left = keys.right = 0; } return; }
   if (touchHeld.left || touchHeld.right) return;   // touch steer pads still win
   const v = tilt.update(tiltSample, screenAngle());
@@ -2457,12 +2515,12 @@ if (TOUCH) {
     // brake also switches the auto-throttle in the SAME event (not at the next 50 ms timer tick, which a
     // slow render frame can delay): measured 2.2 s brake-to-server latency on a ~1 FPS host before this
     const thr = () => { if (k === 'down' && (state === 'race' || state === 'countdown') && player && !player.autopilot && !paused) keys.up = held.down ? 0 : 1; };
-    const k = b.dataset.k, on = e => { e.preventDefault(); held[k] = 1; keys[k] = 1; thr(); b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } mpPushKeys(); }, off = e => { held[k] = 0; keys[k] = 0; thr(); b.classList.remove('on'); mpPushKeys(e && e.type === 'pointercancel'); };
+    const k = b.dataset.k, on = e => { e.preventDefault(); if (!$('pause').classList.contains('hide')) return; held[k] = 1; keys[k] = 1; thr(); b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } mpPushKeys(); }, off = e => { held[k] = 0; keys[k] = 0; thr(); b.classList.remove('on'); mpPushKeys(e && e.type === 'pointercancel'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   }
   touchHeld = held;
   touchRelease = () => { tilt.reset(); for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
-  setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused) { keys.up = held.down ? 0 : 1; mpPushKeys(); } }, 50);
+  setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused && $('pause').classList.contains('hide')) { keys.up = held.down ? 0 : 1; mpPushKeys(); } }, 50);
   // (M2 fix) no inline pointer-events here: #cine is interactive only while .on (CSS); the
   // general #cine pointerdown handler above already covers touch.
 }
@@ -2823,7 +2881,8 @@ if (DEBUG) {
     get state() { return state; },
     get paused() { return paused; },
     get map() { return { key: MAPKEY, name: MAPDEF.name, lengthM: Math.round(MAIN.L), laps: LAPS, sectors: SECTORS.map(s => s.name), record: isFinite(recordLap) ? recordLap : null, worldMeshes: WORLD.children.length, lastSwitch: lastDispose }; },
-    get render() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, fps: +lastFps.toFixed(1), pixelRatio: PR, programs: renderer.info.programs.length, bloom: bloom.enabled, fxFallbacks }; },
+    get music() { return MUSIC.status; },
+    get render() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, fps: +lastFps.toFixed(1), pixelRatio: PR, programs: renderer.info.programs.length, bloom: bloom.enabled, quality: qualityMode, fxFallbacks }; },
     get clock() { return clockInfo(); },
     get intro() { return introStats ? Object.assign({ len: CINE.len }, introStats) : null; },
     get precompile() { return lastPrecompile; },

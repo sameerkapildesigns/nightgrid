@@ -15,23 +15,22 @@ export const HAZ = {
   DRONE_HOP: 2.8, DRONE_HOP_RANGE: 9
 };
 export const OB_COUNT = { velocity: 4, technical: 3, legacy: 4 };
-// Two pickup rows per lap: kinds across the road (left, centre, right). S = shield, B = self-boost.
-export const PAD_ROWS = [['S', 'B', 'S'], ['B', 'S', 'B']];
-const ROW_FRAC = [0.3, 0.75];
+// Six pickup rows per lap: kinds across the road (left, centre, right). S = shield, B = self-boost.
+export const PAD_ROWS = Array.from({ length: 6 }, (_, i) => i % 2 ? ['B', 'S', 'B'] : ['S', 'B', 'S']);
 
 // Candidate check for a main-path station i (1 m spacing on every map).
 function okStation(td, i, opt) {
   const M = td.MAIN, N = M.N, ds = M.ds, s = i * ds;
   const fromStart = Math.min(mod(s - 60, M.L), mod(60 - s, M.L));   // S0 = 60
-  if (fromStart < HAZ.START_CLEAR) return false;
+  if (fromStart < (opt.pad ? 160 : HAZ.START_CLEAR)) return false;
   if (Math.min(s, M.L - s) < HAZ.SEAM_CLEAR) return false;
   if (td.HASBR && s > td.SAm - 280 && s < td.SBm + 160) return false;   // fork, loop branch and merge
-  const back = Math.round(HAZ.RUNUP / ds), fwd = Math.round(30 / ds);
+  const back = Math.round((opt.pad ? 30 : HAZ.RUNUP) / ds), fwd = Math.round(30 / ds);
   for (let k = -back; k <= fwd; k++) {
     const j = mod(i + k, N);
     if (M.tag[j] & 1) return false;                         // tunnel
     if (M.U[j].y < HAZ.MIN_UPY) return false;               // loop / roll / steep bank
-    if (Math.abs(M.KG[j]) > HAZ.RUNUP_K) return false;      // corner in the run-up: not visible early enough
+    if (Math.abs(M.KG[j]) > (opt.pad ? 1 / 100 : HAZ.RUNUP_K)) return false;      // corner in the run-up: not visible early enough
     if (Math.abs(M.WL[j] - M.W[j]) > 0.01 || Math.abs(M.WR[j] - M.W[j]) > 0.01) return false;   // widening (fork lane)
   }
   for (const a of opt.avoid || []) if (Math.min(mod(s - a.s, M.L), mod(a.s - s, M.L)) < a.c) return false;   // {s, clearance}
@@ -49,8 +48,8 @@ export function buildHazards(td) {
   if (td.hazards) return td.hazards;
   const M = td.MAIN, W = td.W0;
   const pads = [], rowS = [];
-  PAD_ROWS.forEach((kinds, r) => {
-    const i = nearestOk(td, ROW_FRAC[r], { avoid: rowS.map(s => ({ s, c: 400 })) });
+  [['S', 'B', 'S'], ['B', 'S', 'B']].forEach((kinds, r) => {
+    const i = nearestOk(td, [0.3, 0.75][r], { avoid: rowS.map(s => ({ s, c: 400 })) });
     if (i < 0) return;
     const s = i * M.ds; rowS.push(s);
     kinds.forEach((kind, c) => pads.push({ s, d: (c - 1) * 0.5 * W, kind, row: r }));
@@ -64,6 +63,13 @@ export function buildHazards(td) {
   }
   obs.sort((a, b) => a.s - b.s);
   obs.forEach((o, k) => { o.d = (k % 2 ? 1 : -1) * 0.4 * W; });   // alternate sides in driving order
+  // Keep the released obstacle layout and original rows; add four rows with shorter safe run-ups.
+  [0.08, 0.40, 0.57, 0.90].forEach((frac, r) => {
+    const i = nearestOk(td, frac, { pad: true, avoid: rowS.map(s => ({ s, c: 180 })).concat(obs.map(o => ({ s: o.s, c: HAZ.PAD_CLEAR }))) });
+    if (i < 0) return;
+    const s = i * M.ds; rowS.push(s);
+    PAD_ROWS[r + 2].forEach((kind, c) => pads.push({ s, d: (c - 1) * 0.5 * W, kind, row: r + 2 }));
+  });
   return (td.hazards = { obstacles: obs, pads });
 }
 // signed shortest along-track gap b - a on a closed loop of length L
