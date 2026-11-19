@@ -1,6 +1,8 @@
 import {buildCircuitLandmarks} from './env/circuit-landmarks.js';
 import {variantLabel} from '../core/variants.js';
 import { createWeaponVis, updateWeaponHUD } from './weapons-vis.js';
+import {buildR4Landmarks} from './env/r4-landmarks.js';
+import {engineVoice} from './engine-profiles.js';
 import {beatGlow} from './music-beat.js';
 import { createMusic } from './music.js';
 import { ambientGains, engineGains } from './audio-mix.js';
@@ -172,7 +174,7 @@ let THEME = themeFor('velocity');
 function applyTheme(key) {
   THEME = themeFor(key, variantMask);
   FOGC.copy(THEME.fog); scene.fog.color.copy(THEME.fog); scene.background.copy(THEME.fog);
-  const old = sky.material; sky.material = makeSkyMaterial(THEME); old.dispose();
+  const old = sky.material; sky.material = makeSkyMaterial(THEME); sky.material.uniforms.uFX.value=old.uniforms?.uFX?.value??1; old.dispose();
   hemi.color.copy(THEME.hemiSky); hemi.groundColor.copy(THEME.hemiGround); hemi.intensity = THEME.hemiI;
   moon.color.copy(THEME.moon); moon.intensity = THEME.moonI;
   if (typeof rainMat !== 'undefined') { rainMat.uniforms.uRainC.value.copy(THEME.rain).multiplyScalar(THEME.rainA); }
@@ -467,10 +469,9 @@ function buildTrack() {
 /* ============================== sky decks (hanging skylines) ============================== */
 const DECKS = [];
 function planDecks() {
-  const box = (filter, pad, y) => { let x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9; for (let i = 0; i < MAIN.N; i++) if (filter(i)) { const p = MAIN.P[i]; x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); z0 = Math.min(z0, p.z); z1 = Math.max(z1, p.z); } return { x0: x0 - pad, x1: x1 + pad, z0: z0 - pad, z1: z1 + pad, y }; };
-  const ok = d => d.x1 > d.x0 && d.z1 > d.z0 && isFinite(d.x0);
-  const leg = MAPKEY === 'legacy';
-  for (const d of [box(i => MAIN.U[i].y < -0.3 || (leg && MAIN.sec[i] === 1 && MAIN.P[i].y > 30), 240, 280), leg ? box(i => MAIN.sec[i] === 2 && MAIN.P[i].y > 12, 190, 205) : null]) if (d && ok(d)) DECKS.push(d);
+  // R4: open sky. The old ceiling slabs and upside-down hanging city deliberately
+  // filled the view above inversion sectors, making sky read as a second ground.
+  DECKS.length=0;
 }
 function deckTopAt(x, z) { for (const d of DECKS) if (x > d.x0 && x < d.x1 && z > d.z0 && z < d.z1) return d.y; return 0; }
 
@@ -663,6 +664,9 @@ function buildCity() {
   }
   // M8-ENV HOOK H5: themed massing (heights / setback tiers / harbour yards) before the meshes are built; own RNG
   const ENVCTX = { THEME, MAIN, BR: HASBR ? BR : null, WB, deckTopAt, isOpen: i => !inTunnel(i) && !(HASBR && i > SA - 6 && i < SB + 6) };
+  const r4lm=buildR4Landmarks(scene,{key:MAPKEY,MAIN,BR:HASBR?BR:null},THEME);WORLD.add(r4lm);
+  const footprints=r4lm.userData.r4Landmarks?.footprints||[];
+  for(let i=bList.length-1;i>=0;i--){const b=bList[i];if(footprints.some(p=>Math.hypot(b.x-p.x,b.z-p.z)<p.r+Math.hypot(b.w,b.d)/2+4))bList.splice(i,1);}
   const ENVANN = shapeBuildings(ENVCTX, bList, [signsV, signsH]);
   const bMat = windowMaterial();
   const BB = THEME.building.base;   // tint ranges; same number of R() draws as before (city stream unchanged)
@@ -1241,7 +1245,7 @@ const AU = {
     const ef = this.ef = c.createBiquadFilter(); ef.type = 'lowpass'; ef.frequency.value = 400; ef.Q.value = 5;
     const eg = this.eg = c.createGain(); eg.gain.value = 0; ef.connect(eg); eg.connect(m);
     this.o1 = c.createOscillator(); this.o1.type = 'sawtooth'; this.o1.connect(ef);
-    this.o2 = c.createOscillator(); this.o2.type = 'square'; const g2 = c.createGain(); g2.gain.value = 0.45; this.o2.connect(g2); g2.connect(ef);
+    this.o2 = c.createOscillator(); this.o2.type = 'square'; const g2 = this.secondaryG = c.createGain(); g2.gain.value = 0.45; this.o2.connect(g2); g2.connect(ef);
     this.o3 = c.createOscillator(); this.o3.type = 'sine'; const g3 = this.wg = c.createGain(); g3.gain.value = 0; this.o3.connect(g3); g3.connect(m);
     const lfo = c.createOscillator(); lfo.frequency.value = 6.5; const lg = c.createGain(); lg.gain.value = 3; lfo.connect(lg); lg.connect(this.o1.frequency); lg.connect(this.o2.frequency);
     [this.o1, this.o2, this.o3, lfo].forEach(o => o.start());
@@ -1262,12 +1266,14 @@ const AU = {
   },
   engine(s01, thr, boost, drift, slip) {
     if (!this.ctx) return; const t = this.ctx.currentTime;
-    const f = 46 + s01 * 120 + thr * 10 + boost * 34;
-    this.o1.frequency.setTargetAtTime(f, t, 0.06); this.o2.frequency.setTargetAtTime(f * 0.5 + 0.7, t, 0.06); this.o3.frequency.setTargetAtTime(600 + s01 * 1500 + boost * 700, t, 0.08);
-    this.ef.frequency.setTargetAtTime(220 + s01 * 1600 + thr * 500 + boost * 1800, t, 0.08);
+    const voice=engineVoice(state==='title'?GAR.sel:player.ship?.key||GAR.sel,s01,thr,boost);
+    if(this.o1.type!==voice.primary)this.o1.type=voice.primary;if(this.o2.type!==voice.secondary)this.o2.type=voice.secondary;
+    this.secondaryG.gain.setTargetAtTime(voice.mix,t,.12);
+    this.o1.frequency.setTargetAtTime(voice.fundamental,t,.08);this.o2.frequency.setTargetAtTime(voice.secondaryHz,t,.08);this.o3.frequency.setTargetAtTime(voice.whineHz,t,.1);
+    this.ef.frequency.setTargetAtTime(voice.cutoff,t,.1);this.lastVoice=voice;
     const eng = engineGains(s01, thr, boost, !!SETTINGS.engineIdle);   // R2: idle floor opt-in (audio-mix.js)
-    this.eg.gain.setTargetAtTime(eng.body, t, 0.1);
-    this.wg.gain.setTargetAtTime(eng.whine, t, 0.1);
+    this.eg.gain.setTargetAtTime(eng.body*voice.body, t, 0.1);
+    this.wg.gain.setTargetAtTime(eng.whine*voice.air, t, 0.1);
     this.windG.gain.setTargetAtTime(s01 * s01 * 0.22 + boost * 0.16, t, 0.1); this.wf.frequency.setTargetAtTime(500 + s01 * 1400, t, 0.1);
     this.driftG.gain.setTargetAtTime(drift * 0.1, t, 0.04);
     this.slipG.gain.setTargetAtTime(slip * 0.16, t, 0.1);
@@ -2406,7 +2412,7 @@ function update(dt, dt0) {
   applyCam(CC.pos, CC.look, CC.up, dt, s01c);
   CC.shake *= Math.exp(-dt * 5);
   camVel.subVectors(camera.position, lastCam).divideScalar(Math.max(dt, 1e-3)); if (camVel.length() > 220) camVel.set(0, 0, 0); lastCam.copy(camera.position);
-  sky.position.copy(camera.position);
+  sky.position.copy(camera.position);if(sky.material.uniforms?.uFX)sky.material.uniforms.uFX.value=qualityMode==='battery'||!qualityState.bloom?0:1;
   updateSparks(dt);
   exUpdate(dt);
   rainMat.uniforms.uTime.value = gameTime; rainMat.uniforms.uCam.value.copy(camera.position); rainMat.uniforms.uVel.value.lerp(camVel, damp(6, dt));
@@ -2668,7 +2674,7 @@ async function boot() {
   try { await Promise.race([Promise.all([document.fonts.load('900 64px Orbitron'), document.fonts.load('700 30px Rajdhani')]), new Promise(r => setTimeout(r, 2500))]); } catch (e) { }
   buildEnv(); await setLoad(0.12, 'MAGNETISING CIRCUIT');
   applyTheme(MAPKEY);   // M8-ENV HOOK H13b
-  scene.add(WORLD); planDecks(); buildRainShelter(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');
+  scene.add(WORLD); planDecks(); buildRainShelter(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING THE CITY · OPENING THE SKY');
   BOUNDS = buildCity(); await setLoad(0.55, 'WIRING NEON');
   buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex }); WVIS = createWeaponVis({ WORLD, sim }); buildGarage(); performance.mark('ng:world-built'); await setLoad(0.7, `DOWNLOADING ${CARS[GAR.sel].title} (REAL GLB)…`);
   await Promise.race([selLoad, new Promise(r => setTimeout(r, 60000))]);
@@ -2980,7 +2986,7 @@ if (DEBUG) {
     get rearView(){return rearViewHeld;},get paused() { return paused; },
     get map() { return { key: MAPKEY, name: MAPDEF.name, lengthM: Math.round(MAIN.L), laps: LAPS, sectors: SECTORS.map(s => s.name), record: isFinite(recordLap) ? recordLap : null, worldMeshes: WORLD.children.length, lastSwitch: lastDispose }; },
     get music() { return MUSIC.status; },
-    get beatLights(){return{beat:MUSIC.beat,gains:beatMats.map(b=>b.mat.color.r/(b.base.r||1)),barriers:barrierMats.map(m=>m.uniforms.uBeat.value)};},get audioMix(){return {ambient:SETTINGS.ambient,engineIdle:SETTINGS.engineIdle,hum:AU.humG?.gain.value,rain:AU.rainG?.gain.value,engine:AU.eg?.gain.value,whine:AU.wg?.gain.value};},
+    get beatLights(){return{beat:MUSIC.beat,gains:beatMats.map(b=>b.mat.color.r/(b.base.r||1)),barriers:barrierMats.map(m=>m.uniforms.uBeat.value)};},get engineVoice(){return AU.lastVoice;},get audioMix(){return {ambient:SETTINGS.ambient,engineIdle:SETTINGS.engineIdle,hum:AU.humG?.gain.value,rain:AU.rainG?.gain.value,engine:AU.eg?.gain.value,whine:AU.wg?.gain.value};},
     get render() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, fps: +lastFps.toFixed(1), pixelRatio: PR, programs: renderer.info.programs.length, bloom: bloom.enabled, quality: qualityMode, fxFallbacks }; },
     get clock() { return clockInfo(); },
     get intro() { return introStats ? Object.assign({ len: CINE.len }, introStats) : null; },

@@ -14,7 +14,7 @@ export const HAZ = {
   SHIELD_TIME: 15, SHIELD_PASS: 0.4, SURGE_TIME: 1.8, BOOST_REFILL: 0.35,
   DRONE_HOP: 2.8, DRONE_HOP_RANGE: 9
 };
-export const OB_COUNT = { velocity: 4, technical: 3, casino: 3, summit: 3, legacy: 4 };
+export const OB_COUNT = { velocity: 4, technical: 3, casino: 3, summit: 3, legacy: 4,drift:0 };
 // Six pickup rows per lap: kinds across the road (left, centre, right). S = shield, B = self-boost.
 export const PAD_ROWS = Array.from({ length: 6 }, (_, i) => i % 2 ? ['B', 'S', 'B'] : ['S', 'B', 'S']);
 
@@ -22,6 +22,7 @@ export const PAD_ROWS = Array.from({ length: 6 }, (_, i) => i % 2 ? ['B', 'S', '
 export function okStation(td, i, opt) {
   const M = td.MAIN, N = M.N, ds = M.ds, s = i * ds;
   if(td.key==='summit'&&M.sec[i]===3)return false;
+  if(td.rampZones?.some(([a,b])=>s>=a&&s<=b))return false;
   const fromStart = Math.min(mod(s - 60, M.L), mod(60 - s, M.L));   // S0 = 60
   if (fromStart < (opt.pad ? 160 : HAZ.START_CLEAR)) return false;
   if (Math.min(s, M.L - s) < HAZ.SEAM_CLEAR) return false;
@@ -50,12 +51,12 @@ export function buildHazards(td) {
   const M = td.MAIN, W = td.W0;
   const pads = [], rowS = [];
   [['S', 'B', 'S'], ['B', 'S', 'B']].forEach((kinds, r) => {
-    const i = nearestOk(td, [0.3, 0.75][r], { avoid: rowS.map(s => ({ s, c: 400 })) });
+    const i = nearestOk(td, [0.3, 0.75][r], {pad:['drift','technical'].includes(td.key), avoid: rowS.map(s => ({ s, c: 400 })) });
     if (i < 0) return;
     const s = i * M.ds; rowS.push(s);
     kinds.forEach((kind, c) => pads.push({ s, d: (c - 1) * 0.5 * W, kind, row: r }));
   });
-  const n = OB_COUNT[td.key] || 4, obs = [];
+  const n = OB_COUNT[td.key] ?? 4, obs = [];
   for (let k = 0; k < n; k++) {
     const avoid = rowS.map(s => ({ s, c: HAZ.PAD_CLEAR })).concat(obs.map(o => ({ s: o.s, c: HAZ.OB_SPACING })));
     const i = nearestOk(td, (k + 0.5) / n, { avoid });
@@ -66,7 +67,7 @@ export function buildHazards(td) {
   obs.forEach((o, k) => { o.d = (k % 2 ? 1 : -1) * 0.4 * W; });   // alternate sides in driving order
   // Keep the released obstacle layout and original rows; add four rows with shorter safe run-ups.
   [0.08, 0.40, 0.57, 0.90].forEach((frac, r) => {
-    const i = nearestOk(td, frac, { pad: true, avoid: rowS.map(s => ({ s, c: 180 })).concat(obs.map(o => ({ s: o.s, c: HAZ.PAD_CLEAR }))) });
+    const i = nearestOk(td, frac, { pad: true, avoid: rowS.map(s => ({ s, c: td.key==='technical'?130:180 })).concat(obs.map(o => ({ s: o.s, c: HAZ.PAD_CLEAR }))) });
     if (i < 0) return;
     const s = i * M.ds; rowS.push(s);
     PAD_ROWS[r + 2].forEach((kind, c) => pads.push({ s, d: (c - 1) * 0.5 * W, kind, row: r + 2 }));
@@ -77,6 +78,7 @@ export function buildHazards(td) {
     const start=mod(250+k*M.L/refillRows,M.L);
     for(let j=0;j<2;j++){
       const s=mod(start+j*14,M.L),i=Math.floor(s/M.ds)%M.N;
+      if(td.rampZones?.some(([a,b])=>s>=a&&s<=b))continue;
       if(Math.min(mod(s-60,M.L),mod(60-s,M.L))<150)continue;
       if(td.HASBR&&s>td.SAm-160&&s<td.SBm+140)continue;
       if(obs.some(o=>Math.abs(gapS(o.s,s,M.L))<45))continue;

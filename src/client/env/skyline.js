@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 function rng(seed) { let a = seed >>> 0; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-const SEED = { velocity: 801, technical: 802, legacy: 803, casino: 804, summit: 805 };
+const SEED = { velocity: 801, technical: 802, legacy: 803, casino: 804, summit: 805,drift:806 };
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
 function put(im, k, x, y, z, sx, sy, sz, ry = 0, rx = 0, rz = 0) { _e.set(rx, ry, rz, 'YXZ'); _q.setFromEuler(_e); im.setMatrixAt(k, _m.compose(_p.set(x, y, z), _q, _s.set(sx, sy, sz))); }
 function inst(geo, mat, n, name) { const im = new THREE.InstancedMesh(geo, mat, Math.max(1, n)); im.count = n; im.name = name; return im; }
@@ -31,11 +31,16 @@ function clearance(ctx) {
 export function shapeBuildings(ctx, bList, signLists = []) {
   const T = ctx.THEME, r = rng(SEED[T.key] || 800), ok = clearance(ctx), ann = { yards: [], warehouses: [], towers: [] };
   const ground = bList.filter(b => b.y0 === 0);
+  // Planned roof boxes used the old height. Remove before themed height changes;
+  // correctly attached setback tiers are rebuilt below, never left floating above capped hosts.
+  for(let i=bList.length-1;i>=0;i--)if(bList[i].y0>0)bList.splice(i,1);
   // buildCity's b.td is only exact within 64 m (999 beyond): measure true horizontal distance to the circuit here
   { const CELL = 60, g = new Map(), M = ctx.MAIN; for (let i = 0; i < M.N; i += 4) { const p = M.P[i], k = Math.floor(p.x / CELL) + ',' + Math.floor(p.z / CELL); if (!g.has(k)) g.set(k, []); g.get(k).push(p); }
     for (const b of ground) { b.tdx = b.td; if (b.td < 64) continue; const cx = Math.floor(b.x / CELL), cz = Math.floor(b.z / CELL); let best = 1e9;
       for (let a = -6; a <= 6; a++) for (let c = -6; c <= 6; c++) { const arr = g.get((cx + a) + ',' + (cz + c)); if (arr) for (const p of arr) { const d = Math.hypot(p.x - b.x, p.z - b.z); if (d < best) best = d; } }
       b.tdx = Math.min(b.td, best); } }   // tdx, not td: game.js short-circuits RNG draws on td
+  // R4: a readable sky corridor instead of a high-rise box around both rails.
+  if(['velocity','legacy'].includes(T.key))for(const b of ground){if(b.tdx<90)b.h=Math.min(b.h,38);else if(b.tdx<150)b.h=Math.min(b.h,74);}
   if(T.key==='casino'){const i=Math.round(1475/ctx.MAIN.ds),p=ctx.MAIN.P[i],r=ctx.MAIN.R[i],n=Math.hypot(r.x,r.z),x=p.x-r.x/n*120,z=p.z-r.z/n*120;for(const b of ground)if(Math.hypot(b.x-x,b.z-z)<90)b.h=Math.min(b.h,5);}
   if (T.skyline === 'harbour') {
     // remove the generic roof boxes; waterfront is low and long, with a few dusk towers inland
@@ -65,10 +70,10 @@ export function shapeBuildings(ctx, bList, signLists = []) {
     }
   }
   // facade signs were planned against the original heights: drop any that would now float above a lowered roof
-  if (T.skyline === 'harbour') for (const list of signLists) for (let i = list.length - 1; i >= 0; i--) {
+  for (const list of signLists) for (let i = list.length - 1; i >= 0; i--) {
     const sg = list[i];
     const host = ground.find(b => Math.abs(sg.x - b.x) <= b.w / 2 + 1 && Math.abs(sg.z - b.z) <= b.d / 2 + 1);
-    if (!host) continue;
+    if (!host) { list.splice(i,1); continue; }
     if (sg.y + sg.sh / 2 > host.h - 1) { const ny = host.h - 1.5 - sg.sh / 2; if (ny - sg.sh / 2 > 3) sg.y = ny; else list.splice(i, 1); }
   }
   return ann;

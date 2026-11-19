@@ -143,6 +143,12 @@ export const TRK = (() => {
     S(120, { yaw: Q.sy, roll: -0.3 });
     // ---- MONACO ----
     cur.sec = 3; cur.w = WM;
+    if(prm.fastMonaco){
+      cur.w=W0;
+      S(60,{roll:.3});
+      S(160,{yaw:-.65});S(180,{yaw:1.3});S(160,{yaw:-.65});
+      S(90);
+    }else{
     S(50, { roll: 0.3, tag: TUNNEL });
     S(60, { yaw: -PI / 2, tag: TUNNEL });
     S(70, { tag: TUNNEL });
@@ -151,6 +157,7 @@ export const TRK = (() => {
     S(60, { yaw: -PI / 2, tag: TUNNEL });
     S(40, { yaw: 0.6, tag: TUNNEL }); S(40, { yaw: -0.6, tag: TUNNEL }); // swimming-pool flick
     S(30, { tag: TUNNEL });
+    }
     // ---- PARABOLICA ----
     cur.sec = 4; cur.w = W0;
     S(30);

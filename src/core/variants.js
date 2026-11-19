@@ -13,7 +13,10 @@ export function transformTrack(raw,vr,sectors){
     out.P.push(p);out.T.push(t);out.U.push(u);out.R.push(r);out.W.push(a.W[i]);out.tag.push(a.tag[i]);out.sec.push(reverse?(sectors-a.sec[i])%sectors:a.sec[i]);
     out.KG[j]=a.KG[i]*(mirror?-1:1)*(reverse?-1:1);out.KN[j]=a.KN[i];
   }
-  return{...raw,main:out};
+  let rampZones=raw.rampZones;
+  if(reverse&&rampZones){const L=N*a.ds,mod=s=>((s%L)+L)%L,pivot=2*start*a.ds;
+    rampZones=rampZones.flatMap(([a,b])=>{const x=mod(pivot-b),y=mod(pivot-a);return x<=y?[[x,y]]:[[0,y],[x,L]];});}
+  return{...raw,main:out,rampZones};
 }
 export function variantLabel(vr=0){return[vr&4?'Night':'',vr&1?'Mirrored':'',vr&2?'Reverse':''].filter(Boolean).join(' · ');}
 export function validVariant(map,vr){return Number.isInteger(vr)&&vr>=0&&vr<=7&&!(map==='legacy'&&(vr&3))&&!(['casino','summit'].includes(map)&&vr!==0);}

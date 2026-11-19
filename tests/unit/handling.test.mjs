@@ -96,7 +96,7 @@ test('loops / barrel rolls / inversions hold at the lower speeds: no crashes, va
 });
 test('records are separate per mode; pre-M3 records are not migrated (and not deleted)', () => {
   const mem = memoryStorage(); mem.setItem('nightgrid_v4_rec_velocity', '66'); const st = createRecordStore(mem, { lapLenOf: () => 5870 });
-  assert.equal(recordKey('assisted', 'velocity'), 'm3_assisted_velocity'); assert.equal(recordKey('expert', 'velocity'), 'm3_expert_velocity');
+  assert.equal(recordKey('assisted', 'velocity'), 'm3_assisted_r4_velocity'); assert.equal(recordKey('expert', 'velocity'), 'm3_expert_r4_velocity');
   assert.equal(st.get(recordKey('assisted', 'velocity')), Infinity); assert.equal(st.get(recordKey('expert', 'velocity')), Infinity);
   st.offer(recordKey('assisted', 'velocity'), { time: 92, lapLen: 5870 });
   assert.equal(st.get(recordKey('assisted', 'velocity')), 92); assert.equal(st.get(recordKey('expert', 'velocity')), Infinity);

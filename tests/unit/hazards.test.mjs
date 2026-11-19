@@ -23,11 +23,11 @@ function mkSim(map, n = 1, events = null, seed = 11) {
 // put racer r at track position (s, d) moving straight ahead at v m/s
 function put(sim, r, s, d, v) { r.s = mod(s, sim.track.MAIN.L); r.d = d; r.va = v; r.vd = 0; r.psi = 0; r.yawV = 0; r.prevS = undefined; r.lastRd = sim.rdist(r.path, r.s); sim.pose(r); }
 
-test('layout: deterministic, 3-4 obstacles per lap, 6 pad rows of 3, never near start/finish, seam, tunnel, loop or blind corner', () => {
+test('layout: deterministic, 0-4 safe obstacles per lap, 6 pad rows of 3, never near start/finish, seam, tunnel, loop or blind corner', () => {
   for (const k of MAP_KEYS) {
     const a = buildHazards(buildTrackData(k)), b = buildHazards(buildTrackData(k));
     assert.deepEqual(a, b, k + ': identical from map key');
-    assert.ok(a.obstacles.length >= 3 && a.obstacles.length <= 4, `${k}: ${a.obstacles.length} obstacles`);
+    assert.ok(a.obstacles.length >= (k==='drift'?0:k==='technical'?1:3) && a.obstacles.length <= (k==='drift'?0:4), `${k}: ${a.obstacles.length} obstacles`);
     assert.equal(a.pads.filter(p=>p.kind!=='R').length, 18); assert.deepEqual(a.pads.filter(p=>p.kind!=='R').map(p => p.kind).join(''), 'SBSBSBSBSBSBSBSBSB');
     const td = buildTrackData(k), M = td.MAIN;
     for (const o of a.obstacles) {

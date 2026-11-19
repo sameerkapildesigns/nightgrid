@@ -9,8 +9,8 @@ const ok = (map, time, integrity = {}) => validateLap({ time, lapLen: L[map], in
 test('physics bound: laps faster than 140 m/s average are impossible', () => {
   assert.equal(MAX_LAP_SPEED, 140);
   for (const k of MAP_KEYS) { const m = minPlausibleLap(L[k]); assert.equal(ok(k, m * 0.99).reason, 'faster-than-physics'); assert.equal(ok(k, m * 1.01).ok, true); }
-  assert.equal(ok('velocity', 40).ok, false);   // the 40 s lap written by v5b's automated flow test
-  assert.equal(ok('technical', 40).ok, true);   // 40 s on the 2.4 km Kage circuit is a real AI-pace lap
+  assert.equal(ok('velocity', 35).ok, false);   // R4 Velocity is shorter; 35 seconds remains impossible
+  assert.equal(ok('technical', 40).ok, true);   // 40 s on the revised 3.28 km Kage circuit is a real AI-pace lap
 });
 test('integrity flags reject teleported, autopilot and debug laps', () => {
   assert.equal(ok('legacy', 70, { teleport: true }).reason, 'position-jump');
@@ -20,7 +20,7 @@ test('integrity flags reject teleported, autopilot and debug laps', () => {
 test('garbage values are rejected', () => { for (const t of [NaN, Infinity, -1, 0, 1e9, '60']) assert.equal(validateLap({ time: t, lapLen: 5000 }).ok, false); });
 
 test('store: keeps only faster valid laps, ignores polluted stored values, never throws', () => {
-  const mem = memoryStorage(); mem.setItem(RECORD_PREFIX + 'velocity', '40'); mem.setItem('nightgrid_v2_best', 'banana');
+  const mem = memoryStorage(); mem.setItem(RECORD_PREFIX + 'velocity', '1'); mem.setItem('nightgrid_v2_best', 'banana');
   const st = createRecordStore(mem, { lapLenOf: k => L[k] });
   assert.equal(st.get('velocity'), Infinity); assert.equal(st.get('legacy'), Infinity);
   assert.ok(st.rejected.some(r => r.reason === 'faster-than-physics'));

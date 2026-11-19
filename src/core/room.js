@@ -9,7 +9,7 @@ import{validVariant}from './variants.js';
 // Release is gated on real-hardware FPS + 20-client gates (HANDOFF), not on this constant.
 export const MAX_SEATS = 20, MIN_RACERS = 2, RECONNECT_MS = 15000, STALE_INPUT_MS = 250, NAME_MAX = 16;
 export const ROOM_PHASES = ['lobby', 'countdown', 'race', 'results'];
-export const MAPS_OK = ['velocity', 'technical', 'casino', 'summit', 'legacy'], MODES_OK = ['assisted', 'expert'];
+export const MAPS_OK = ['velocity', 'technical', 'casino', 'summit','drift', 'legacy'], MODES_OK = ['assisted', 'expert'];
 export const CARS_OK = ['hypercar', 'endurance', 'wedge', 'rally', 'streamliner', 'wipeout', 'kestrel', 'manta'];   // R2: + original procedural ships (paired Worker release)
 export const PAINT_COUNT = 4;
 export const BOT_PERS = ['GHOST', 'VEX', 'BLITZ'];

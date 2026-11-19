@@ -15,11 +15,14 @@ export function buildCircuitLandmarks({THEME,MAIN:M},world){
   add(new THREE.TorusGeometry(38,1.1,5,64).applyQuaternion(q).translate(center.x,center.y,center.z),'gold');
   for(let i=0;i<24;i++){const a=i*Math.PI/12,v=new THREE.Vector3(Math.sin(a)*38,Math.cos(a)*38,0).applyQuaternion(q);box(center.x+v.x,center.y+v.y,center.z+v.z,3.2,3.2,2,i%2?'red':'gold');const g=new THREE.BoxGeometry(.45,38,.45).translate(0,19,0).rotateZ(-a).applyQuaternion(q).translate(center.x,center.y,center.z);add(g,i%2?'red':'gold');}
   box(center.x,center.y-35,center.z,5,70,5,'dark');
-  // Atrium façades stand outside both the Floor and High Roller lanes.
-  for(const s of[2460,2540,2620,2700])for(const d of[-39,51]){const f=station(s),p=offset(f,d,20),yaw=Math.atan2(f.t.x,f.t.z);box(p.x,p.y,p.z,12,40,50,'dark',yaw);box(p.x,p.y+21,p.z,14,1.5,53,'gold',yaw);}
-  // Gate pillars frame the pinch, never enter the driving surface.
-  for(const s of[3000,3140,3280])for(const d of[-17,17]){const f=station(s),p=offset(f,d,6);box(p.x,p.y,p.z,2,12,2,'red');box(p.x,p.y+6.5,p.z,3,1,3,'gold');}
-  for(let s=50;s<1000;s+=18)for(const d of[-17,17]){const f=station(s),p=offset(f,d,2.4);box(p.x,p.y,p.z,.6,.6,.6,'gold');}
+  // Giant signs and orbital rings stay outside the road/airborne envelope.
+  const safe=(p,rad,bottom,top)=>M.P.every((v,i)=>i%5||Math.hypot(v.x-p.x,v.z-p.z)>rad+22||v.y<bottom-10||v.y>top+18);
+  for(const [k,s]of[700,1050,1500,2150,3400,4000,4700].entries()){
+    const f=station(s),p=offset(f,k%2?105:-105,0),bottom=Math.max(0,p.y-80),h=130+(k%3)*45;
+    if(safe(p,30,bottom,bottom+h)){box(p.x,bottom+h/2,p.z,45,h,45,'dark',k*.23);box(p.x,bottom+h+2,p.z,50,3,50,'gold');for(let j=0;j<4;j++)box(p.x-22+j*14,bottom+h/2,p.z-23,2,h,1,'red');}
+  }
+  for(const [k,s]of[1000,1800,3300,4300].entries()){const f=station(s),p=offset(f,k%2?85:-85,75);if(safe(p,36,p.y-36,p.y+36))add(new THREE.TorusGeometry(32,1.2,5,56).rotateY(Math.atan2(f.t.x,f.t.z)).translate(p.x,p.y,p.z),k%2?'red':'gold');}
+  for(let s=50;s<M.L;s+=45)for(const d of[-18,18]){const f=station(s),p=offset(f,d,2.4);box(p.x,p.y,p.z,.7,.7,.7,'gold');}
  }else{
   // Terraced structural mountain, respecting lower roads at the crossover.
   for(let s=900;s<2900;s+=85){const f=station(s),p=offset(f,0,-27),h=Math.max(1,p.y);if(h<5)continue;const clear=M.P.every((v,i)=>i%7||Math.abs(v.x-p.x)>46||Math.abs(v.z-p.z)>46||v.y>p.y+18);if(clear)box(p.x,h/2,p.z,75,h,75,'dark');}

@@ -61,37 +61,91 @@ export const THEMES = {
 // New circuits use the same fog density and renderer budget as the original maps.
 THEMES.casino={...THEMES.legacy,key:'casino',label:'CASINO STRIP',fog:H(0x271a18),sky:{...THEMES.legacy.sky,glowA:C(.55,.20,.05),glowB:C(.30,.02,.04)},windows:{...THEMES.legacy.windows,a:C(1,.72,.3),b:C(1,.28,.20),c:C(1,.90,.65),intensity:1.1},strips:[H(0xffc04a),H(0xff4a49),H(0xffd67c),H(0xff536e)],edge:{kind:'posts',a:C(3.2,1.8,.35),b:C(3.0,.3,.45),step:14},rain:C(1,.75,.45),rainA:.35,skyline:'casino',taxi:{paint:C(.10,.025,.035),glow:C(2.8,1.5,.25)}};
 THEMES.summit={...THEMES.velocity,key:'summit',label:'ARCOLOGY SUMMIT',fog:H(0x192235),sky:{...THEMES.velocity.sky,top:C(.005,.012,.03),hor:C(.08,.12,.20),glowA:C(.10,.18,.35)},windows:{...THEMES.velocity.windows,a:C(.55,.80,1),b:C(.80,.92,1),c:C(.8,.14,.22),intensity:.8},strips:[H(0xa4ddff),H(0xb8e9ff),H(0xff6c82),H(0x89a0ff)],edge:{kind:'bollards',a:C(1.8,2.5,3.1),b:C(2.8,.3,.4),step:12},rain:C(.8,.9,1),rainA:.35,skyline:'summit',taxi:{paint:C(.32,.40,.44),glow:C(.6,2,2.6)}};
+THEMES.drift={...THEMES.technical,key:'drift',label:'SHINRAI DRIFTWAY',fog:H(0x101e29),sky:{...THEMES.technical.sky,sun:null,glowA:C(.1,.24,.19),glowB:C(.22,.08,.30)},windows:{...THEMES.technical.windows,a:C(.25,1,.65),b:C(.5,.35,1),c:C(.8,.65,1)},strips:[H(0x60ffac),H(0xab80ff),H(0x48e4f0),H(0xff79ce)],edge:{kind:'posts',a:C(.4,2.7,1.3),b:C(1.6,.6,2.8),step:12}};
 export function themeFor(mapKey, vr=0) { const base=THEMES[mapKey]||THEMES.velocity; if(!(vr&4))return base; return {...base,label:base.label+' · NIGHT',fog:base.fog.clone().multiplyScalar(.65),sky:{...base.sky,top:base.sky.top.clone().multiplyScalar(.3),mid:base.sky.mid.clone().multiplyScalar(.35),hor:base.sky.hor.clone().multiplyScalar(.25),sun:null},hemiI:base.hemiI*.65,moonI:base.moonI*.8,windows:{...base.windows,intensity:base.windows.intensity*1.25}}; }
 
-// Sky dome material driven by the theme (replaces the hard-coded night gradient; same dome mesh).
+// REPLACES themes.js from the line "// Sky dome material driven by the theme (replaces the hard-coded night
+// gradient; same dome mesh)." through the closing "}" of makeSkyMaterial. Signature unchanged: makeSkyMaterial(th).
+// Existing uniform names are kept (uFX, uRetro, uTop ... uSunSize). New: uStars, uMoonDir, uMoonCol.
+ 
+// R4 per-map star field: [fraction of sky cells holding a star, brightness gain]. Dusk / rain maps are sparser.
+const STARS = { velocity: [0.07, 1.0], technical: [0.035, 0.55], legacy: [0.045, 0.8], casino: [0.05, 0.85], summit: [0.1, 1.15], drift: [0.075, 1.0] };
+const MOON_DIR = new THREE.Vector3(-0.55, 0.22, -0.8).normalize();
+ 
+// Sky dome material driven by the theme (same dome mesh).
+// R4: the view direction is world-space (modelMatrix, cameraPosition), so the horizon follows world up whatever
+// the dome's transform or camera roll is. uFX = 0 (Low-FX) keeps only the gradient, glows and horizon line.
 export function makeSkyMaterial(th) {
-  const s = th.sky, sun = s.sun;
+  const s = th.sky, sun = s.sun, st = STARS[th.key] || STARS.velocity;
   return new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { uTop: { value: s.top }, uMid: { value: s.mid }, uHor: { value: s.hor }, uBelow: { value: s.below },
+    uniforms: { uFX: { value: 1 }, uRetro: { value: new THREE.Color(th.key === 'casino' ? 0.7 : 0.5, 0.12, 0.6) },
+      uTop: { value: s.top }, uMid: { value: s.mid }, uHor: { value: s.hor }, uBelow: { value: s.below },
       uGA: { value: s.glowA }, uGAy: { value: s.glowAy }, uGAk: { value: s.glowAk }, uGB: { value: s.glowB }, uGBy: { value: s.glowBy }, uGBk: { value: s.glowBk },
-      uSunOn: { value: sun ? 1 : 0 }, uSunDir: { value: new THREE.Vector3(...(sun ? sun.dir : [0, 1, 0])).normalize() }, uSunCol: { value: sun ? sun.col : new THREE.Color() }, uSunSize: { value: sun ? sun.size : 1 } },
-    vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: `varying vec3 vP; uniform vec3 uTop, uMid, uHor, uBelow, uGA, uGB, uSunDir, uSunCol; uniform float uGAy, uGAk, uGBy, uGBk, uSunOn, uSunSize;
+      uSunOn: { value: sun ? 1 : 0 }, uSunDir: { value: new THREE.Vector3(...(sun ? sun.dir : [0, 1, 0])).normalize() }, uSunCol: { value: sun ? sun.col : new THREE.Color() }, uSunSize: { value: sun ? sun.size : 1 },
+      uStars: { value: new THREE.Vector2(st[0], st[1]) }, uMoonDir: { value: MOON_DIR.clone() }, uMoonCol: { value: new THREE.Color(0.62, 0.36, 0.78) } },
+    vertexShader: `varying vec3 vD;
+      void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vD = w.xyz - cameraPosition; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `varying vec3 vD;
+      uniform vec3 uTop, uMid, uHor, uBelow, uGA, uGB, uSunDir, uSunCol, uRetro, uMoonDir, uMoonCol;
+      uniform vec2 uStars;
+      uniform float uFX, uGAy, uGAk, uGBy, uGBk, uSunOn, uSunSize;
+      vec3 h33(vec3 p){ p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.xxy + p.yxx) * p.zyx); }
       void main(){
-        float y = vP.y;
+        vec3 d = normalize(vD);
+        float y = d.y;                                            // world-up elevation
         vec3 c = mix(uHor, uMid, smoothstep(0.0, 0.2, y));
         c = mix(c, uTop, smoothstep(0.2, 0.75, y));
         c = mix(c, uBelow, smoothstep(-0.02, -0.4, y));
         c += uGA * exp(-abs(y - uGAy) * uGAk) * 0.45;
         c += uGB * exp(-abs(y - uGBy) * uGBk) * 0.25;
+        c += uRetro * exp(-abs(y - 0.015) * 18.0) * 0.65;         // purple horizon line (unchanged)
+        c += uRetro * exp(-abs(y - 0.02) * 4.5) * 0.06;           // R4: faint wide purple haze around it
+        c = mix(c, vec3(0.008, 0.004, 0.018), smoothstep(-0.08, -0.65, y) * 0.65);
+        if (uFX > 0.5) {
+          // Stars: equal-angle cube-face cells (no pole pinch, no atan seam), at most one star per cell.
+          // Size is measured in screen pixels via fwidth, so every star is a stable ~1-2 px point at any
+          // resolution. No time term: nothing twinkles or crawls.
+          vec3 a = abs(d); vec2 fu; float face;
+          if (a.x >= a.y && a.x >= a.z) { fu = d.zy / a.x; face = d.x > 0.0 ? 0.0 : 1.0; }
+          else if (a.y >= a.z)          { fu = d.xz / a.y; face = d.y > 0.0 ? 2.0 : 3.0; }
+          else                          { fu = d.xy / a.z; face = d.z > 0.0 ? 4.0 : 5.0; }
+          vec2 g = (atan(fu) * 1.2732395 + 1.0) * 36.0;           // 72 x 72 cells per face
+          vec2 px = fwidth(g);                                    // cells per pixel (huge only on face edges)
+          vec2 cell = floor(g), f = fract(g) - 0.5;
+          vec3 h = h33(vec3(cell, face * 97.0 + 13.0));
+          float dens = max(uStars.x, 0.001);
+          float t = (h.x - (1.0 - dens)) / dens;                  // >= 0 only in lit cells; 0..1 = magnitude rank
+          vec2 o = (h.yz - 0.5) * 0.56;                           // keep stars off cell / face edges
+          float r = length((f - o) / max(px, vec2(1e-4)));        // distance in pixels
+          float lit = step(0.0, t) * step(max(px.x, px.y), 0.25) * smoothstep(0.03, 0.2, y);
+          float tm = clamp(t, 0.0, 1.0);
+          float mag = mix(0.35, 2.4, pow(tm, 6.0)) * uStars.y;    // few bright, many faint
+          float core = 1.0 - smoothstep(0.35, 1.2, r);
+          float halo = exp(-r * r * 0.2) * 0.22 * pow(tm, 4.0);    // tiny halo on the brightest only
+          c += mix(vec3(0.72, 0.8, 1.0), vec3(1.0, 0.86, 0.76), h.y) * (core + halo) * mag * lit;
+          // Restrained banded moon: ~2.6 deg disc, gaps widen toward its lower edge, below bloom level,
+          // hidden on maps with a sun.
+          float md = dot(d, uMoonDir), noSun = 1.0 - uSunOn;
+          float disc = smoothstep(0.99885, 0.99905, md) * noSun;
+          float q = (y - uMoonDir.y) / 0.046;                     // -1 bottom .. +1 top of the disc
+          float w = clamp((0.2 - q) * 0.3, 0.0, 0.42);
+          float band = mix(1.0, smoothstep(w, w + 0.1, fract(q * 3.5 + 0.25)), step(0.001, w));
+          c += uMoonCol * mix(1.15, 0.7, clamp(0.5 - q * 0.5, 0.0, 1.0)) * disc * band;
+          c += uMoonCol * 0.05 * pow(max(md, 0.0), 900.0) * noSun;
+        }
         if (uSunOn > 0.5) {
-          float d = dot(vP, uSunDir);
-          c += uSunCol * smoothstep(uSunSize, uSunSize + 0.0012, d);            // low disc
-          c += uSunCol * 0.18 * pow(max(d, 0.0), 24.0) * smoothstep(-0.05, 0.08, y + 0.02);   // halo
-          // horizontal haze bands across the sun (dusk cloud streaks)
-          float band = smoothstep(0.0, 1.0, sin(y * 260.0 + 1.3) * 0.5 + 0.5) * smoothstep(0.08, 0.0, abs(y - 0.035));
-          c *= 1.0 - band * 0.35 * pow(max(d, 0.0), 6.0);
+          float sd = dot(d, uSunDir);
+          c += uSunCol * smoothstep(uSunSize, uSunSize + 0.0012, sd);
+          c += uSunCol * 0.18 * pow(max(sd, 0.0), 24.0) * smoothstep(-0.05, 0.08, y + 0.02);
+          float bandS = smoothstep(0.0, 1.0, sin(y * 260.0 + 1.3) * 0.5 + 0.5) * smoothstep(0.08, 0.0, abs(y - 0.035));
+          c *= 1.0 - bandS * 0.35 * pow(max(sd, 0.0), 6.0);
         }
         gl_FragColor = vec4(c, 1.0);
       }`
   });
 }
+ 
 
 // Window shader palette (game.js windowMaterial reads these as uniforms).
 export function windowUniforms(th) {

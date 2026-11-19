@@ -23,6 +23,8 @@ export const RACE_TRACKS = Object.freeze({
   summit: { file: 'race-summit.mp3', fallback: 'race-0.mp3', ready: true,
     title: 'Slampe (synthwave house)', author: 'Fupi', url: 'https://opengameart.org/content/slampe-synthwave-house', license: 'CC0',
     note: 'Full source song, local conversion, endpoint ramps' },
+  // Shinrai deliberately reuses the licensed Kage instrumental, no extra download.
+  drift: { file: 'race-kage.mp3', fallback:'race-1.mp3',ready:true,title:'Second Cruise',author:'congusbongus',url:'https://opengameart.org/content/second-cruise',license:'CC0',note:'Intentional Kage instrumental reuse for Shinrai' },
   legacy: { file: 'race-legacy.mp3', fallback: 'race-2.mp3', ready: true,
     title: 'MicroWave', author: 'Fupi', url: 'https://opengameart.org/content/microwave-0', license: 'CC0',
     note: 'Full source recording passed automated no-speech check; musical seam unverified' }

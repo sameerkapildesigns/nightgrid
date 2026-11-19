@@ -52,10 +52,11 @@ export function buildWeaponBoxes(td) {
   // Legacy has no strict station on the current 18-pad layout. Deliberate paired-gate exception:
   // minimum 65m to a defensive row, still full straight/upright/tunnel/fork/obstacle safety.
   let paired = false;
-  if (!rows.length && td.key === 'legacy') {
+  if (!rows.length && ['legacy','technical','summit'].includes(td.key)) {
     const i=nearestOk(td,.47,{avoid:[...hz.pads.map(p=>({s:p.s,c:65})),...hz.obstacles.map(p=>({s:p.s,c:80}))]});
     if(i>=0){rows.push(i*td.MAIN.ds);paired=true;}
   }
+  if(['drift','technical'].includes(td.key))for(const frac of[.25,.65]){const i=nearestOk(td,frac,{pad:true,avoid:[...hz.pads.filter(p=>p.kind!=='R').map(p=>({s:p.s,c:65})),...rows.map(s=>({s,c:200}))]});if(i>=0)rows.push(i*td.MAIN.ds);}
   if(td.key==='casino'){const i=nearestOk(td,(td.SAm+200)/td.MAIN.L,{allowFork:true,avoid:hz.obstacles.map(p=>({s:p.s,c:80}))});if(i>=0&&!rows.some(s=>Math.abs(s-i*td.MAIN.ds)<100))rows.push(i*td.MAIN.ds);}
   rows.forEach((s,row)=>[-1,1].forEach(side=>boxes.push({s,d:side*.5*td.W0,path:0,row,paired})));
   td.weaponBoxes=boxes; return boxes;

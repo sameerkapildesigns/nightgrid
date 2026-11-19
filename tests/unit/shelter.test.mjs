@@ -15,13 +15,13 @@ test('UPSIDE DOWN: every point between an inverted deck and its occupants (car-s
         assert.ok(isSheltered(sh, x, y, z), `${k} i=${i} d=${d} h=${h}`); n++; } } }
   assert.ok(n > 300, 'enough inverted samples tested: ' + n);
 });
-test('tunnels are sheltered inside; open upright road is NOT sheltered above the surface', () => {
+test('Legacy Riviera is now open sky, upright road is not sheltered above the surface', () => {
   const { td, sh } = S.legacy, M = td.MAIN; let t = 0, o = 0;
   for (let i = 0; i < M.N; i += 5) { const P = M.P[i], U = M.U[i];
     const inT = M.tag[i] & TRK.TUNNEL; const y = P.y + U.y * 3;
     if (inT) { assert.ok(isSheltered(sh, P.x, y, P.z), 'tunnel ' + i); t++; }
     else if (U.y > 0.95 && shelterTop(sh, P.x, P.z) < P.y + 2) { assert.ok(!isSheltered(sh, P.x, y, P.z), 'open ' + i); o++; } }
-  assert.ok(t > 20 && o > 200, `${t} tunnel, ${o} open samples`);
+  assert.ok(t === 0 && o > 200, `${t} tunnel, ${o} open samples`);
 });
 test('elevated crossings: the lower road is sheltered where an upper deck passes over it', () => {
   let n = 0;

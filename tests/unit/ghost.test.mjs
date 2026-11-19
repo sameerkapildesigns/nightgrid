@@ -11,11 +11,11 @@ import { decodeFrame, encodeFrame } from '../../src/net/protocol.js';
 function overlap(ghost, steps = 360) {
   const bumps = [];
   const sim = createSim({ seed: 9, events: new Proxy({}, { get: (_, k) => (...a) => { if (k === 'bump') bumps.push(a[2]); } }) });
-  sim.setTrack('velocity');
+  sim.setTrack('casino');
   sim.addSeats([{ id: 'a', kind: 'human', name: 'A' }, { id: 'b', kind: 'human', name: 'B' }], 'a');
   sim.ghost = ghost;
   const [A, B] = sim.racers; B.input = {};
-  B.s = A.s; B.d = A.d + 1; sim.pose(B);
+  A.s=15;B.s = A.s; B.d = A.d + 1; sim.pose(B);
   sim.drones.length = 0;   // isolate car-to-car
   sim.startRace();
   const f = encodeFrame({ up: 1 }); decodeFrame(f, sim.input); decodeFrame(f, B.input);

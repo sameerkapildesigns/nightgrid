@@ -13,9 +13,9 @@ function bankDeg(T, U) {
   u0 = u0.map(x => x / l); const r0 = [T.y * u0[2] - T.z * u0[1], T.z * u0[0] - T.x * u0[2], T.x * u0[1] - T.y * u0[0]];
   return Math.atan2(U.x * r0[0] + U.y * r0[1] + U.z * r0[2], U.x * u0[0] + U.y * u0[1] + U.z * u0[2]) * D;
 }
-// Intentional features set the per-map ceiling: Velocity barrel roll 2pi/250 m (raised-cosine peak 2.88 deg/m),
+// Intentional features set the per-map ceiling: Velocity R4 barrel roll2pi/170m (raised-cosine peak4.24deg/m),
 // Legacy corkscrew 2pi/104 m (peak 6.9 deg/m). Kage has no rolls.
-const CAP = { velocity: 3.2, technical: 1.5, casino: 1.5, summit: 1.5, legacy: 7.2 };
+const CAP = { velocity: 4.5,drift:1, technical: 1.5, casino: 1.5, summit: 1.5, legacy: 7.2 };
 
 for (const k of MAP_KEYS) {
   const td = buildTrackData(k), M = td.MAIN, N = M.N;

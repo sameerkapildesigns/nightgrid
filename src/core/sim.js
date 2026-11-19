@@ -716,7 +716,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       if (!(sim.pace && sim.pace.mode.draftOverCap)) for (const r of sim.racers) {
         if (r.capHold == null || r.crashed) continue;
         if (r.autopilot) { if (r.speed > r.capHold) r.speed = r.capHold; }
-        else { const sp = Math.hypot(r.va, r.vd); if (sp > r.capHold) { const k = r.capHold / sp; r.va *= k; r.vd *= k; r.speed = r.capHold; } }
+        else { const sp = Math.hypot(r.va, r.vd); if (sp > r.capHold) { const k = r.capHold / sp; r.va *= k; r.vd *= k; } r.speed=Math.hypot(r.va,r.vd); }
       }
     } else {
       for (const r of sim.racers) { const f = frameAt(r.path, r.s, _fb); hoverStep(r, f.path.KN[f.i], 0, h); if (!r.isAI) r.thr = lerp(r.thr, r.input.up ? 1 : 0, Math.min(1, h * 8)); }

@@ -1,4 +1,4 @@
-import {buildCasino,buildSummit} from './new-tracks.js';
+import {buildDrift,buildVelocityR4,buildKageR4,buildCasinoR4,buildSummitR4}from'./r4-tracks.js';
 import {transformTrack,validVariant} from './variants.js';
 // Map catalogue + per-map track data derivation (pure; no Three.js).
 // Sector colours are CSS strings; the client turns them into THREE.Color.
@@ -11,19 +11,20 @@ export const SECTORS_LEGACY = [
   sc('MONZA', 'S1 · FULL THROTTLE', '#00f0ff'),
   sc('EAU ROUGE', 'S2 · CLIMB · INVERT · ROLL', '#ff2b5e'),
   sc('SUZUKA', 'S3 · ESSES · CROSSOVER', '#7dff4a'),
-  sc('MONACO', 'S4 · TUNNEL · HAIRPIN', '#ffc23f'),
+  sc('RIVIERA', 'S4 · OPEN-SKY FLOW', '#ffc23f'),
   { name: 'PARABOLICA', sub: 'S5 · LOOP SHORTCUT OR LONG WAY', css: '#b07bff', colHex: 0xa86bff }
 ];
 export const MAPS = {
   velocity: { key: 'velocity', name: 'Velocity Ring', short: 'Velocity', sub: 'High-speed · loop · barrel roll', blurb: 'Flat-out · 330 km/h avg', laps: 2, W0: 14, hasBr: false, ai: { vmax: 1.05, lat: 1.0 },
-    sectors: [sc('SWEEPERS', 'S1 · BANKED FLAT-OUT', '#3fd8ff'), sc('SKY LOOP', 'S2 · LOOP · CAROUSEL', '#9a7bff'), sc('BARREL', 'S3 · ROLL · FINAL SWEEP', '#ff5ab8')], build: () => TRK.assembleCustom(TRK.DEFS.velocity()) },
-  technical: { key: 'technical', name: 'Kage Circuit', short: 'Kage', sub: 'Technical · chicanes · hairpin', blurb: 'Brake · hairpin · 250 avg', laps: 3, W0: 10.5, hasBr: false, ai: { vmax: 1.03, lat: 1.26 },
-    sectors: [sc('HARBOUR', 'S1 · BRAKE · CHICANE', '#ffb347'), sc('HAIRPIN', 'S2 · CLIMB · 180°', '#ff4f6d'), sc('ESSES', 'S3 · RHYTHM · CHICANE', '#5de0a0')], build: () => TRK.assembleCustom(TRK.DEFS.technical()) },
-  casino: {key:'casino',name:'Casino Strip',short:'Casino',sub:'Gold boulevard · skyway split · carousel',blurb:'Neon boulevard · 3 laps',laps:3,W0:14,hasBr:true,ai:{vmax:1.03,lat:1.15},sectors:[sc('THE STRIP','S1 · MARQUEE','#ffd56a'),sc('ROULETTE','S2 · BANKED CAROUSEL','#ff8d38'),sc('HIGH ROLLER','S3 · SKYWAY OR THE FLOOR','#ff536e'),sc('CASHOUT','S4 · SLOT GATES · HAIRPIN','#ffe7b8')],build:buildCasino},
-  summit: {key:'summit',name:'Summit Run',short:'Summit',sub:'Arcology climb · switchbacks · tunnel plunge',blurb:'180 m climb · 2 laps',laps:2,W0:14,hasBr:false,ai:{vmax:1.02,lat:1.18},sectors:[sc('BASE CAMP','S1 · VALLEY APPROACH','#71d6ff'),sc('SWITCHBACKS','S2 · CLIMB','#b8e9ff'),sc('SUMMIT','S3 · 180 M PLATEAU','#fa6981'),sc('THE DROP','S4 · DESCENT · TUNNEL','#849fff')],build:buildSummit},
-  legacy: { key: 'legacy', name: 'Legacy Grid', short: 'Legacy', sub: 'v3 mixed 5-sector', blurb: 'Mixed · v3 classic', laps: 3, W0: TRK.W0, hasBr: true, ai: { vmax: 1, lat: 1 }, sectors: SECTORS_LEGACY, build: () => TRK.assemble() }
+    sectors: [sc('SWEEPERS', 'S1 · BANKED FLAT-OUT', '#3fd8ff'), sc('SKY LOOP', 'S2 · LOOP · CAROUSEL', '#9a7bff'), sc('BARREL', 'S3 · ROLL · FINAL SWEEP', '#ff5ab8')], build:buildVelocityR4 },
+  technical: { key: 'technical', name: 'Kage Circuit', short: 'Kage', sub: 'Chicanes · hairpin · rise and jump', blurb: 'Longer · ramps · 3 laps', laps: 3, W0: 10.5, hasBr: false, ai: { vmax: 1.03, lat: 1.26 },
+    sectors: [sc('HARBOUR', 'S1 · BRAKE · CHICANE', '#ffb347'), sc('HAIRPIN', 'S2 · CLIMB · 180°', '#ff4f6d'), sc('ESSES', 'S3 · RHYTHM · CHICANE', '#5de0a0')], build:buildKageR4 },
+  casino: {key:'casino',name:'Casino Strip',short:'Casino',sub:'Neon slalom · sky launches · high-roller split',blurb:'Arcade drops · 3 laps',laps:3,W0:14,hasBr:true,ai:{vmax:1.03,lat:1.15},sectors:[sc('THE STRIP','S1 · MARQUEE','#ffd56a'),sc('ROULETTE','S2 · SKY LAUNCH · SLALOM','#ff8d38'),sc('HIGH ROLLER','S3 · SKYWAY OR THE FLOOR','#ff536e'),sc('CASHOUT','S4 · SLALOM · CASHOUT','#ffe7b8')],build:buildCasinoR4},
+  summit: {key:'summit',name:'Summit Run',short:'Summit',sub:'Arcology climb · switchbacks · ridge sweepers',blurb:'180 m climb · 2 laps',laps:2,W0:14,hasBr:false,ai:{vmax:1.02,lat:1.18},sectors:[sc('BASE CAMP','S1 · VALLEY APPROACH','#71d6ff'),sc('SWITCHBACKS','S2 · CLIMB','#b8e9ff'),sc('SUMMIT','S3 · 180 M PLATEAU','#fa6981'),sc('THE DROP','S4 · DESCENT · TUNNEL','#849fff')],build:buildSummitR4},
+  drift:{key:'drift',name:'Shinrai Driftway',short:'Shinrai',sub:'Linked esses · wide hairpins · neon switchbacks',blurb:'Drift rhythm · 3 laps',laps:3,W0:12.5,hasBr:false,ai:{vmax:1.02,lat:1.18},sectors:[sc('FLOW STATE','S1 · LINK THE ESSES','#74ffbc'),sc('SWITCHBACK','S2 · WIDE HAIRPIN','#b0a0ff'),sc('COUNTERSTEER','S3 · LONG SLIDES','#51f0f5'),sc('LAST DANCE','S4 · HOLD THE LINE','#ff79ce')],build:buildDrift},
+  legacy: { key: 'legacy', name: 'Legacy Grid', short: 'Legacy', sub: 'v3 mixed 5-sector', blurb: 'Mixed · v3 classic', laps: 3, W0: TRK.W0, hasBr: true, ai: { vmax: 1, lat: 1 }, sectors: SECTORS_LEGACY, build: () => TRK.assemble({fastMonaco:true}) }
 };
-export const MAP_KEYS = ['velocity', 'technical', 'casino', 'summit', 'legacy'];
+export const MAP_KEYS = ['velocity', 'technical', 'casino', 'summit', 'drift','legacy'];
 export const DEFAULT_MAP = 'velocity';
 export const S0 = 60;            // start line (main metres)
 export const H0 = 1.0;           // nominal hover height
@@ -57,7 +58,7 @@ export function buildTrackData(key, vr = 0) {
   const SECSTART = SECTORS.map(() => 0);
   for (let i = 1; i < MAIN.N; i++) if (MAIN.sec[i] !== MAIN.sec[i - 1]) SECSTART[MAIN.sec[i]] = i;
   SECSTART[0] = Math.round(S0 / MAIN.ds);
-  return { key, vr, def, MAIN, BR, HASBR, SA, SB, OFF, SAm, SBm, LAPLEN: MAIN.L, LAPS: def.laps, W0: def.W0, SECTORS, SECSTART };
+  return {rampZones:raw.rampZones||[], key, vr, def, MAIN, BR, HASBR, SA, SB, OFF, SAm, SBm, LAPLEN: MAIN.L, LAPS: def.laps, W0: def.W0, SECTORS, SECSTART };
 }
 
 // ---- frame sampling with branch->main delegation (was frameAt/worldPos/raceS/rdist) ----
