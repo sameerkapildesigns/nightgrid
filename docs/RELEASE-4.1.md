@@ -62,3 +62,5 @@ Replace arbitrary full 360-degree longitudinal barrels with a 180-degree half-tw
 ## Motion comfort priority, awaiting clarification
 
 After about one hour of play, Sameer reported his head/brain felt a little hurt. Do not turn this into a medical diagnosis. Prioritize comfort review before adding stronger speed-camera effects: reduce extra roll, drift-heading camera swing and FOV pumping; preserve actual-speed improvements separately. He says 360-degree turns where cars seem about to fly off feel wrong. This may mean barrels, spirals/full-circle bends or vertical loops, still unconfirmed. Ask for the map/sector or a short clip before removing a feature. No motion settings or route changes have been made for this note yet.
+
+Slipstream request at 22:23: recharge the boost bar at 2x the current slipstream recharge rate (the typo in the original is interpreted as slipstream). This is in addition to the confirmed stronger slipstream/catch-up direction. Do not silently interpret it as doubling every passive or drift gain. Held for next pass, not implemented.
