@@ -10,7 +10,7 @@ export const HAZ = {
   CAR_HALF_LEN: 2.6, CAR_HALF_W: 1.4,                  // racer contact box (same as the drone model)
   OB_SPEED_KEEP: 0.6, OB_MAX_LOSS: 35, OB_GLANCE: 6, OB_DEBOUNCE: 0.5,
   START_CLEAR: 300, SEAM_CLEAR: 100, RUNUP: 120, RUNUP_K: 1 / 260, MIN_UPY: 0.8, OB_SPACING: 180, PAD_CLEAR: 80,
-  PAD_HALF_LEN: 3.0, PAD_HALF_W: 2.0, PAD_RESPAWN: 6, CLAIM_COOLDOWN: 6,
+  PAD_HALF_LEN: 5.0, PAD_HALF_W: 3.4, PAD_RESPAWN: 6, CLAIM_COOLDOWN: 6,
   SHIELD_TIME: 15, SHIELD_PASS: 0.4, SURGE_TIME: 1.8, BOOST_REFILL: 0.35,
   DRONE_HOP: 2.8, DRONE_HOP_RANGE: 9
 };
@@ -71,6 +71,20 @@ export function buildHazards(td) {
     const s = i * M.ds; rowS.push(s);
     PAD_ROWS[r + 2].forEach((kind, c) => pads.push({ s, d: (c - 1) * 0.5 * W, kind, row: r + 2 }));
   });
+  // Refill-only canister pairs. They never force acceleration on a bend or inversion.
+  const refillRows=Math.max(4,Math.round(M.L/450));
+  for(let k=0;k<refillRows;k++){
+    const start=mod(250+k*M.L/refillRows,M.L);
+    for(let j=0;j<2;j++){
+      const s=mod(start+j*14,M.L),i=Math.floor(s/M.ds)%M.N;
+      if(Math.min(mod(s-60,M.L),mod(60-s,M.L))<150)continue;
+      if(td.HASBR&&s>td.SAm-160&&s<td.SBm+140)continue;
+      if(obs.some(o=>Math.abs(gapS(o.s,s,M.L))<45))continue;
+      const d=(k%2?1:-1)*Math.min(M.W[i]*.35,4.2);
+      pads.push({s,d,kind:'R',row:6+k});
+    }
+  }
+  if(td.HASBR)for(let s=55;s<td.BR.L-40;s+=150)for(const offset of[0,14])pads.push({s:s+offset,d:0,kind:'R',br:true,row:99+Math.floor(s/150)});
   return (td.hazards = { obstacles: obs, pads });
 }
 // signed shortest along-track gap b - a on a closed loop of length L

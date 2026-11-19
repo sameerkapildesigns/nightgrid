@@ -174,7 +174,7 @@ export function createCombat(sim, seed) {
       for(const [i,b]of sim.weaponBoxes.entries()){
         if(pathId(sim,r.path)!==b.path||(r.wBoxAt[i]||0)>sim.time)continue;
         const a=pathGap(r.path,b.s,prev.s),end=a+pathGap(r.path,prev.s,r.s);
-        if(sweepBox([a,prev.d-b.d,prev.h-1],[end,r.d-b.d,r.h-1],[2.6,2.6,2.5])===null)continue;
+        if(sweepBox([a,prev.d-b.d,prev.h-1],[end,r.d-b.d,r.h-1],[4.0,4.0,3.0])===null)continue;
         // One grant per row pass, even when a lateral sweep crosses both boxes.
         sim.weaponBoxes.forEach((other,j)=>{if(other.row===b.row)r.wBoxAt[j]=sim.time+WPN.BOX_COOLDOWN;});
         const rank=sim.racers.filter(o=>o.prog>r.prog).length/Math.max(1,sim.racers.length);

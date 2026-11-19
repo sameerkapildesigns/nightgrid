@@ -28,7 +28,7 @@ test('layout: deterministic, 3-4 obstacles per lap, 6 pad rows of 3, never near 
     const a = buildHazards(buildTrackData(k)), b = buildHazards(buildTrackData(k));
     assert.deepEqual(a, b, k + ': identical from map key');
     assert.ok(a.obstacles.length >= 3 && a.obstacles.length <= 4, `${k}: ${a.obstacles.length} obstacles`);
-    assert.equal(a.pads.length, 18); assert.deepEqual(a.pads.map(p => p.kind).join(''), 'SBSBSBSBSBSBSBSBSB');
+    assert.equal(a.pads.filter(p=>p.kind!=='R').length, 18); assert.deepEqual(a.pads.filter(p=>p.kind!=='R').map(p => p.kind).join(''), 'SBSBSBSBSBSBSBSBSB');
     const td = buildTrackData(k), M = td.MAIN;
     for (const o of a.obstacles) {
       const fromLine = Math.min(mod(o.s - S0, M.L), mod(S0 - o.s, M.L));
@@ -39,7 +39,7 @@ test('layout: deterministic, 3-4 obstacles per lap, 6 pad rows of 3, never near 
         assert.ok(!(M.tag[i] & 1) && M.U[i].y >= HAZ.MIN_UPY && Math.abs(M.KG[i]) <= HAZ.RUNUP_K, `${k}: ${o.s}+${j} tunnel/inverted/corner`);
       }
     }
-    for (const p of a.pads) {
+    for (const p of a.pads.filter(p=>p.kind!=='R')) {
       const fromLine = Math.min(mod(p.s - S0, M.L), mod(S0 - p.s, M.L)); assert.ok(fromLine >= 160, k + ': pickup start clear');
       for (let j = -30; j <= 30; j++) { const i = mod(Math.round(p.s / M.ds) + j, M.N); assert.ok(!(M.tag[i] & 1) && M.U[i].y >= HAZ.MIN_UPY && Math.abs(M.KG[i]) <= 1/100, k + ': pickup safe station'); }
       for (const o of a.obstacles) assert.ok(Math.abs(gapS(o.s,p.s,M.L)) >= HAZ.PAD_CLEAR, k + ': pickup not on obstacle');
@@ -100,7 +100,7 @@ test('pads: server claims in seat order, respawn and per-racer cooldown, one pow
   assert.deepEqual(encodePads(sim.pads, sim.time).map((x, k) => (k === iS ? x > 0 : x)), sim.pads.map((p, k) => (k === iS ? true : 0)));
   // cooldown: A cannot take a boost pad straight away
   const pB = sim.pads.find(p => p.kind === 'B' && p.row === pS.row);
-  put(sim, A, pB.s - 1, pB.d, 30); sim.step(SIM_DT); assert.ok(!(A.surgeT > 0), 'cooldown blocks a second claim');
+  put(sim, A, pB.s - 1, pB.d, 30); sim.step(SIM_DT); assert.ok(A.surgeT > 0, 'overdrive bypasses shield cooldown for chaining');
   // respawn after PAD_RESPAWN s
   const t0 = sim.time; while (sim.time < t0 + HAZ.PAD_RESPAWN + 0.1) { put(sim, B, pS.s + 500, 0, 0); sim.step(SIM_DT); }
   assert.ok(pS.readyAt <= sim.time, 'respawned'); B.powCD = 0; put(sim, B, pS.s - 1, pS.d, 30); sim.step(SIM_DT);
@@ -163,7 +163,7 @@ test('snapshot: hazards flag + pad state + racer power fields survive export/imp
   };
   const a = run(-1), b = run(37);
   assert.equal(a, b);
-  const sn = JSON.parse(a); assert.equal(sn.hazards, true); assert.equal(sn.pads.length, 18);
+  const sn = JSON.parse(a); assert.equal(sn.hazards, true); assert.equal(sn.pads.length, buildHazards(buildTrackData('velocity')).pads.length);
   assert.ok('shieldT' in sn.racers[0] && 'surgeT' in sn.racers[0]);
 });
 

@@ -374,7 +374,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (r.empT > 0) { r.boost = false; vmax = Math.min(vmax, PC.normal * Math.min(1, (P0 ? P0.vmax : 70) / 93.75)); }
     const vT = Math.min(vmax, vC * (r.boost ? 1.04 : 1) * Math.min(1.04, rub * noise));
     const dv = vT - r.speed;
-    r.speed += dv > 0 ? Math.min(dv, ((P0 ? P0.acc : 24) + (r.boost ? 12 : 0)) * dt) : Math.max(dv, -(P0 ? P0.brake : 44) * dt);
+    r.speed += dv > 0 ? Math.min(dv, ((r.isAI && r.prog<140 ? 44 : (P0 ? P0.acc : 24)) + (r.boost ? 12 : 0)) * dt) : Math.max(dv, -(P0 ? P0.brake : 44) * dt);
     r.speed -= GRAV * f.T.y * dt; if (r.speed < 0) r.speed = 0;
     if (!PC.mode.draftOverCap) {   // Assisted: same hard ceiling rule as the player (AI never outruns the cap)
       const pf = Math.min(1, (P0 ? P0.vmax : 70) / 93.75), cN = PC.normal * pf, cB = PC.boost * pf;
@@ -541,13 +541,14 @@ export function createSim({ seed = 4242, events = null } = {}) {
   // pads: claimed in seat order (deterministic); one power of each kind at a time, per-racer cooldown
   function claimPads() {
     for (const r of sim.racers) {
-      if (r.crashed > 0 || r.finished || r.path !== MAIN || r.powCD > 0 || r.h > H0 + 2.5) continue;
+      if (r.crashed > 0 || r.finished || r.h > H0 + 2.5) continue;
       for (const p of sim.pads) {
-        if (p.readyAt > sim.time) continue;
-        if ((p.kind === 'S' && r.shieldT > 0) || (p.kind === 'B' && r.surgeT > 0)) continue;
-        if (Math.abs(gapS(r.s, p.s, MAIN.L)) >= HAZ.PAD_HALF_LEN || Math.abs(p.d - r.d) >= HAZ.PAD_HALF_W + 0.6) continue;
-        p.readyAt = sim.time + HAZ.PAD_RESPAWN; r.powCD = HAZ.CLAIM_COOLDOWN;
-        if (p.kind === 'S') { r.shieldT = HAZ.SHIELD_TIME; r.passT = 0; } else { r.surgeT = HAZ.SURGE_TIME; r.meter = Math.min(1, r.meter + HAZ.BOOST_REFILL); r.boostLock = false; }
+        if(r.path!==(p.br?BR:MAIN))continue;
+        if (p.readyAt > sim.time || (p.kind==='S' && r.powCD>0)) continue;
+        if (p.kind === 'S' && r.shieldT > 0) continue;
+        if (Math.abs(p.br?r.s-p.s:gapS(r.s, p.s, MAIN.L)) >= HAZ.PAD_HALF_LEN || Math.abs(p.d - r.d) >= HAZ.PAD_HALF_W + 0.6) continue;
+        p.readyAt = sim.time + HAZ.PAD_RESPAWN; if(p.kind!=='R')r.powCD = HAZ.CLAIM_COOLDOWN;
+        if(p.kind==='R'){r.meter=Math.min(1,r.meter+HAZ.BOOST_REFILL);r.boostLock=false;}else if (p.kind === 'S') { r.shieldT = HAZ.SHIELD_TIME; r.passT = 0; } else { r.surgeT = Math.min(HAZ.SURGE_TIME*2,r.surgeT+HAZ.SURGE_TIME); r.meter = Math.min(1, r.meter + HAZ.BOOST_REFILL); r.boostLock = false; }
         ev.racer('pickup', r, p.kind); if (isFocus(r)) ev.pickup(r, p.kind);
         break;
       }
@@ -721,7 +722,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   }
   // Countdown finished: lights out.
   function startRace() {
-    sim.phase = 'race'; sim.raceStart = sim.time; for (const r of sim.racers) r.lapStart = 0;
+    sim.phase = 'race'; sim.raceStart = sim.time; for (const r of sim.racers) {r.lapStart = 0;if(r.isAI){r.speed=34;r.va=34;}}
     let focusPerfect = false;
     for (const p of sim.racers) {
       if (p.isAI || !p.input.up) continue;

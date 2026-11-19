@@ -1,0 +1,2 @@
+import test from'node:test';import assert from'node:assert/strict';import{createSim}from'../../src/core/sim.js';
+test('NPCs move on green alongside a perfect-launch player, no opening rear bump',()=>{let bumps=0;const s=createSim({seed:4242,events:{bump:()=>bumps++}});s.setTrack('velocity');s.addRacers(['GHOST','VEX','BLITZ'].map(name=>({name})));s.input.up=1;s.startRace();assert.ok(s.racers.slice(1).every(r=>r.speed===34));for(let i=0;i<120;i++)s.step(1/120);assert.equal(bumps,0);assert.ok(s.racers.slice(1).every(r=>r.speed>60));});

@@ -1828,7 +1828,7 @@ function earnPopup(txt, col) {   // boost meter itself is credited by the simula
 /* ---------- M8 hazards: pickup / shield / obstacle presentation (own car only; remote shields from pw) ---------- */
 function hazardEvents(me) {
   return {
-    pickup: (r, kind) => { const k = typeof r === 'string' ? r : kind; if (k === 'S') { flash('SHIELD · 1 HIT', '#4fd8ff'); AU.chime(); } else { flash('BOOST +35% · OVERDRIVE', '#ffb21c'); AU.whoosh(); CC.kick += 6; } },
+    pickup: (r, kind) => { const k = typeof r === 'string' ? r : kind; if (k === 'S') { flash('SHIELD · 1 HIT', '#4fd8ff'); AU.chime(); } else if(k==='R'){flash('NITRO +35%','#b7ff56');AU.chime();$('boost').animate([{filter:'brightness(3)'},{filter:'brightness(1)'}],{duration:400});const p=me();for(let i=0;i<20;i++)spark(p.world.x,p.world.y+1,p.world.z,R(-6,6),R(1,7),R(-6,6),new THREE.Color(.6,1,.2),R(.2,.5));}else { flash('BOOST +35% · OVERDRIVE', '#ffb21c'); AU.whoosh(); CC.kick += 6; } },
     shieldPop: (r, what) => { const w = typeof r === 'string' ? r : what; const p = me(); if (w === 'expired') return; cpFlash('SHIELD ABSORBED'); AU.thud(0.4); for (let k = 0; k < 30; k++) spark(p.world.x, p.world.y + 0.6, p.world.z, R(-10, 10), R(-2, 9), R(-10, 10), SPARK_CY, R(0.3, 0.7)); },
     obstacleHit: () => { const p = me(); CC.shake += 0.7; hitFlash = Math.min(1, hitFlash + 0.6); AU.thud(0.9); for (let k = 0; k < 36; k++) spark(p.world.x, p.world.y + 0.4, p.world.z, R(-11, 11), R(-1, 9), R(-11, 11), k % 2 ? SPARK_HOT : FLAME, R(0.3, 0.9)); }
   };

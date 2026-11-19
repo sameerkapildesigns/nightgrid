@@ -42,7 +42,7 @@ const padTex = (col, glyph) => tex((g, w, h) => {
   else { for (const y of [-30, 18]) { g.moveTo(-44, y + 26); g.lineTo(0, y - 18); g.lineTo(44, y + 26); } }
   g.stroke();
 });
-export const PAD_COL = { S: new THREE.Color(0.25, 0.85, 2.2), B: new THREE.Color(2.4, 1.1, 0.15) };
+export const PAD_COL = { S: new THREE.Color(0.25, 0.85, 2.2), B: new THREE.Color(2.4, 1.1, 0.15), R: new THREE.Color(1.3,2.2,.3) };
 
 export function createHazardVis({ WORLD, sim, radialTex }) {
   const M = sim.track.MAIN, obs = sim.obstacles, pads = sim.pads;
@@ -68,13 +68,21 @@ export function createHazardVis({ WORLD, sim, radialTex }) {
   const iconB = new THREE.InstancedMesh(new THREE.ConeGeometry(.9, 1.7, 4, 1), new THREE.MeshBasicMaterial({ color: PAD_COL.B, toneMapped: false }), Math.max(1, nB));
   for (const m of [decal, decalB]) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, pads.length) * 3), 3);
   decal.count = nS; decalB.count = nB; iconS.count = nS; iconB.count = nB;
-  group.add(decal, decalB, iconS, iconB);
+  const nR=pads.filter(p=>p.kind==='R').length;
+  const refill=new THREE.InstancedMesh(new THREE.CapsuleGeometry(.4,.85,4,8),new THREE.MeshBasicMaterial({color:PAD_COL.R,toneMapped:false}),Math.max(1,nR));refill.count=nR;refill.frustumCulled=false;
+  const ring=new THREE.InstancedMesh(new THREE.TorusGeometry(.7,.06,4,16).rotateX(Math.PI/2),new THREE.MeshBasicMaterial({color:PAD_COL.R,toneMapped:false,transparent:true,opacity:.65}),Math.max(1,nR));ring.count=nR;ring.frustumCulled=false;
+  decalB.count=iconB.count=pads.filter(p=>p.kind==='B').length;
+  group.add(decal, decalB, iconS, iconB,refill,ring);
   const slot = pads.map(p => { const kS = pads.filter(q => q.kind === p.kind).indexOf(p); return kS; });
   const shown = pads.map(() => -1);
   function update(t) {
     const now = sim.time;
     pads.forEach((p, k) => {
       const ready = !(p.readyAt > now), S = p.kind === 'S', j = slot[k];
+      if(p.kind==='R'){
+        const P=p.br?sim.track.BR:M,sc=ready?1:0.0001;refill.setMatrixAt(j,placeMat(P,p.s,p.d,1.45+.15*Math.sin(t*3+k),sc,sc,sc,_m,t+k));
+        ring.setMatrixAt(j,placeMat(P,p.s,p.d,.35,sc,sc,sc));return;
+      }
       const dm = S ? decal : decalB, im = S ? iconS : iconB, col = PAD_COL[p.kind];
       const pulse = ready ? 0.9 + 0.1 * Math.sin(t * 5 + k) : 0.15;
       dm.setMatrixAt(j, placeMat(M, p.s, p.d, 0.12, 5.6, 1, S ? 10 : 20)); _c.copy(col).multiplyScalar(pulse * 1.8); dm.setColorAt(j, _c);
@@ -82,7 +90,7 @@ export function createHazardVis({ WORLD, sim, radialTex }) {
       im.setMatrixAt(j, placeMat(M, p.s, p.d, 1.7 + 0.25 * Math.sin(t * 2.4 + k), sc, sc, sc, _m, t * 2.2 + k));
       if (shown[k] !== ready) shown[k] = ready;
     });
-    for (const m of [decal, decalB, iconS, iconB]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
+    for (const m of [decal, decalB, iconS, iconB,refill,ring]) { m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true; }
     bar.material.color.setRGB(4.5, 0.4, 2.8).multiplyScalar(0.7 + 0.3 * Math.sin(t * 7));
   }
   update(0);
