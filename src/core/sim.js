@@ -140,7 +140,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function placeRacer(r, back, d) {
     r.path = MAIN; r.s = mod(S0 - back, MAIN.L); r.d = d; r.h = H0; r.vh = 0; r.psi = 0; r.va = 0; r.vd = 0; r.speed = 0; r.dv = 0;
     r.lastRd = rdist(MAIN, r.s); r.prog = r.lastRd - LAPLEN; r.prevS = undefined;
-    r.lap = 0; r.lapTimes = []; r.lapValid = []; r.finished = false; r.finishTime = 0; r.lapStart = 0; r.boost = false; r.boostRelT = 0; r.boostLock = false; r.drift = false; r.thr = 0;
+    r.lap = 0; r.lapTimes = []; r.lapValid = []; r.finished = false; r.finishTime = 0; r.lapStart = 0; r.boost = false; r.boostRelT = 0; r.boostLock = false; r.drift = false; r.hardSteerT = 0; r.thr = 0;
     r.autopilot = r.isAI; r.vf = 0; r.vl = 0; r.acc = 0; r.yawV = 0; r.steer = 0; r.draftT = 0; r.tow = 0; r.slingT = 0; r.crashed = 0; r.droneT = 0;
     r.sector = MAIN.sec[Math.round(r.s / MAIN.ds) % MAIN.N]; r.takeShort = false; r.air = false; r.airT = 0; r.aiBoostT = 0;
     r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
@@ -233,10 +233,14 @@ export function createSim({ seed = 4242, events = null } = {}) {
     let vf = r.va * Math.cos(r.psi) - r.vd * Math.sin(r.psi);
     const avf = Math.abs(vf);
     const sf = Math.min(1, avf / 12) * (1 - 0.4 * Math.min(1, avf / 110));
-    // explicit drift (keys.drift) replaces v5b's hidden brake+steer airbrake; brake+steer = full braking
-    const airbrake = !!keys.drift && Math.abs(r.steer) > 0.25 && vf > 28;
+    // Brake-turn and hard-turn drift at speed; straight braking stays unchanged.
+    // Drift lateral-slip decay time is 50% longer (1.5/s -> 1.0/s).
+    r.hardSteerT = Math.abs(r.steer) > 0.88 && vf > 45 && !air ? (r.hardSteerT||0)+dt : 0;
+    const hardTurnDrift = r.hardSteerT >= .2;
+    const brakeDrift = !!brk && Math.abs(r.steer) > 0.25 && vf > 28;
+    const airbrake = (!!keys.drift || brakeDrift || hardTurnDrift) && Math.abs(r.steer) > 0.25 && vf > 28;
     r.brakeT = brk ? (r.brakeT || 0) + dt : 0;
-    let yawT = -r.steer * 2.2 * sf * (vf < -0.5 ? -1 : 1) * (airbrake ? 1.3 : 1) * (air ? 0.35 : 1);
+    let yawT = -r.steer * 2.2 * sf * (vf < -0.5 ? -1 : 1) * (airbrake ? 1.15 : 1) * (air ? 0.35 : 1);
     // racing-line assist when inverted / on the wall: gently aim back toward the middle (player still steers)
     if (sim.mode==='assisted' && (steep || pth === BR) && vf > 15) {
       const dT = 0, lat = clamp((dT - r.d) * 0.05, -0.35, 0.35);
@@ -257,7 +261,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (thr) a += (r.boost ? 80 : 44) * CM.acc * tm * Math.max(-0.5, 1 - (vf / vmax) * (vf / vmax));
     else if (r.boost) a += 34 * tm * Math.max(0, 1 - (vf / vmax) * (vf / vmax));
     if (vf > vmax) a -= (vf - vmax) * 1.2;
-    if (airbrake && !air) a -= 9;
+    if (airbrake && !air) a -= brk ? 18 : 9;
     else if (brk && !air) a -= vf > 0.5 ? MD.brake0 + (MD.brakeMax - MD.brake0) * Math.min(1, r.brakeT / MD.brakeRamp) : 16;
     else if (r.cornerAssist > 0 && vf > 0.5) a -= r.cornerAssist;
     a -= vf * 0.035 * (1 - 0.35 * tow) + (thr || r.boost ? 0 : 3.5) * Math.sign(vf);
@@ -268,8 +272,11 @@ export function createSim({ seed = 4242, events = null } = {}) {
       if (vf > r.capHold) vf = r.capHold;
     }
     if (!thr && !brk && !r.boost && Math.abs(vf) < 0.6) vf = 0;
-    const grip = air ? 0.4 : airbrake ? 1.5 * CM.grip : (r.boost ? 6.0 : 7.5) * (inverted ? 1.25 : 1) * CM.grip;
-    const nvl = vl * Math.exp(-grip * dt), lost = Math.abs(vl - nvl); vl = nvl;
+    const grip = air ? 0.4 : airbrake ? 1.0 * CM.grip : (r.boost ? 6.0 : 7.5) * (inverted ? 1.25 : 1) * CM.grip;
+    let nvl = vl * Math.exp(-grip * dt);
+    // Cap body-relative slip at 28 degrees during drift; countersteer still controls yaw.
+    if(airbrake && !air)nvl=clamp(nvl,-Math.abs(vf)*Math.tan(28*Math.PI/180),Math.abs(vf)*Math.tan(28*Math.PI/180));
+    const lost = Math.abs(vl - nvl); vl = nvl;
     if (vf > 0 && !air) vf += lost * 0.32;
     r.drift = !air && ((airbrake && Math.abs(vl) > 4) || Math.abs(vl) > 12);
     r.va = vf * c + vl * sn; r.vd = -vf * sn + vl * c;
@@ -293,7 +300,13 @@ export function createSim({ seed = 4242, events = null } = {}) {
         r.d = s * (edge - lim);
         const vn = r.vd * s;
         if (vn > 0) {
-          r.vd -= s * vn * 1.3; const k = 1 - Math.min(0.28, vn * 0.009); r.va *= k; r.vd *= k;
+          const protectedWall = r.passT > 0 || shieldAbsorb(r,'wall');
+          if(protectedWall){
+            const speed2=r.va*r.va+r.vd*r.vd;
+            r.vd=-s*vn*.3; r.va=(r.va<0?-1:1)*Math.sqrt(Math.max(0,speed2-r.vd*r.vd));
+          }else{
+            r.vd -= s * vn * 1.3; const k = 1 - Math.min(0.28, vn * 0.009); r.va *= k; r.vd *= k;
+          }
           if (Math.abs(r.psi) < 1.4) r.psi -= r.psi * Math.min(0.6, vn * 0.03);
           if (vn >= 2.5 && isFocus(r)) ev.wallHit(r, vn, s, _fp.R);
         }
@@ -341,7 +354,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       const cornerV2=cornerA/Math.max(curvature,1e-4);
       vC=Math.min(vC,Math.sqrt(cornerV2+2*(P0?P0.brake:44)*.8*Math.max(0,ahead-8)));
     }
-    if(sim.mode!=='expert')vC=Math.sqrt(cornerA/Math.max(km,1e-4));
+    if(sim.mode!=='expert'||td.key!=='technical')vC=Math.sqrt(cornerA/Math.max(km,1e-4));
     const noise = 1 + 0.018 * Math.sin(sim.time * 0.21 + r.phA) + 0.012 * Math.sin(sim.time * 0.67 + r.phB);
     let rub = 1;
     if (r.isAI && ref && racing) {
@@ -414,7 +427,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
       const gp = gapS(r.s, o.s, MAIN.L), reach = o.hw + HAZ.CAR_HALF_W + 1.2;
       if (gp > -3 && gp < Math.max(70, r.speed * 1.2) && Math.abs(o.d - r.d) < reach) { dT = o.d + (r.d >= o.d ? 1 : -1) * (o.hw + 3.2); blocked = true; }
     }
-    const wl = r.path === BR ? WB : MAIN.WL[i], wr = r.path === BR ? WB : MAIN.WR[i];
+    const wi=r.path===MAIN?Math.floor(mod(r.s,MAIN.L)/MAIN.ds)%MAIN.N:i;
+    const wl = r.path === BR ? WB : MAIN.WL[wi], wr = r.path === BR ? WB : MAIN.WR[wi];
     dT = clamp(dT, -wl + 2.2, wr - 2.2);
     const latSp = P0 && P0.aggr > 0.5 ? 12 : 9.5;
     const want = clamp((dT - r.d) * 2.0, -latSp, latSp); r.dv = lerp(r.dv, want, damp(blocked ? 5 : 3.5, dt));

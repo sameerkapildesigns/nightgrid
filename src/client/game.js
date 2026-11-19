@@ -1127,13 +1127,13 @@ const spMat = new THREE.ShaderMaterial({
   uniforms: { uH: { value: innerHeight * PR * 0.5 } },
   vertexShader: `attribute vec3 col; attribute float sz; varying vec3 vC; uniform float uH;
     void main(){ vC = col; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = sz * projectionMatrix[1][1] * uH / max(-mv.z, 0.1); gl_Position = projectionMatrix * mv; }`,
-  fragmentShader: `varying vec3 vC; void main(){ float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.0, d); gl_FragColor = vec4(vC * a, 1.0); }`,
+  fragmentShader: `varying vec3 vC; void main(){ float d = length(gl_PointCoord - 0.5); if(d>.5)discard; float a=exp(-d*d*20.0)*(1.0-smoothstep(.32,.5,d)); gl_FragColor=vec4(vC*a,a); }`,
   blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
 });
 const sparkPts = new THREE.Points(spGeo, spMat); sparkPts.frustumCulled = false; scene.add(sparkPts);
-const sparks = []; for (let i = 0; i < SPN; i++) sparks.push({ p: new V3(), v: new V3(), life: 0, max: 1, c: new THREE.Color(), g: 16 });
+const sparks = []; for (let i = 0; i < SPN; i++) sparks.push({ p: new V3(), v: new V3(), life: 0, max: 1, c: new THREE.Color(), g: 16, size: .16 });
 let spHead = 0;
-function spark(x, y, z, vx, vy, vz, col, life, grav = 16) { const s = sparks[spHead]; spHead = (spHead + 1) % SPN; s.p.set(x, y, z); s.v.set(vx, vy, vz); s.life = s.max = life; s.c.copy(col); s.g = grav; }
+function spark(x, y, z, vx, vy, vz, col, life, grav = 16) { const s = sparks[spHead]; spHead = (spHead + 1) % SPN; s.p.set(x, y, z); s.v.set(vx, vy, vz); s.life = s.max = life; s.c.copy(col); s.g = grav; s.size=R(.09,.22); }
 const SPARK_HOT = new THREE.Color(1, 0.55, 0.15), SPARK_CY = new THREE.Color(0.3, 0.9, 1), FLAME = new THREE.Color(1, 0.45, 0.12), FLAMEB = new THREE.Color(0.5, 0.6, 1.4);
 function updateSparks(dt) {
   for (let i = 0; i < SPN; i++) {
@@ -1142,7 +1142,7 @@ function updateSparks(dt) {
       s.life -= dt; s.v.y -= s.g * dt; s.v.multiplyScalar(0.985); s.p.addScaledVector(s.v, dt);
       const k = Math.max(0, s.life / s.max);
       spPos[i * 3] = s.p.x; spPos[i * 3 + 1] = s.p.y; spPos[i * 3 + 2] = s.p.z;
-      spCol[i * 3] = s.c.r * 4 * k; spCol[i * 3 + 1] = s.c.g * 4 * k; spCol[i * 3 + 2] = s.c.b * 4 * k; spSz[i] = 0.12 + 0.14 * k;
+      spCol[i * 3] = s.c.r * 2.5 * k*k; spCol[i * 3 + 1] = s.c.g * 2.5 * k*k; spCol[i * 3 + 2] = s.c.b * 2.5 * k*k; spSz[i] = s.size*(.4+.6*k);
     } else spSz[i] = 0;
   }
   spGeo.attributes.position.needsUpdate = spGeo.attributes.col.needsUpdate = spGeo.attributes.sz.needsUpdate = true;
@@ -1898,7 +1898,10 @@ function chaseTarget(dt, snap, outPos, outLook, outUp) {
   const dist = 7.2 + s01 * 1.4 + boostAmt * 1.5;
   const sc = r.s - dist * Math.cos(CC.psi);
   let dc = r.d + dist * Math.sin(CC.psi);
-  const f = frameAt(r.path, sc, _fc);
+  // Stay on the branch behind a just-merged player until the chase camera clears it.
+  const branchBehind=HASBR&&r.path===MAIN&&r.s>=SBm&&r.s-SBm<dist&&r.d>W0-2;
+  const f=frameAt(branchBehind?BR:r.path,branchBehind?BR.L+(r.s-SBm)-dist*Math.cos(CC.psi):sc,_fc);
+  if(branchBehind)dc-=OFF;
   const wl = f.path === BR ? WB + 2 : MAIN.WL[f.i] + 0.6, wr = f.path === BR ? WB + 2 : MAIN.WR[f.i] + 0.6;
   dc = clamp(dc + f.off, -wl, wr);
   let hc = r.h + CC.h;
@@ -1976,8 +1979,8 @@ function updateVisual(r, dt) {
     const t = r.trails[k], U = t.mat.uniforms;
     U.uTime.value = gameTime + k;
     const esz = em[k - 2].userData.sz || 1;
-    if (r.boost) { U.uHot.value.setRGB(0.35, 1.25, 1.55); U.uColor.value.setRGB(0.1, 0.32, 1.05); U.uTail.value.setRGB(0.3, 0.08, 0.75); t.maxLen = 4.2 + 1.2 * esz; t.wobble = 0.32; }
-    else { U.uHot.value.copy(t.base).multiplyScalar(0.18 * r.thr); U.uColor.value.copy(t.base).multiplyScalar(0.1 + r.thr * 0.16); U.uTail.value.copy(t.base).multiplyScalar(0.05); t.maxLen = 1.1 + 0.6 * r.thr; t.wobble = 0.05; }
+    if (r.boost) { U.uHot.value.setRGB(0.35, 1.25, 1.55); U.uColor.value.setRGB(0.1, 0.32, 1.05); U.uTail.value.setRGB(0.3, 0.08, 0.75); t.maxLen = 1.2 + .3 * esz; t.wobble = 0; t.mesh.visible=false; }
+    else { U.uHot.value.copy(t.base).multiplyScalar(0.18 * r.thr); U.uColor.value.copy(t.base).multiplyScalar(0.1 + r.thr * 0.16); U.uTail.value.copy(t.base).multiplyScalar(0.05); t.maxLen = 1.1 + 0.6 * r.thr; t.wobble = 0; t.mesh.visible=false; }
     updateTrail(t, _tp, (r.boost ? 0.11 : 0.045 + 0.02 * r.thr) * esz);
   }
   emitExhaust(r, dt);
@@ -2253,6 +2256,11 @@ function frame(now) {
   requestAnimationFrame(frame);
   if (!manualClock) advanceFrame(now);
 }
+// Presentation-only interpolation for the local slow-motion finish shot.
+const finishPoseCache=new Map();
+function captureFinishPoses(){for(const r of racers){let c=finishPoseCache.get(r);if(!c){c={prev:r.world.clone(),current:r.world.clone()};finishPoseCache.set(r,c);}c.prev.copy(r.world);}}
+function blendFinishPoses(alpha){for(const r of racers){const c=finishPoseCache.get(r);if(!c)continue;c.current.copy(r.world);r.world.lerpVectors(c.prev,c.current,alpha);}}
+function restoreFinishPoses(){for(const[r,c]of finishPoseCache)r.world.copy(c.current);}
 let fxLowT = 0, fxHighT = 0, fxFallbacks = 0;
 function advanceFrame(now, render = true) {
   document.body.classList.toggle('racing', state === 'race' || state === 'countdown');
@@ -2278,10 +2286,13 @@ function advanceFrame(now, render = true) {
   if (MP.race) { const tn = performance.now(); if (mpLastRender && mpRenderGaps.length < 50000) mpRenderGaps.push(tn - mpLastRender); mpLastRender = tn; mpRenderN++; if (MP.net && MP.net.isWorker && (mpRenderN & 15) === 0) MP.net.refreshState(); mpFrame(wall, Math.min(wall, clock.maxCatchUp), now); if (render && !(DEBUG && window.__ngRenderEvery > 1 && (mpRenderN % window.__ngRenderEvery))) renderNow(); return; }
   const adv = clock.advance(wall, ts);
   if (adv.stalled) onStall(wall);
-  for (let i = 0; i < adv.steps; i++) sim.step(adv.h);
-  gameTime = sim.time;
-  update(adv.simDt, Math.min(wall, clock.maxCatchUp));
-  if (render) renderNow();
+  const smoothFinish=state==='finished'&&FIN.on&&FIN.t<3.4;
+  if(!smoothFinish)finishPoseCache.clear();
+  for(let i=0;i<adv.steps;i++){if(smoothFinish)captureFinishPoses();sim.step(adv.h);}
+  gameTime=sim.time;
+  if(smoothFinish)blendFinishPoses(Math.max(0,Math.min(1,clock.acc/adv.h)));
+  try{update(adv.simDt,Math.min(wall,clock.maxCatchUp));if(render)renderNow();}
+  finally{if(smoothFinish)restoreFinishPoses();}
 }
 // Gaps >= 1 s are never simulated (counted as dropped). A running race is additionally
 // auto-paused when the gap is long enough to be a suspension (>= 3 s) rather than a hitch.
@@ -2941,7 +2952,7 @@ if (DEBUG) {
     get timings() { return Object.fromEntries(performance.getEntriesByType('mark').filter(m => m.name.startsWith('ng:')).map(m => [m.name, Math.round(m.startTime)])); },
     qa: { open: qaOpen, garageNext: qaGarageNext, boostDemo: () => { touch(); qaBoostDemo(false); }, invertedDemo: () => { touch(); qaBoostDemo(true); }, exit: toGarage, select: (k, p) => { if (p != null) GAR.paint = p; selectCar(k); } }
   };
-  window.__ng = { GAR, simCore: sim, records, rain, rainMat, shelterAt: (x, z) => (SHELTER_MAP ? shelterTop(SHELTER_MAP, x, z) : null), get state() { return state; }, get player() { touch(); return player; }, racers, drones, camera, scene, renderer, get fps() { return lastFps; }, keys, get MAIN() { return MAIN; }, get BR() { return BR; }, get SAm() { return SAm; }, get SBm() { return SBm; }, get map() { return MAPKEY; }, switchMap, get lastDispose() { return lastDispose; }, get worldChildren() { return WORLD.children.length; },
+  window.__ng = { auditBuildings(){const hits=[];for(const [label,list]of[['ground',bList],['hanging',hList]])for(let k=0;k<list.length;k++){const b=list[k];for(const path of[MAIN,...(HASBR?[BR]:[])]){let hit=false;for(let i=0;i<path.N&&!hit;i+=2){const w=path===BR?WB:Math.max(path.WL[i],path.WR[i]);for(const d of[-w,0,w]){const p=path.P[i],u=path.U[i],r=path.R[i],x=p.x+r.x*d,y=p.y+r.y*d,z=p.z+r.z*d;if(Math.abs(x-b.x)<b.w/2+1&&Math.abs(z-b.z)<b.d/2+1&&y>b.y0-2&&y<b.y0+b.h+2){hits.push({label,k,s:i*path.ds,branch:path===BR,x:b.x,z:b.z,y0:b.y0,h:b.h});hit=true;break;}}}if(hit)break;}}return hits;}, GAR, simCore: sim, records, rain, rainMat, shelterAt: (x, z) => (SHELTER_MAP ? shelterTop(SHELTER_MAP, x, z) : null), get state() { return state; }, get player() { touch(); return player; }, racers, drones, camera, scene, renderer, get fps() { return lastFps; }, keys, get MAIN() { return MAIN; }, get BR() { return BR; }, get SAm() { return SAm; }, get SBm() { return SBm; }, get map() { return MAPKEY; }, switchMap, get lastDispose() { return lastDispose; }, get worldChildren() { return WORLD.children.length; },
     // deterministic stepping for tests: n frames of 1/60 s (2 fixed steps each)
     sim(sec) { touch(); RDT = 0; const n = Math.round(sec * 60); for (let i = 0; i < n; i++) { sim.step(SIM_DT); sim.step(SIM_DT); gameTime = sim.time; update(1 / 60, 1 / 60); } },
     // manual wall clock: drive the real frame path with synthetic frame gaps (low FPS / stalls)
