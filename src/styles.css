@@ -545,3 +545,24 @@ body.touchmode.racing #fireWeapon.target{border-color:#fff2b0;box-shadow:0 0 14p
 /* Mirrored thumb controls. Brake is inset beside steering; Boost sits above each corner. */
 body.touchmode #touch .brake-right{left:auto;right:calc(90px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));width:48px;height:48px;font-size:10px;border-radius:14px}
 body.touchmode #touch .boost-left{right:auto;left:calc(16px + env(safe-area-inset-left));bottom:calc(90px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:12px;border-radius:50%}
+
+/* R4.1: six circuits must not push Race beyond a laptop's right edge.
+   Desktop setup scrolls independently; the action column never scrolls away.
+   display:contents leaves the existing touch/landscape layout unchanged. */
+.goptions{display:contents}
+body:not(.touchmode) #gBar{display:grid;grid-template-columns:minmax(0,1fr) 180px;align-items:end;gap:24px;padding:36px 24px 20px;max-height:calc(100vh - 80px);max-height:calc(100dvh - 80px)}
+body:not(.touchmode) .goptions{display:grid;grid-template-columns:minmax(180px,280px) minmax(120px,180px) minmax(0,1fr);gap:24px;align-items:end;min-width:0;min-height:0;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:4px 4px 8px}
+body:not(.touchmode) .goptions .gcar{width:100%;min-width:0}
+body:not(.touchmode) .goptions .seg{flex-wrap:wrap}
+body:not(.touchmode) #gBar .ggo{position:sticky;bottom:0;align-self:end;min-width:0;margin:0;padding:8px 0;background:linear-gradient(0deg,rgba(4,3,10,.96),rgba(4,3,10,.72));z-index:1}
+body:not(.touchmode) #gBar #go{white-space:normal;min-height:52px}
+@media (max-width:1100px){
+ body:not(.touchmode) .goptions{grid-template-columns:minmax(0,1fr) minmax(120px,180px);gap:14px 20px}
+ body:not(.touchmode) .goptions .gmap{grid-column:1/-1}
+}
+@media (max-width:650px){
+ body:not(.touchmode) #gBar{grid-template-columns:minmax(0,1fr);gap:8px;padding:16px 14px 10px}
+ body:not(.touchmode) .goptions{max-height:calc(100vh - 245px);max-height:calc(100dvh - 245px)}
+ body:not(.touchmode) #gBar .ggo{width:100%;padding:4px 0}
+ body:not(.touchmode) #gBar #go{min-height:44px;padding:10px 0}
+}
