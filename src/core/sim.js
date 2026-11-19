@@ -9,7 +9,7 @@ import { createCombat, resetWeaponRacer, buildWeaponBoxes, newWeaponState } from
 import { Vec3 } from './vec.js';
 import { clamp, lerp, mod, wrapA, damp, fmtTime, sstep } from './math.js';
 import { paceFor, FASTEST_MOD } from './pace.js';
-import { buildHazards, buildRacePads, HAZ, gapS } from './hazards.js';
+import { buildHazards, buildRacePads, HAZ, gapS, padContact } from './hazards.js';
 import { updateCatchup } from './catchup.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
 
@@ -544,19 +544,19 @@ export function createSim({ seed = 4242, events = null } = {}) {
     }
     if (closing >= 1.5 && !(r.obT > 0)) { r.obT = HAZ.OB_DEBOUNCE; ev.racer('obstacle', r, closing); if (isFocus(r)) ev.obstacleHit(r, closing, o); }
   }
-  // pads: claimed in seat order (deterministic); one power of each kind at a time, per-racer cooldown
+  // Arrow boost pads are permanent zones, granted once per racer entry. Only
+  // collectible bottles/shields have a shared respawn; a rival cannot consume arrows.
   function claimPads() {
     for (const r of sim.racers) {
       if (r.crashed > 0 || r.finished || r.h > H0 + 2.5) continue;
       r.padTouch ||= {};
       for (const [padId,p] of sim.pads.entries()) {
-        const inside=r.path===(p.br?BR:MAIN)&&Math.abs(p.br?r.s-p.s:gapS(r.s,p.s,MAIN.L))<HAZ.PAD_HALF_LEN&&Math.abs(p.d-r.d)<HAZ.PAD_HALF_W+.6;
+        const inside=r.path===(p.br?BR:MAIN)&&padContact(p,r,MAIN.L);
         const was=r.padTouch[padId];if(inside)r.padTouch[padId]=true;else delete r.padTouch[padId];
         if(!inside||was)continue;
-        if (p.readyAt > sim.time || (p.kind==='S' && r.powCD>0)) continue;
+        if ((p.kind!=='B' && p.readyAt > sim.time) || (p.kind==='S' && r.powCD>0)) continue;
         if (p.kind === 'S' && r.shieldT > 0) continue;
-        if (Math.abs(p.br?r.s-p.s:gapS(r.s, p.s, MAIN.L)) >= HAZ.PAD_HALF_LEN || Math.abs(p.d - r.d) >= HAZ.PAD_HALF_W + 0.6) continue;
-        p.readyAt = sim.time + HAZ.PAD_RESPAWN; if(p.kind!=='R')r.powCD = HAZ.CLAIM_COOLDOWN;
+        p.readyAt = p.kind==='B' ? 0 : sim.time + HAZ.PAD_RESPAWN; if(p.kind!=='R')r.powCD = HAZ.CLAIM_COOLDOWN;
         if(p.kind==='R'){r.meter=Math.min(1,r.meter+HAZ.BOOST_REFILL);r.boostLock=false;}else if (p.kind === 'S') { r.shieldT = HAZ.SHIELD_TIME; r.passT = 0; } else { r.surgeT = Math.min(HAZ.SURGE_TIME*2,r.surgeT+HAZ.SURGE_TIME); r.meter = Math.min(1, r.meter + HAZ.BOOST_REFILL); r.boostLock = false; }
         ev.racer('pickup', r, p.kind); if (isFocus(r)) ev.pickup(r, p.kind);
         break;
@@ -748,7 +748,9 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (v === Infinity) return { $inf: 1 }; if (v === -Infinity) return { $inf: -1 };
     if (v instanceof Vec3) return { $v: [v.x, v.y, v.z] };
     if (v === MAIN) return { $path: 'main' }; if (BR && v === BR) return { $path: 'branch' };
-    if (Array.isArray(v)) return v.map(enc);
+    // JSON encodes array holes/undefined as null. Canonicalize them before
+    // transport so a local snapshot and its JSON round-trip compare equally.
+    if (Array.isArray(v)) return Array.from(v, x => x === undefined ? null : enc(x));
     if (v && typeof v === 'object') { const o = {}; for (const k in v) if (typeof v[k] !== 'function') o[k] = enc(v[k]); return o; }
     return v;
   };

@@ -10,7 +10,7 @@ export const HAZ = {
   CAR_HALF_LEN: 2.6, CAR_HALF_W: 1.4,                  // racer contact box (same as the drone model)
   OB_SPEED_KEEP: 0.6, OB_MAX_LOSS: 35, OB_GLANCE: 6, OB_DEBOUNCE: 0.5,
   START_CLEAR: 300, SEAM_CLEAR: 100, RUNUP: 120, RUNUP_K: 1 / 260, MIN_UPY: 0.8, OB_SPACING: 180, PAD_CLEAR: 80,
-  PAD_HALF_LEN: 5.0, PAD_HALF_W: 3.4, PAD_RESPAWN: 1.5, CLAIM_COOLDOWN: 1.5,
+  PAD_HALF_LEN: 5.0, PAD_HALF_W: 3.4, BOOST_PAD_HALF_LEN: 10, PAD_VISUAL_HALF_W: 2.8, PAD_RESPAWN: 1.5, CLAIM_COOLDOWN: 1.5,
   SHIELD_TIME: 15, SHIELD_PASS: 0.4, SURGE_TIME: 1.8, BOOST_REFILL: 0.35,
   DRONE_HOP: 2.8, DRONE_HOP_RANGE: 9
 };
@@ -109,3 +109,12 @@ export const encodePads = (pads, t) => pads.map(p => (p.readyAt > t ? Math.round
 export function applyPads(pads, enc, t) { if (!Array.isArray(enc)) return; for (let k = 0; k < pads.length && k < enc.length; k++) pads[k].readyAt = enc[k] > 0 ? t + enc[k] : 0; }
 // power flags for remote-car presentation: 1 = shield armed, 2 = surge active
 export const powerFlags = r => ((r.shieldT > 0 ? 1 : 0) | (r.surgeT > 0 ? 2 : 0) | (r.empT > 0 ? 4 : 0) | (r.slowT > 0 ? 8 : 0) | (r.wImmT > 0 ? 16 : 0));
+
+// Collection must include the drawn pad and any overlap of the vehicle footprint.
+// B decals are 20m long, S decals 10m. R keeps its existing generous canister zone.
+export function padContact(p, r, mainLength) {
+ const ds = p.br ? r.s - p.s : gapS(r.s, p.s, mainLength);
+ const halfLength = p.kind === 'B' ? HAZ.BOOST_PAD_HALF_LEN : HAZ.PAD_HALF_LEN;
+ const halfWidth = p.kind === 'R' ? HAZ.PAD_HALF_W : HAZ.PAD_VISUAL_HALF_W;
+ return Math.abs(ds) < halfLength + HAZ.CAR_HALF_LEN && Math.abs(p.d - r.d) < halfWidth + HAZ.CAR_HALF_W;
+}

@@ -2,8 +2,8 @@
 // clients running ahead of the server by their adaptive input lead). Two scripted humans drive the identical
 // symmetric line (grid slots +-4.4 m, same throttle) onto the SAME pads, so both predict the claim:
 //   row at Velocity 363 m (B S B): both aim at the centre SHIELD pad; row at 1736 m (S B S): centre BOOST pad.
-// Server rule under test: claims are resolved in seat order inside one 120 Hz step, so an exact tie goes to the
-// EARLIER SEAT (the host, seat 0, here). That is a deterministic tiebreak, not a random or "fair" one.
+// Server rule under test: shield claims are resolved in seat order inside one 120 Hz step, so an exact tie goes to the
+// EARLIER SEAT (the host, seat 0, here). Boost arrows are permanent and grant both racers in R4.1.
 // Also exercised by the humans: H0 drives its shield into the 794 m obstacle (shield consumed over the network),
 // H1 drives into the 976 m obstacle (bounded penalty). Then H1's socket is killed (auto-reconnect), the race is
 // finished, the room goes back to the lobby and a rematch must start with every power and pad cleared.
@@ -116,13 +116,12 @@ test('contested shield + boost pads, shield vs obstacle, reconnect and rematch o
     for (const k of [0, 1]) for (const kind of ['S', 'B']) assert.equal(fires[k].filter(f => f[0] === kind).length, all(k, kind), `H${k} ${kind}: one confirmed message per server claim (no false, no duplicate after reconnect)`);
     assert.equal(fires[1].filter(f => f[0] === 'S' && f[1] === 0).length, 0, 'contest loser H1: zero positive SHIELD feedback on lap 1 although it predicted the shield');
     assert.equal(fires[0].filter(f => f[0] === 'S' && f[1] === 0).length, 1, 'contest winner H0: exactly one SHIELD message on lap 1');
-    const bL = bClaims[0] ? 1 : 0; assert.equal(fires[bL].filter(f => f[0] === 'B' && f[1] === 0).length, 0, 'boost loser: zero OVERDRIVE feedback on lap 1');
+    for(const k of [0,1])assert.ok(fires[k].some(f=>f[0]==='B'&&f[1]===0),'permanent boost arrows confirm both racers');
     assert.equal(sClaims[0] + sClaims[1] >= 1, true, 'the shield pad was claimed');
     assert.equal(sClaims[1], 0, 'tie goes to the earlier seat (H0): H1 never got the contested shield');
     assert.ok(T.predClaim[1].S, 'H1 PREDICTED the shield (lead) before the server said no');
     assert.ok(T.flipMs[1].some(([k]) => k === 'S'), 'H1 prediction corrected back (shield removed)');
-    assert.equal(bClaims[0] + bClaims[1], 1, 'exactly one racer got the contested boost pad (lap 1)');
-    if (T.predClaim[0].B && T.predClaim[1].B) assert.ok(T.flipMs[bClaims[0] ? 1 : 0].some(([k]) => k === 'B'), 'the boost loser\'s prediction was corrected');
+    assert.ok(bClaims[0]>=1&&bClaims[1]>=1, 'both racers get permanent boost arrows (lap 1)');
     assert.ok((T.srvShieldUsed[ids[0]] || 0) >= 1, 'H0 shield consumed by the obstacle on the server');
     assert.ok((T.srvHits[ids[1]] || 0) >= 1, 'H1 hit the obstacle on the server');
     assert.equal(cl[0].results.order.filter(o => o.dnf).length, 0);

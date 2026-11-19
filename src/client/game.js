@@ -37,6 +37,7 @@ import { DRIVE_MODES } from '../core/pace.js';
 import { createTilt } from '../core/tilt.js';
 import { buildShelter, shelterTop } from '../core/shelter.js';
 import { buildClearance, groundHeightAt, worstClearance, GROUND_Y } from '../core/terrain.js';
+import { bodyLean, cameraLean } from './lean.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
 import { buildProcShip, shipStats } from './proc-ships.js';
@@ -1987,7 +1988,7 @@ function updateVisual(r, dt) {
   const sp = r.speed;
   const car = !sh.fallback && sh.kind === 'car';
   if (sh.mixer) sh.mixer.update(dt);
-  const rollT = (r.autopilot ? r.rollAI : r.steer * 0.34 * Math.min(1, sp / 40) - r.vl * 0.008) * (car ? 0.45 : 1);
+  const rollT = bodyLean(r, car);
   const pitchT = ((r.autopilot ? 0 : -r.acc * 0.0022) + r.vh * 0.02) * (car ? 0.6 : 1);
   r.roll = lerp(r.roll, rollT, damp(8, dt)); r.pitch = lerp(r.pitch, pitchT, damp(8, dt));
   _eb.set(r.pitch, 0, r.roll, 'YXZ'); _qb.setFromEuler(_eb);
@@ -2129,6 +2130,9 @@ function updateHUD(dt) {
 }
 function showResults() {
   if (MP.race) return mpShowResults();
+  $('nextMap').hidden = false;
+  $('nextMap').disabled = false;
+  $('nextMap').textContent = `NEXT MAP · ${MAPS[MAP_KEYS[(MAP_KEYS.indexOf(MAPKEY) + 1) % MAP_KEYS.length]].short}`;
   const ranks = sim.ranks();
   const p = ranks.indexOf(player) + 1;
   const el = $('resPos'); el.textContent = `P${p}`; el.dataset.t = `P${p}`;
@@ -2233,6 +2237,15 @@ $('menuLeave').addEventListener('click', () => {
 });
 $('go').addEventListener('click', () => { if (isPortrait()) return; if (TOUCH) requestLandscape(); startRace(); });
 $('again').addEventListener('click', () => { $('again').blur(); restart(); });
+$('nextMap').addEventListener('click', async () => {
+  if (MP.race || (MP.net && MP.net.room) || state !== 'finished' || $('nextMap').disabled) return;
+  $('nextMap').disabled = true;
+  const next = MAP_KEYS[(MAP_KEYS.indexOf(MAPKEY) + 1) % MAP_KEYS.length];
+  toGarage();
+  await switchMap(next, true, 0);
+  await ensureRaceAssets(GAR.sel);
+  if (state === 'title' && MAPKEY === next) startRace();
+});
 $('toGarage').addEventListener('click', () => { $('toGarage').blur(); if (MP.race) mpEndRaceView(); else toGarage(); });
 $('prevCar').addEventListener('click', () => cycleCar(-1));
 $('nextCar').addEventListener('click', () => cycleCar(1));
@@ -2403,7 +2416,7 @@ function update(dt, dt0) {
   } else {
     chaseTarget(dt, state === 'countdown', _cp, _cl, _cu); CC.pos.copy(_cp); CC.look.copy(_cl);
     CC.up.lerp(_cu, damp(state === 'countdown' ? 20 : 7, dt)).normalize(); s01c = s01;
-    CC.roll = lerp(CC.roll, clamp(player.yawV * 0.05 * s01, -0.12, 0.12), damp(5, dt));
+    CC.roll = lerp(CC.roll, cameraLean(player.yawV, s01), damp(5, dt));
   }
   if(rearViewHeld&&state==='race'&&!paused&&!(player.crashed>0)){const f=frameAt(player.path,player.s,_fc);CC.pos.copy(player.world).addScaledVector(f.T,8).addScaledVector(f.U,2.6);CC.look.copy(player.world).addScaledVector(f.T,-18).addScaledVector(f.U,.6);CC.up.copy(f.U);CC.roll=0;}
   CC.kick = lerp(CC.kick, 0, damp(3, dt));
@@ -2939,6 +2952,7 @@ function mpShowResults() {
   $('resTable').innerHTML = h;
   $('resLaps').innerHTML = player.lapTimes.map((t, k) => `LAP ${k + 1} ${fmt(t)}`).join(' &nbsp;·&nbsp; ') + '<br><span style="color:rgba(232,246,255,.5)">Multiplayer races never change single-player records.</span>';
   $('toGarage').textContent = 'BACK TO LOBBY';
+  $('nextMap').hidden = true;
 }
 const escHtml = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function mpEndRaceView() {

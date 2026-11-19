@@ -4,6 +4,7 @@
 // icon, boost icon); a taken pad hides its icon and dims its decal (instance scale/colour only, no new objects).
 // Shield bubbles: one shared geometry/material, a mesh is attached to a car only while it holds a shield.
 import * as THREE from 'three';
+import { HAZ } from '../core/hazards.js';
 
 const _m = new THREE.Matrix4(), _s = new THREE.Vector3(), _x = new THREE.Vector3(), _c = new THREE.Color();
 function placeMat(M, s, d, h, sx, sy, sz, out = _m, yaw = 0) {
@@ -78,14 +79,14 @@ export function createHazardVis({ WORLD, sim, radialTex }) {
   function update(t) {
     const now = sim.time;
     pads.forEach((p, k) => {
-      const ready = !(p.readyAt > now), S = p.kind === 'S', j = slot[k];
+      const ready = p.kind === 'B' || !(p.readyAt > now), S = p.kind === 'S', j = slot[k];
       if(p.kind==='R'){
         const P=p.br?sim.track.BR:M,sc=ready?1:0.0001;refill.setMatrixAt(j,placeMat(P,p.s,p.d,1.45+.15*Math.sin(t*3+k),sc,sc,sc,_m,t+k));
         ring.setMatrixAt(j,placeMat(P,p.s,p.d,.35,sc,sc,sc));return;
       }
       const dm = S ? decal : decalB, im = S ? iconS : null, col = p.extra ? PAD_COL.green : PAD_COL[p.kind];
       const pulse = ready ? 0.9 + 0.1 * Math.sin(t * 5 + k) : 0.15;
-      dm.setMatrixAt(j, placeMat(M, p.s, p.d, 0.12, 5.6, 1, S ? 10 : 20,_m,S?0:Math.PI)); _c.copy(col).multiplyScalar(pulse * 1.8); dm.setColorAt(j, _c);
+      dm.setMatrixAt(j, placeMat(M, p.s, p.d, 0.12, 2 * HAZ.PAD_VISUAL_HALF_W, 1, 2 * (S ? HAZ.PAD_HALF_LEN : HAZ.BOOST_PAD_HALF_LEN),_m,S?0:Math.PI)); _c.copy(col).multiplyScalar(pulse * 1.8); dm.setColorAt(j, _c);
       const sc = ready ? 1.6 : 0.0001;
       if(im)im.setMatrixAt(j, placeMat(M, p.s, p.d, 1.7 + 0.25 * Math.sin(t * 2.4 + k), sc, sc, sc, _m, t * 2.2 + k));
       if (shown[k] !== ready) shown[k] = ready;

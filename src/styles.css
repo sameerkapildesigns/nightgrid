@@ -566,3 +566,7 @@ body:not(.touchmode) #gBar #go{white-space:normal;min-height:52px}
  body:not(.touchmode) #gBar .ggo{width:100%;padding:4px 0}
  body:not(.touchmode) #gBar #go{min-height:44px;padding:10px 0}
 }
+/* Keep the new solo results action reachable on short windows too. */
+#results .card{max-height:calc(100vh - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;box-sizing:border-box}
+#nextMap{display:block;width:100%;min-height:44px;margin:10px auto 0}
+#nextMap[hidden]{display:none}

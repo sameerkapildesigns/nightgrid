@@ -9,7 +9,7 @@ for(const map of maps)test(`${map}: seed chooses safe, repeatable extra gold pad
  assert.deepEqual(a,b);assert.notDeepEqual(extra,c.filter(p=>p.extra));assert.ok(extra.length>=3&&extra.length<=6);assert.equal(s.track.hazards.pads.length,base);assert.equal(s.rngState,rng);
  for(const p of extra){assert.equal(p.kind,'B');assert.ok(okStation(s.track,Math.round(p.s/s.track.MAIN.ds),{pad:true}));assert.ok(Math.abs(p.d)<=s.track.W0/2);for(const q of extra)if(q!==p)assert.ok(Math.abs(gapS(p.s,q.s,s.track.MAIN.L))>=180);for(const q of s.weaponBoxes)assert.ok(Math.abs(gapS(p.s,q.s,s.track.MAIN.L))>=65);}
 });
-for(const kind of['B','R','S'])test(`${kind}: respawns in1.5s, no parked farming, fresh entry can collect`,()=>{
+for(const kind of['R','S'])test(`${kind}: respawns in1.5s, no parked farming, fresh entry can collect`,()=>{
  const s=setup(),p=s.pads.find(p=>p.kind===kind);s.pads=[p];at(s,p);s.player.meter=0;s.step(dt);assert.ok(p.readyAt>s.time);assert.ok(Math.abs(p.readyAt-s.time-1.5)<dt);
  const taken=p.readyAt;for(let i=0;i<220;i++){at(s,p);s.player.shieldT=0;s.step(dt);}assert.equal(p.readyAt,taken,'waiting inside never claims twice');
  at(s,{s:p.s+30,d:p.d});s.step(dt);at(s,p);s.step(dt);assert.ok(p.readyAt>taken,'exit and return collects');

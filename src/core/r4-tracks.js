@@ -19,7 +19,7 @@ export function buildVelocityR4(){
   const barrel=a.find(p=>p.len===250&&!p.pitch&&p.sec===2);barrel.roll=PI*2;barrel.len=170;
   const raw=TRK.turtle(a,{p:[0,0,0],psi:0});
   let offset=0;
-  for(const pc of a){const n=Math.ceil(pc.len/.25);if(pc.yaw){const bank=Math.sign(pc.yaw)*Math.min(.4,Math.abs(pc.yaw)*.2);for(let k=0;k<n;k++){const d=raw.out[offset+k],prev=raw.out[Math.max(0,offset+k-1)],next=raw.out[Math.min(raw.out.length-1,offset+k+1)],t=TRK.v.norm(TRK.v.sub(next.p,prev.p)),ang=bank*Math.sin(PI*(k+.5)/n)**2;d.U=TRK.v.norm(TRK.v.add(TRK.v.mul(d.U,Math.cos(ang)),TRK.v.mul(TRK.v.cross(t,d.U),Math.sin(ang))));}}offset+=n;}
+  for(const pc of a){const n=Math.ceil(pc.len/.25);if(pc.yaw){const bank=-Math.sign(pc.yaw)*Math.min(.5,Math.abs(pc.yaw)*.32);for(let k=0;k<n;k++){const d=raw.out[offset+k],prev=raw.out[Math.max(0,offset+k-1)],next=raw.out[Math.min(raw.out.length-1,offset+k+1)],t=TRK.v.norm(TRK.v.sub(next.p,prev.p)),ang=bank*Math.sin(PI*(k+.5)/n)**2;d.U=TRK.v.norm(TRK.v.add(TRK.v.mul(d.U,Math.cos(ang)),TRK.v.mul(TRK.v.cross(t,d.U),Math.sin(ang))));}}offset+=n;}
   const main=TRK.finalize([{p:[0,0,0],U:[0,1,0],sec:0,w:14,tag:0},...raw.out.slice(0,-1)],true);main.marks={};return{main,branch:null};
 }
 
