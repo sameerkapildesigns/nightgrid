@@ -4,7 +4,7 @@ import { nearestOk, buildHazards, gapS, HAZ } from './hazards.js';
 import { mod, clamp } from './math.js';
 
 export const WPN = Object.freeze({
-  COLD_TIME: 5, COLD_DIST: 250, BOX_COOLDOWN: 10, PICKUP_GUARD: .3, FIRE_COOLDOWN: 1,
+  COLD_TIME: 5, COLD_DIST: 250, BOX_COOLDOWN: 1.5, PICKUP_GUARD: .3, FIRE_COOLDOWN: 1,
   IMMUNITY: 1.5, ARM: 1.25, MISSILE_LIFE: 3.5, MIN_LOCK: 15, MAX_LOCK: 150,
   MISSILE_GAIN: 45, TURN_SPEED: 6, MISSILE_LOSS: .20, MISSILE_MAX_LOSS: 18, MISSILE_RAMP: .25,
   MAX_MISSILES: 20, MAX_MINES: 20, MAX_EVENTS: 256, MAX_ACTIONS: 4, LATE_STEPS: 30, AHEAD_STEPS: 360,
@@ -61,7 +61,7 @@ export function buildWeaponBoxes(td) {
   td.weaponBoxes=boxes; return boxes;
 }
 export function resetWeaponRacer(r) {
-  Object.assign(r,{wpn:0,wpnAt:0,fireCD:0,wImmT:0,empT:0,slowT:0,slowRate:0,wBoxAt:[],lockId:null,lastAid:0,aLog:[],wAIAt:0,wNetLead:0,wThreats:0,wLastHit:-1e9,wStartProg:null,wDistance:0});
+  Object.assign(r,{wpn:0,wpnAt:0,fireCD:0,wImmT:0,empT:0,slowT:0,slowRate:0,wBoxAt:[],wBoxTouch:[],lockId:null,lastAid:0,aLog:[],wAIAt:0,wNetLead:0,wThreats:0,wLastHit:-1e9,wStartProg:null,wDistance:0});
 }
 export function softLock(sim,r) {
   let target=null, best=Infinity;
@@ -169,10 +169,13 @@ export function createCombat(sim, seed) {
   }
   function collect(){
     for(const r of sim.racers){
+      r.wBoxTouch ||= [];
+      const oldTouch=r.wBoxTouch.slice();
+      sim.weaponBoxes.forEach((b,i)=>{r.wBoxTouch[i]=pathId(sim,r.path)===b.path&&Math.abs(pathGap(r.path,b.s,r.s))<=4&&Math.abs(r.d-b.d)<=4&&Math.abs(r.h-1)<=3;});
       if(!activeRacer(r)||r.wpn||!hot(r)||r.h>3.5)continue;
       const prev=previous.get(r.id);if(!prev||prev.path!==r.path)continue;
       for(const [i,b]of sim.weaponBoxes.entries()){
-        if(pathId(sim,r.path)!==b.path||(r.wBoxAt[i]||0)>sim.time)continue;
+        if(oldTouch[i]||pathId(sim,r.path)!==b.path||(r.wBoxAt[i]||0)>sim.time)continue;
         const a=pathGap(r.path,b.s,prev.s),end=a+pathGap(r.path,prev.s,r.s);
         if(sweepBox([a,prev.d-b.d,prev.h-1],[end,r.d-b.d,r.h-1],[4.0,4.0,3.0])===null)continue;
         // One grant per row pass, even when a lateral sweep crosses both boxes.

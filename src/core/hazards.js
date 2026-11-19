@@ -1,16 +1,16 @@
-// M8 track hazards + pickups (pure, deterministic; no RNG, no Three.js).
-// Layout is derived ONLY from track geometry, so the room server, the client predictor and the renderer all
+// Track hazards + pickups (pure, deterministic, no Three.js).
+// Base layout comes from geometry; extra gold pads also use the shared race seed. Server, predictor and renderer all
 // build the identical list from the map key. Obstacles are static data checked like road traffic (no physics
 // bodies). Pickup pads are shared state owned by whoever runs the authoritative sim (the room server); clients
 // only predict and are overwritten by the server's pad state every tick.
-import { mod } from './math.js';
+import { mod,mulberry32 } from './math.js';
 
 export const HAZ = {
   OB_HALF_LEN: 1.2, OB_HALF_W: 1.6, OB_HEIGHT: 1.6,   // obstacle block (metres, track space)
   CAR_HALF_LEN: 2.6, CAR_HALF_W: 1.4,                  // racer contact box (same as the drone model)
   OB_SPEED_KEEP: 0.6, OB_MAX_LOSS: 35, OB_GLANCE: 6, OB_DEBOUNCE: 0.5,
   START_CLEAR: 300, SEAM_CLEAR: 100, RUNUP: 120, RUNUP_K: 1 / 260, MIN_UPY: 0.8, OB_SPACING: 180, PAD_CLEAR: 80,
-  PAD_HALF_LEN: 5.0, PAD_HALF_W: 3.4, PAD_RESPAWN: 6, CLAIM_COOLDOWN: 6,
+  PAD_HALF_LEN: 5.0, PAD_HALF_W: 3.4, PAD_RESPAWN: 1.5, CLAIM_COOLDOWN: 1.5,
   SHIELD_TIME: 15, SHIELD_PASS: 0.4, SURGE_TIME: 1.8, BOOST_REFILL: 0.35,
   DRONE_HOP: 2.8, DRONE_HOP_RANGE: 9
 };
@@ -86,6 +86,19 @@ export function buildHazards(td) {
   }
   if(td.HASBR)for(let s=55;s<td.BR.L-40;s+=150)for(const offset of[0,14])pads.push({s:s+offset,d:0,kind:'R',br:true,row:99+Math.floor(s/150)});
   return (td.hazards = { obstacles: obs, pads });
+}
+// Race-seeded extra gold pads. Own local RNG never consumes the physics/AI stream.
+// Original obstacles, defensive rows and canisters are unchanged.
+export function buildRacePads(td,seed=4242,boxes=[]){
+  const base=buildHazards(td),pads=base.pads.map(p=>({...p})),M=td.MAIN;
+  const rnd=mulberry32((seed|0)^0x42b0a57),candidates=[];
+  const avoid=base.obstacles.map(o=>({s:o.s,c:80})).concat(base.pads.filter(p=>!p.br).map(p=>({s:p.s,c:p.kind==='R'?20:65})),boxes.map(p=>({s:p.s,c:65})));
+  for(let i=0;i<M.N;i+=15)if(okStation(td,i,{pad:true,avoid}))candidates.push(i);
+  for(let i=candidates.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+  const placed=[];
+  for(const i of candidates){const s=i*M.ds;if(placed.some(v=>Math.abs(gapS(v,s,M.L))<180))continue;
+    const d=(rnd()*2-1)*Math.min(M.W[i]*.5,5);pads.push({s,d,kind:'B',row:200+placed.length,extra:true});placed.push(s);if(placed.length>=6)break;}
+  return pads;
 }
 // signed shortest along-track gap b - a on a closed loop of length L
 export const gapS = (a, b, L) => { let g = b - a; if (g > L / 2) g -= L; if (g < -L / 2) g += L; return g; };

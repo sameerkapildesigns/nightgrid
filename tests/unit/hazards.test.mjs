@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createSim } from '../../src/core/sim.js';
 import { SIM_DT } from '../../src/core/clock.js';
 import { buildTrackData, MAP_KEYS, S0 } from '../../src/core/maps.js';
-import { buildHazards, HAZ, gapS, encodePads, applyPads, powerFlags } from '../../src/core/hazards.js';
+import { buildHazards,buildRacePads, HAZ, gapS, encodePads, applyPads, powerFlags } from '../../src/core/hazards.js';
 import { decodeFrame, encodeFrame, compactRacer, expandRacer } from '../../src/net/protocol.js';
 import { Predictor } from '../../src/net/netcode.js';
 
@@ -122,12 +122,12 @@ test('self-boost: surge forces boost for SURGE_TIME without draining the meter; 
   assert.equal(powerFlags({ shieldT: 1, surgeT: 0 }), 1); assert.equal(powerFlags({ shieldT: 0, surgeT: 1 }), 2);
 });
 
-test('bots dodge obstacles (8 bots, full race, every map) and keep their pace', () => {
+test('bots dodge obstacles (8 bots, full race, every map) without pickups and keep their pace', () => {
   for (const map of MAP_KEYS) {
     const out = {};
     for (const haz of [false, true]) {
       let hits = 0; const sim = createSim({ seed: 7, events: { racer: k => { if (k === 'obstacle') hits++; } } });
-      sim.setTrack(map); sim.hazards = haz; sim.ghost = true;
+      sim.setTrack(map);sim.pads.length=0; sim.hazards = haz; sim.ghost = true;
       sim.addSeats(Array.from({ length: 8 }, (_, k) => ({ id: 'b' + k, kind: 'bot' })), null); sim.startRace();
       let t = 0; while (sim.finishOrder.length < 8 && t < 600) { sim.step(SIM_DT); t += SIM_DT; }
       assert.equal(sim.finishOrder.length, 8, map + ' all finish');
@@ -163,7 +163,7 @@ test('snapshot: hazards flag + pad state + racer power fields survive export/imp
   };
   const a = run(-1), b = run(37);
   assert.equal(a, b);
-  const sn = JSON.parse(a); assert.equal(sn.hazards, true); assert.equal(sn.pads.length, buildHazards(buildTrackData('velocity')).pads.length);
+  const sn = JSON.parse(a); assert.equal(sn.hazards, true); assert.equal(sn.pads.length, (()=>{const t=createSim({seed:21});t.setTrack('velocity');return t.pads.length;})());
   assert.ok('shieldT' in sn.racers[0] && 'surgeT' in sn.racers[0]);
 });
 

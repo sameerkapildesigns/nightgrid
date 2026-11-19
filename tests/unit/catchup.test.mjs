@@ -11,10 +11,10 @@ const mk = () => new Vec3();
 const P = CATCHUP.progPerSec;
 
 test('multiplier: none near the pack, smooth ramp, hard cap', () => {
-  for (const g of [-30, -1, 0, 2, 5.99, CATCHUP.startSec]) assert.equal(catchupMul(g), 1, `gap ${g}`);
+  for (const g of [-30, -1, 0, 2, CATCHUP.startSec-.01, CATCHUP.startSec]) assert.equal(catchupMul(g), 1, `gap ${g}`);
   assert.ok(catchupMul(CATCHUP.startSec + 0.01) > 1);
   assert.equal(catchupMul(CATCHUP.fullSec), 1 + CATCHUP.maxCap);
-  for (const g of [20, 60, 1e6, Infinity]) assert.equal(catchupMul(g), 1 + CATCHUP.maxCap, `cap at ${g}`);
+  for (const g of [CATCHUP.fullSec, 60, 1e6, Infinity]) assert.equal(catchupMul(g), 1 + CATCHUP.maxCap, `cap at ${g}`);
   let prev = 1;
   for (let g = 0; g <= 30; g += 0.25) { const m = catchupMul(g); assert.ok(m >= prev && m <= 1 + CATCHUP.maxCap); prev = m; }
   assert.equal(catchupMul(NaN), 1);
@@ -45,9 +45,9 @@ test('eligibility: solo only; rooms (ghost), opt-out and multi-human sims get no
 });
 
 test('update: behind gets the capped boost and taints the lap; near and ahead get none', () => {
-  const far = fake({ gap: 20 }); updateCatchup(far);
+  const far = fake({ gap: CATCHUP.fullSec }); updateCatchup(far);
   assert.equal(far.racers[0].catchMul, 1 + CATCHUP.maxCap); assert.equal(far.racers[0].lapIntegrity.assist, true);
-  const near = fake({ gap: 4 }); updateCatchup(near);
+  const near = fake({ gap: CATCHUP.startSec }); updateCatchup(near);
   assert.equal(near.racers[0].catchMul, 1); assert.notEqual(near.racers[0].lapIntegrity.assist, true);
   const ahead = fake({ gap: -10 }); updateCatchup(ahead);
   assert.equal(ahead.racers[0].catchMul, 1);

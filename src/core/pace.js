@@ -14,11 +14,11 @@ export const MODE = {
 // curvature-based corner speed v = sqrt(A / k) (AI targets, Assisted corner easing).
 // Tight-corner targets (km/h) at each map's tightest curvature: see PACE_TARGETS.
 export const PACE = {
-  velocity: { assisted: { kmh: [240, 300], cornerA: 64 }, expert: { kmh: [310, 380], cornerA: 104 } },
-  technical: { assisted: { kmh: [180, 225], cornerA: 54 }, expert: { kmh: [240, 300], cornerA: 95 } },
-  casino: { assisted: { kmh: [210, 265], cornerA: 60 }, expert: { kmh: [280, 350], cornerA: 100 } },
-  summit: { assisted: { kmh: [205, 260], cornerA: 62 }, expert: { kmh: [275, 340], cornerA: 103 } },
-  legacy: { assisted: { kmh: [210, 260], cornerA: 67 }, expert: { kmh: [280, 345], cornerA: 115 } }
+  velocity: { assisted: { kmh: [240, 315], cornerA: 64 }, expert: { kmh: [310, 400], cornerA: 104 } },
+  technical: { assisted: { kmh: [180, 235], cornerA: 54 }, expert: { kmh: [240, 315], cornerA: 95 } },
+  casino: { assisted: { kmh: [210, 280], cornerA: 60 }, expert: { kmh: [280, 370], cornerA: 100 } },
+  summit: { assisted: { kmh: [205, 275], cornerA: 62 }, expert: { kmh: [275, 355], cornerA: 103 } },
+  legacy: { assisted: { kmh: [210, 275], cornerA: 67 }, expert: { kmh: [280, 360], cornerA: 115 } }
 };
 export const PACE_TARGETS = {   // tight-corner speed ranges (km/h), user candidate hypotheses
   velocity: { assisted: [150, 180], expert: [190, 230] },

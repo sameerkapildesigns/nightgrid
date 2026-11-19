@@ -13,11 +13,13 @@
 // Pure module: no DOM, no Three.js.
 
 export const CATCHUP = Object.freeze({
-  startSec: 6,       // below this gap to the car ahead: no assist at all
-  fullSec: 14,       // at or beyond this gap: full assist
-  maxCap: 0.05,      // +5 % on the player's own speed caps, never more
+  startSec: 4,       // below this gap to the car ahead: no assist at all
+  fullSec: 20,       // at or beyond this gap: full assist
+  maxCap: 0.25,      // +25 % on the player's own speed caps, never more
   progPerSec: 62     // metres of progress per second of gap (same constant as the NPC rubber band)
 });
+
+export const CATCHUP_STANDARD=Object.freeze({startSec:6,fullSec:30,maxCap:.15,progPerSec:62});
 
 const clamp01 = x => (x < 0 ? 0 : x > 1 ? 1 : x);
 
@@ -49,12 +51,15 @@ export function catchupEligible(sim) {
 }
 
 // Per-step update (called by sim.step while racing). Writes r.catchMul on human racers.
-export function updateCatchup(sim, cfg = CATCHUP) {
+export function updateCatchup(sim, cfg = null) {
+  cfg ||= sim.catchupStyle==='standard'?CATCHUP_STANDARD:CATCHUP;
   const on = catchupEligible(sim);
   for (const r of sim.racers) {
     if (r.isAI) continue;
-    const m = on && !r.finished && !r.autopilot && !(r.crashed > 0) ? catchupMul(gapToCarAhead(sim.racers, r, cfg), cfg) : 1;
+    const gap=gapToCarAhead(sim.racers,r,cfg);
+    const m = on && !r.finished && !r.autopilot && !(r.crashed > 0) ? catchupMul(gap, cfg) : 1;
     r.catchMul = m;
     if (m > 1 && r.lapIntegrity) r.lapIntegrity.assist = true;
+    if(m>1&&gap>=12&&Number.isFinite(sim.time)&&Number.isFinite(r.meter)&&r.meter<.999&&!(r.recoveryBoostAt>sim.time)){r.meter=Math.min(1,r.meter+.25);r.boostLock=false;r.recoveryBoostAt=sim.time+8;sim.events?.recoveryBoost?.(r);}
   }
 }

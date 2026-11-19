@@ -9,7 +9,7 @@ import { createCombat, resetWeaponRacer, buildWeaponBoxes, newWeaponState } from
 import { Vec3 } from './vec.js';
 import { clamp, lerp, mod, wrapA, damp, fmtTime, sstep } from './math.js';
 import { paceFor, FASTEST_MOD } from './pace.js';
-import { buildHazards, HAZ, gapS } from './hazards.js';
+import { buildHazards, buildRacePads, HAZ, gapS } from './hazards.js';
 import { updateCatchup } from './catchup.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
 
@@ -40,7 +40,7 @@ export function gridSlots(n, W0) {
   return out;
 }
 
-export const BOOST_REGEN_RATE = 0.06, BOOST_REGEN_DELAY = 0.75, BOOST_RELOCK = 0.05;
+export const BOOST_REGEN_RATE = 0.08, BOOST_REGEN_DELAY = 0.75, BOOST_RELOCK = 0.05;
 export function createSim({ seed = 4242, events = null } = {}) {
   // mulberry32 with exportable state (snapshot/import parity)
   const rng = { a: seed | 0 };
@@ -59,7 +59,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
   const sim = {
     time: 0, raceStart: 0, phase: 'grid',   // grid | race | finished
     ghost: false,   // true in multiplayer rooms: no car-to-car contact (see collideRacers)
-    catchup: false, // R2: solo-only catch-up assist (catchup.js); the page opts in, rooms never do
+    pickupSeed:seed|0,
+    catchupStyle:'strong',catchup: false, // R2: solo-only catch-up assist (catchup.js); the page opts in, rooms never do
     hazards: false, // M8: static obstacles + shield/self-boost pads (room server and the page turn this on)
     obstacles: [], pads: [], weapons: false, predictOnly: false, weaponSlice: 3, weaponBoxes: [], weaponState: newWeaponState(), stepIndex: 0,
     racers: [], drones: [], player: null, finishOrder: [],
@@ -81,11 +82,12 @@ export function createSim({ seed = 4242, events = null } = {}) {
     td = typeof key === 'string' ? buildTrackData(key, vr) : key;
     ({ MAIN, BR, SAm, SBm, OFF, W0, LAPLEN, LAPS, HASBR, SECTORS } = td);
     sim.pace = paceFor(td.key, sim.mode);
-    const hz = buildHazards(td); sim.obstacles = hz.obstacles; sim.pads = hz.pads.map(p => Object.assign({}, p, { readyAt: 0 }));
-    sim.weaponBoxes = buildWeaponBoxes(td); combat.reset();
+    const hz = buildHazards(td); sim.obstacles = hz.obstacles;
+    sim.weaponBoxes = buildWeaponBoxes(td);sim.pads=buildRacePads(td,sim.pickupSeed,sim.weaponBoxes).map(p=>({...p,readyAt:0}));combat.reset();
     for (const r of sim.racers) { r.path = MAIN; r.prevS = undefined; }
     return td;
   }
+  function setPickupSeed(n){sim.pickupSeed=n|0;const list=buildRacePads(td,sim.pickupSeed,sim.weaponBoxes);sim.pads.splice(0,sim.pads.length,...list.map(p=>({...p,readyAt:0})));for(const r of sim.racers)r.padTouch={};return sim.pickupSeed;}
   function setRaceLaps(n){LAPS=[2,3,5].includes(n)?n:td.def.laps;td.LAPS=LAPS;return LAPS;}
 
   const humans = () => sim.racers.filter(r => !r.isAI);
@@ -108,7 +110,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       vf: 0, vl: 0, acc: 0, phase: R(0, 10), scrape: false, scrapeSide: 0, droneT: 0, sector: 0, takeShort: false,
       draftT: 0, tow: 0, slingT: 0, crashed: 0, phA: R(0, 10), phB: R(0, 10), aiBoostT: 0, aiBoostCD: R(4, 10), blockD: 0,
       world: new Vec3(), F: new Vec3(), Uw: new Vec3(), lastSign: {}, nearRail: 0, flapK: 0,
-      carMods: null, wallLim: 1.2, shieldT: 0, surgeT: 0, powCD: 0, obT: 0, passT: 0, lapIntegrity: { teleport: false, autopilot: false, debug: false, assist: false }, catchMul: 1,
+      carMods: null, wallLim: 1.2, shieldT: 0, surgeT: 0, powCD: 0, obT: 0, passT: 0, lapIntegrity: { teleport: false, autopilot: false, debug: false, assist: false }, catchMul: 1,padTouch:{},
       input: { up: 0, down: 0, left: 0, right: 0, boost: 0, drift: 0 }, wrongWayT: 0, bestLap: Infinity, bestSplits: [], curSplits: [], id: null
     };
   }
@@ -146,7 +148,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     r.lap = 0; r.lapTimes = []; r.lapValid = []; r.finished = false; r.finishTime = 0; r.lapStart = 0; r.boost = false; r.boostRelT = 0; r.boostLock = false; r.drift = false; r.hardSteerT = 0; r.thr = 0;
     r.autopilot = r.isAI; r.vf = 0; r.vl = 0; r.acc = 0; r.yawV = 0; r.steer = 0; r.draftT = 0; r.tow = 0; r.slingT = 0; r.crashed = 0; r.droneT = 0;
     r.sector = MAIN.sec[Math.round(r.s / MAIN.ds) % MAIN.N]; r.takeShort = false; r.air = false; r.airT = 0; r.aiBoostT = 0;
-    r.lapIntegrity = { teleport: false, autopilot: false, debug: false, assist: false }; r.catchMul = 1;
+    r.lapIntegrity = { teleport: false, autopilot: false, debug: false, assist: false }; r.catchMul = 1;r.padTouch={};r.recoveryBoostAt=0;
     r.shieldT = 0; r.surgeT = 0; r.powCD = 0; r.obT = 0; r.passT = 0;
     resetWeaponRacer(r);
     ev.racerReset(r);
@@ -158,7 +160,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     sim.drones.forEach((d, k) => { d.s = td.key==='casino'?160+k*90:td.key==='summit'?2600+k*55:mod(S0 + 380 + k * MAIN.L / 7, MAIN.L); d.speed = R(30, 41); });
     sim.phase = 'grid'; sim.finishOrder = []; sim.curSplits = []; sim.debugTouched = false;
     for (const p of sim.pads) p.readyAt = 0;
-    for (const r of sim.racers) { r.curSplits = []; r.wrongWayT = 0; }
+    for (const r of sim.racers) { r.curSplits = []; r.wrongWayT = 0;r.padTouch={}; }
     poseAll();
   }
 
@@ -230,7 +232,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     else { r.boostRelT += dt; r.boostLock = false; }
     // M8 self-boost pickup: surgeT forces boost for its duration without draining the meter
     const wantB = keys.boost && r.meter > 0.01 && !r.boostLock, surge = r.surgeT > 0;
-    r.boost = !(r.empT > 0) && (wantB || surge); if (wantB && !surge && !(r.empT > 0)) r.meter = Math.max(0, r.meter - dt * 0.32);
+    r.boost = !(r.empT > 0) && (wantB || surge); if (wantB && !surge && !(r.empT > 0)) r.meter = Math.max(0, r.meter - dt * 0.25);
     else if (!keys.boost && !r.finished && r.boostRelT >= BOOST_REGEN_DELAY) r.meter = Math.min(1, r.meter + dt * BOOST_REGEN_RATE);
     const air = r.air;
     let vf = r.va * Math.cos(r.psi) - r.vd * Math.sin(r.psi);
@@ -262,7 +264,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const vmax = (r.boost ? capB : capN) * (MD.draftOverCap ? 1 + 0.06 * tow : 1);
     let a = 0;
     const tm = air ? 0.25 : 1;
-    if (thr) a += (r.boost ? 80 : 44) * CM.acc * tm * Math.max(-0.5, 1 - (vf / vmax) * (vf / vmax));
+    if (thr) a += (r.boost ? 88 : 44) * CM.acc * tm * Math.max(-0.5, 1 - (vf / vmax) * (vf / vmax));
     else if (r.boost) a += 34 * tm * Math.max(0, 1 - (vf / vmax) * (vf / vmax));
     if (vf > vmax) a -= (vf - vmax) * 1.2;
     if (airbrake && !air) a -= brk ? 18 : 9;
@@ -546,8 +548,11 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function claimPads() {
     for (const r of sim.racers) {
       if (r.crashed > 0 || r.finished || r.h > H0 + 2.5) continue;
-      for (const p of sim.pads) {
-        if(r.path!==(p.br?BR:MAIN))continue;
+      r.padTouch ||= {};
+      for (const [padId,p] of sim.pads.entries()) {
+        const inside=r.path===(p.br?BR:MAIN)&&Math.abs(p.br?r.s-p.s:gapS(r.s,p.s,MAIN.L))<HAZ.PAD_HALF_LEN&&Math.abs(p.d-r.d)<HAZ.PAD_HALF_W+.6;
+        const was=r.padTouch[padId];if(inside)r.padTouch[padId]=true;else delete r.padTouch[padId];
+        if(!inside||was)continue;
         if (p.readyAt > sim.time || (p.kind==='S' && r.powCD>0)) continue;
         if (p.kind === 'S' && r.shieldT > 0) continue;
         if (Math.abs(p.br?r.s-p.s:gapS(r.s, p.s, MAIN.L)) >= HAZ.PAD_HALF_LEN || Math.abs(p.d - r.d) >= HAZ.PAD_HALF_W + 0.6) continue;
@@ -581,7 +586,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function slipstream(r, dt) {
     let inCone = false;
     for (const o of sim.racers) {
-      if (o === r || o.path !== r.path || o.crashed) continue;
+      if (o === r || o.path !== r.path || o.crashed || o.finished || Math.abs(o.h-r.h)>2 || Math.abs(wrapA(o.psi-r.psi))>.35) continue;
       const gs = relS(r, o); if (gs < 5 || gs > 42) continue;
       if (Math.abs(o.d - r.d) < 1.6 + gs * 0.05) { inCone = true; break; }
     }
@@ -757,7 +762,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   };
   const encObj = (o) => { const out = {}; for (const k in o) if (!SKIP.has(k) && typeof o[k] !== 'function') out[k] = enc(o[k]); return out; };
   function snapshot() {
-    return { v: 2, laps:LAPS, catchup:!!sim.catchup, weapons: !!sim.weapons, weaponSlice: sim.weaponSlice, weaponState: enc(sim.weaponState), weaponPending: combat.snapshotPending(), stepIndex: sim.stepIndex, vr: td.vr || 0, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
+    return { v: 2, laps:LAPS,pickupSeed:sim.pickupSeed, catchup:!!sim.catchup,catchupStyle:sim.catchupStyle, weapons: !!sim.weapons, weaponSlice: sim.weaponSlice, weaponState: enc(sim.weaponState), weaponPending: combat.snapshotPending(), stepIndex: sim.stepIndex, vr: td.vr || 0, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
       bestLap: enc(sim.bestLap), bestSplits: enc(sim.bestSplits), curSplits: enc(sim.curSplits), debugTouched: sim.debugTouched,
       focus: sim.player ? sim.player.id : null, finishOrder: sim.finishOrder.map(r => r.id),
       racers: sim.racers.map(encObj), drones: sim.drones.map(encObj) };
@@ -766,8 +771,9 @@ export function createSim({ seed = 4242, events = null } = {}) {
   function importSnapshot(sn) {
     if (!sn || ![1, 2].includes(sn.v)) throw new Error('bad snapshot version');
     if (!td || td.key !== sn.map || (td.vr||0)!==(sn.vr||0)) setTrack(sn.map,sn.vr||0);
+    if(sim.pickupSeed!==((sn.pickupSeed??seed)|0))setPickupSeed(sn.pickupSeed??seed);
     setRaceLaps(sn.laps);sim.weapons = !!sn.weapons; sim.weaponSlice = sn.weaponSlice || 1; sim.weaponState = dec(sn.weaponState || newWeaponState()); sim.stepIndex = sn.stepIndex || 0; combat.restorePending(sn.weaponPending);
-    setMode(sn.mode); sim.diff = sn.diff; sim.ghost = !!sn.ghost; sim.catchup=!!sn.catchup;sim.hazards = !!sn.hazards;
+    setMode(sn.mode); sim.diff = sn.diff; sim.ghost = !!sn.ghost; sim.catchup=!!sn.catchup;sim.catchupStyle=sn.catchupStyle==='standard'?'standard':'strong';sim.hazards = !!sn.hazards;
     if (Array.isArray(sn.pads)) sn.pads.forEach((t, k) => { if (sim.pads[k]) sim.pads[k].readyAt = t; }); sim.time = sn.time; sim.raceStart = sn.raceStart; sim.phase = sn.phase; rng.a = sn.rng;
     sim.bestLap = dec(sn.bestLap); sim.bestSplits = dec(sn.bestSplits); sim.curSplits = dec(sn.curSplits); sim.debugTouched = sn.debugTouched;
     const old = new Map(sim.racers.map(r => [r.id, r]));
@@ -783,7 +789,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   // one racer's full physics state (own-car prediction / server reconciliation)
   function racerState(id) { const r = sim.racers.find(x => x.id === id); return r ? encObj(r) : null; }
   function setRacerState(id, o) { const r = sim.racers.find(x => x.id === id); if (!r) return false; const inp = r.input; for (const k in r) if (!SKIP.has(k)) delete r[k]; Object.assign(r, dec(o)); if (inp) { Object.assign(inp, r.input); r.input = inp; } pose(r); return true; }
-  Object.assign(sim, { racerState, setRacerState, snapshot, importSnapshot, addSeats, setTrack, setMode, setRaceLaps, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
+  Object.assign(sim, { racerState, setRacerState, snapshot, importSnapshot, addSeats, setTrack, setMode, setPickupSeed,setRaceLaps, addRacers, gridUp, placeRacer, step, startRace, resetPlayer, ranks, rankKey, pose, poseAll, hoverStep, relS,
     frameAt, kgAt, raceS, rdist });
   return sim;
 }
