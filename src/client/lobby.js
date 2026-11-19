@@ -49,8 +49,12 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
       h = `<div class="mphead"><div class="hc"><div class="glbl">Room code</div><div class="code" id="mpRoomCode">${esc(room.code)}</div></div>
         <span class="cnt" id="mpCount" title="Racers">${room.seats.length}/${room.maxSeats}${room.phase !== 'lobby' ? ' · ' + (room.phase === 'results' ? 'results' : 'racing') : ''}</span>
         <button class="chip" data-act="copylink">${copied ? 'Copied ✓' : 'Copy link'}</button><button class="chip" data-act="close" aria-label="Close room panel">Close</button></div>
-        <div class="mpbody"><ul class="seats" id="mpSeats">${room.seats.map(s => seatRow(s, room, you)).join('')}${Array.from({ length: room.maxSeats - room.seats.length }, () => '<li class="empty">Open seat</li>').join('')}</ul>`;
-      if (host && lobby) h += `<div class="hostrow"><button class="chip" data-act="addbot" ${room.seats.length >= room.maxSeats ? 'disabled' : ''}>Add bot</button><button class="chip" data-act="rmlastbot" ${room.seats.some(s => s.kind === 'bot') ? '' : 'disabled'}>Remove bot</button><button class="chip" data-act="copycode">Copy code</button></div>`;
+        <div class="mpbody">`;
+      // host actions sit ABOVE the seat list and open seats are one summary line (not up to 19 rows), so on
+      // a ~390 px landscape phone adding bots never scrolls the filled seats out of the panel body
+      if (host && lobby) h += `<div class="hostrow top"><button class="chip" data-act="addbot" ${room.seats.length >= room.maxSeats ? 'disabled' : ''}>Add bot</button><button class="chip" data-act="rmlastbot" ${room.seats.some(s => s.kind === 'bot') ? '' : 'disabled'}>Remove bot</button><button class="chip" data-act="copycode">Copy code</button></div>`;
+      const open = room.maxSeats - room.seats.length;
+      h += `<ul class="seats" id="mpSeats">${room.seats.map(s => seatRow(s, room, you)).join('')}</ul>${open > 0 ? `<div class="openseats">${open} open seat${open === 1 ? '' : 's'}</div>` : ''}`;
       h += `<div class="glbl">Circuit${host ? '' : ' (host picks)'}</div><div class="seg" id="mpMaps">${MAP_KEYS.map(k => `<button class="${room.map === k ? 'on' : ''}" data-act="map" data-map="${k}" ${host && lobby ? '' : 'disabled'}>${MAPS[k].short}<small>${MAPS[k].laps} laps</small></button>`).join('')}</div>
         <div class="glbl">Driving mode (same for everyone)</div><div class="seg" id="mpModes">${[['assisted', 'Assisted'], ['expert', 'Expert']].map(([k, n]) => `<button class="${room.mode === k ? 'on' : ''}" data-act="mode" data-mode="${k}" ${host && lobby ? '' : 'disabled'}>${n}</button>`).join('')}</div>
         <p class="hint">Your car and paint come from the garage behind this panel.</p>
