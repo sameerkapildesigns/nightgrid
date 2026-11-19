@@ -1,7 +1,7 @@
 // M8 hazard presentation (client only; never changes the build id). Obstacles and pickup pads come from the
 // deterministic layout in src/core/hazards.js (same list the server uses). Draw cost is fixed per map:
 // obstacles = 3 instanced meshes (block, light bar, ground glow), pads = 3 instanced meshes (decal, shield
-// icon, boost icon); a taken pad hides its icon and dims its decal (instance scale/colour only, no new objects).
+// icon, boost icon); consumed shields/canisters hide or dim. Gold/green arrows stay active and visible.
 // Shield bubbles: one shared geometry/material, a mesh is attached to a car only while it holds a shield.
 import * as THREE from 'three';
 import { HAZ } from '../core/hazards.js';

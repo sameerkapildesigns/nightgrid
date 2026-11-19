@@ -13,6 +13,7 @@ Do not release until Sameer finishes his manual map review.
 - Vehicle extra roll and chase camera extra roll now tip into the turn. Existing road-following alignment remains.
 - Solo results: Next map names the next circuit, loads it in its default variant and starts its race. Order follows the garage circuit list and wraps after Legacy. Hidden in multiplayer so it cannot change a room's host-selected map.
 - Gold/green arrow pads are permanent boost zones. Every racer can collect on entry, including simultaneous racers; arrows never dim or become unavailable. Bottles and shield pickups retain their existing consumption/respawn rule. Parked overlap cannot farm repeated grants.
+- Diagnostic renders after all six local racers cross gold/green arrows were visually inspected: both arrows stay bright and visible, all six receive overdrive.
 - Pad trigger bounds include the full 20m overdrive decal plus the car footprint, rather than only the central 10m. The renderer uses the same dimensions as collection.
 - Snapshot encoding: array gaps become null before JSON transport, preventing sparse-array versus null divergence when a sector split is skipped. Exposed by the changed Velocity pad positions.
 - Velocity and Legacy records use new revision keys for the changed surface frames. Existing R4 records remain stored and are never deleted or overwritten. Other maps retain their R4 keys.

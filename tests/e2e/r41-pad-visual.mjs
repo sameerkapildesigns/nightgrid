@@ -12,7 +12,7 @@ try{
    for(const r of sim.racers)Object.assign(r,{path:M,s:p.s,d:p.d,h:1,vh:0,va:0,vd:0,speed:0,psi:0,surgeT:0,padTouch:{}});
    __ng.sim(.05);__ng.render();
    const i=Math.round(p.s/M.ds)%M.N,center=M.P[i].clone().addScaledVector(M.R[i],p.d),camera=__ng.camera;
-   camera.position.copy(center).addScaledVector(M.T[i],-22).addScaledVector(M.U[i],20).addScaledVector(M.R[i],12);camera.up.copy(M.U[i]);camera.lookAt(center);camera.updateMatrixWorld();__ng.renderer.setRenderTarget(null);__ng.renderer.clear();__ng.renderer.render(__ng.scene,camera);
+   camera.position.copy(center).addScaledVector(M.T[i],-22).addScaledVector(M.U[i],20).addScaledVector(M.R[i],12);camera.up.copy(M.U[i]);camera.lookAt(center.x,center.y,center.z);camera.updateMatrixWorld();__ng.renderer.setRenderTarget(null);__ng.renderer.clear();__ng.renderer.render(__ng.scene,camera);
    document.getElementById('hud').style.visibility='hidden';
    return{extra,readyAt:p.readyAt,grants:sim.racers.map(r=>r.surgeT>0)};
   },extra);
