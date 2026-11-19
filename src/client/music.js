@@ -9,7 +9,7 @@ export function createMusic() {
   const failed = new Set();
   let analyser=null,bins=null,audioCtx=null,beat=0,bassAverage=0;
   try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (typeof s?.music === 'boolean') enabled = s.music; } catch {}
-  const audio = new Audio(); audio.loop = true; audio.preload = 'none'; audio.volume = 0.14;
+  const audio = new Audio(); audio.loop = true; audio.preload = 'none'; audio.volume = 0.23;
   audio.addEventListener('error', () => { if (NEW_FILES.has(current) && !failed.has(current)) { failed.add(current); sync(); } });
   const source = () => musicSource(phase, map, failed);
   function sync() {

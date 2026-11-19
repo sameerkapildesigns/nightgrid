@@ -22,6 +22,7 @@ import { TRK } from '../core/track.js';
 import { clamp, lerp, mod, wrapA, damp, smooth, sstep, mulberry32, fmtTime as fmt } from '../core/math.js';
 import { MAPS, MAP_KEYS, DEFAULT_MAP, S0, H0, WB, mkF } from '../core/maps.js';
 import { createSim, PERS } from '../core/sim.js';
+import { npcLineup } from '../core/npc-lineup.js';
 import { NetClient } from '../net/client.js';
 import { WorkerNet } from './net-proxy.js';
 import { finishAnnounce } from './finish-pos.js';
@@ -38,6 +39,7 @@ import { createTilt } from '../core/tilt.js';
 import { buildShelter, shelterTop } from '../core/shelter.js';
 import { buildClearance, groundHeightAt, worstClearance, GROUND_Y } from '../core/terrain.js';
 import { bodyLean, cameraLean } from './lean.js';
+import { migrateMotion, cameraMotion, raceFov, cameraShake } from './comfort.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
 import { buildProcShip, shipStats } from './proc-ships.js';
@@ -1821,7 +1823,7 @@ function setPlayerCar() {
 }
 // Rival bodies are (re)built when their GLB arrives, so boot never waits for them.
 function setRivalCar(r) {
-  const pers=r.persKey||r.name.split(' ')[0],L = RIVAL_LIV[pers], want = L.car + ':' + assetStatus(L.car);
+  const pers=r.persKey||r.name.split(' ')[0],base=RIVAL_LIV[pers],L = r.npcCar?{...base,car:r.npcCar}:base, want = L.car + ':' + assetStatus(L.car)+':'+r.name;
   if (r.carKey === want) return;
   if (r.ship) scene.remove(r.ship.root);
   r.ship = buildCar(L.car, L, 'race'); scene.add(r.ship.root); r.carKey = want; r.emPrev = null;
@@ -1933,10 +1935,12 @@ const camFrom = new V3(), lookFrom = new V3(), _cp = new V3(), _cl = new V3(), c
 const _fc = mkF();
 function chaseTarget(dt, snap, outPos, outLook, outUp) {
   const r = player; const s01 = Math.min(r.speed / 92, 1.4);
+  const motion=cameraMotion(SETTINGS.comfort);
   let psT = r.psi;
   if (r.speed > 8) { const vy = Math.atan2(-r.vd, r.va); const df = wrapA(vy - r.psi); if (Math.abs(df) < 1.2) psT = r.psi + df * 0.45; }
-  if (snap) { CC.psi = psT; CC.h = 2.3; } else { CC.psi += wrapA(psT - CC.psi) * damp(5.5, dt); CC.h = lerp(CC.h, 2.15 + s01 * 0.3 - boostAmt * 0.3 + (r.h - H0) * 0.6, damp(6, dt)); }
-  const dist = 7.2 + s01 * 1.4 + boostAmt * 1.5;
+  psT *= motion.yaw;
+  if (snap) { CC.psi = psT; CC.h = 2.3; } else { CC.psi += wrapA(psT - CC.psi) * damp(5.5, dt); CC.h = lerp(CC.h, 2.15 + s01 * 0.3 - boostAmt * 0.3 * motion.boostHeight + (r.h - H0) * motion.airHeight, damp(6, dt)); }
+  const dist = 7.2 + s01 * 1.4 + boostAmt * 1.5 * motion.boostDistance;
   const sc = r.s - dist * Math.cos(CC.psi);
   let dc = r.d + dist * Math.sin(CC.psi);
   // Stay on the branch behind a just-merged player until the chase camera clears it.
@@ -1962,7 +1966,7 @@ function flyTarget(dt, outPos, outLook, outUp) {
   outUp.copy(f.U);
 }
 function applyCam(pos, look, up, dt, s01) {
-  const sh = SETTINGS.shake ? CC.shake + boostAmt * 0.03 + Math.max(0, s01 - 0.8) * 0.035 : CC.shake * 0.15;
+  const sh = cameraShake(CC.shake, SETTINGS.shake, SETTINGS.comfort, boostAmt, s01);
   const t = gameTime;
   camera.position.set(pos.x + (Math.sin(t * 47.3) + Math.sin(t * 31.7)) * sh * 0.12, pos.y + (Math.sin(t * 53.1) + Math.sin(t * 27.9)) * sh * 0.1, pos.z + (Math.sin(t * 41.9) + Math.sin(t * 37.3)) * sh * 0.12);
   camera.up.copy(up); camera.lookAt(look); camera.rotateZ(CC.roll);
@@ -2153,12 +2157,20 @@ function initSceneTextures(root) {
   root.traverse(o => { if (!o.material) return; for (const m of [].concat(o.material)) for (const k in m) { const v = m[k]; if (v && v.isTexture && !seen.has(v)) { seen.add(v); renderer.initTexture(v); } } });
   return seen.size;
 }
+async function prepareSoloGrid(){
+ const lineup=npcLineup(crypto.getRandomValues(new Uint32Array(1))[0],raceNPCCount);
+ await Promise.all([...new Set([GAR.sel,...lineup.map(r=>r.car)])].map(ensureAsset));
+ swapRacers(()=>sim.addRacers(lineup));refreshRacerCars();
+ $('rivalsLine').textContent='Rivals · '+lineup.map(r=>r.name+': '+CARS[r.car].title).join(' · ');
+}
 async function startRace() {
   if (state !== 'title' || raceStarting || mapBusy || isPortrait() || (MP.net && MP.net.room)) return;
   if (!isRaceReady(GAR.sel, assetStatus)) { ensureRaceAssets(GAR.sel); return; }
   raceStarting = true;
   try {
     AU.init(); sim.weapons = WEAPONS_AVAILABLE && !!SETTINGS.weapons; sim.catchup = SETTINGS.catchup !== false;sim.catchupStyle=SETTINGS.catchupStyle==='standard'?'standard':'strong'; sim.diff = SETTINGS.diff; sim.setMode(driveMode);
+    $('go').disabled=true;$('go').textContent='Loading race grid…';
+    await prepareSoloGrid();
     refreshRacerCars(); soloPickupLayout();gridUp(); hudCache = {}; $('sector').textContent = `S1 · ${SECTORS[0].name}`; $('sector').style.color = SECTORS[0].css;
     $('go').blur(); $('go').disabled = true; $('go').textContent = 'Preparing…';
     for (const r of racers) updateVisual(r, 0);
@@ -2197,7 +2209,10 @@ function toGarage() {
   for (const r of racers) updateVisual(r, 0);
   state = 'title'; garageShow();
 }
-function restart() {
+async function restart() {
+  if(raceStarting||MP.race)return;raceStarting=true;
+  const wasPaused=paused;paused=true;
+  try{await prepareSoloGrid();}finally{paused=wasPaused;raceStarting=false;}
   cineUI(false); FIN.on = false; FIN.t = 99;
   $('results').classList.add('hide'); $('pause').classList.add('hide'); if (paused) { paused = false; AU.pause(false); }
   shownResults = false; hudCache = {};
@@ -2416,11 +2431,11 @@ function update(dt, dt0) {
   } else {
     chaseTarget(dt, state === 'countdown', _cp, _cl, _cu); CC.pos.copy(_cp); CC.look.copy(_cl);
     CC.up.lerp(_cu, damp(state === 'countdown' ? 20 : 7, dt)).normalize(); s01c = s01;
-    CC.roll = lerp(CC.roll, cameraLean(player.yawV, s01), damp(5, dt));
+    CC.roll = lerp(CC.roll, cameraLean(player.yawV, s01) * cameraMotion(SETTINGS.comfort).lean, damp(5, dt));
   }
   if(rearViewHeld&&state==='race'&&!paused&&!(player.crashed>0)){const f=frameAt(player.path,player.s,_fc);CC.pos.copy(player.world).addScaledVector(f.T,8).addScaledVector(f.U,2.6);CC.look.copy(player.world).addScaledVector(f.T,-18).addScaledVector(f.U,.6);CC.up.copy(f.U);CC.roll=0;}
   CC.kick = lerp(CC.kick, 0, damp(3, dt));
-  const fovT = state === 'title' ? 62 : state === 'intro' ? 50 : (state === 'finished' && FIN.on && FIN.t < 3.4) ? 44 : 66 + Math.min(s01c, 1.15) * 9 + boostAmt * 6 + Math.min(CC.kick, 5) + player.tow * 3;
+  const fovT = state === 'title' ? 62 : state === 'intro' ? 50 : (state === 'finished' && FIN.on && FIN.t < 3.4) ? 44 : raceFov(s01c, boostAmt, CC.kick, player.tow, SETTINGS.comfort);
   camera.fov = lerp(camera.fov, fovT, damp(4, dt)); camera.updateProjectionMatrix();
   applyCam(CC.pos, CC.look, CC.up, dt, s01c);
   CC.shake *= Math.exp(-dt * 5);
@@ -2460,6 +2475,7 @@ function update(dt, dt0) {
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled, weapons: false, npcs:raceNPCCount,laps:raceLapsSetting, catchup: true,catchupStyle:'strong', ambient: false, engineIdle: false };
 try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
+Object.assign(SETTINGS,migrateMotion(SETTINGS,REDUCED));
 const BLUR_K = [0, 1, 1.8];
 function qualityUI() {
   for (const el of document.querySelectorAll('.qualityOptions')) el.innerHTML = QUALITY.map(q => `<button type="button" data-quality="${q}" role="radio" aria-checked="${q === qualityMode}" class="${q === qualityMode ? 'on' : ''}">${q[0].toUpperCase() + q.slice(1)}</button>`).join('');
@@ -2481,6 +2497,7 @@ function renderSettings() {
   $('setWeapons').innerHTML = WEAPONS_AVAILABLE ? [false,true].map(on=>`<button data-weapons="${on?1:0}" class="${!!SETTINGS.weapons===on?'on':''}" role="radio" aria-checked="${!!SETTINGS.weapons===on}">${on?'Mines + EMP':'Clean'}</button>`).join('') : 'Weapons unavailable';
   for (const b of document.querySelectorAll('[data-music-toggle]')) { b.textContent = MUSIC.enabled ? 'Music: On' : 'Music: Off'; b.setAttribute('aria-pressed', String(MUSIC.enabled)); }
   $('setBlur').innerHTML = ['Off', 'Mild', 'Strong'].map((n, i) => `<button class="${SETTINGS.blur === i ? 'on' : ''}" data-blur="${i}" role="radio" aria-checked="${SETTINGS.blur === i}">${n}</button>`).join('');
+  $('setComfort').innerHTML = [['1','Comfort'],['0','Dynamic']].map(([v,n])=>`<button data-comfort="${v}" class="${SETTINGS.comfort===(v==='1')?'on':''}" role="radio" aria-checked="${SETTINGS.comfort===(v==='1')}">${n}</button>`).join('');
   $('setShake').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+SETTINGS.shake === i ? 'on' : ''}" data-shake="${i}" role="radio" aria-checked="${+SETTINGS.shake === i}">${n}</button>`).join('');
   $('setMode').innerHTML = [['assisted', 'Assisted'], ['expert', 'Expert']].map(([k, n]) => `<button class="${driveMode === k ? 'on' : ''}" data-mode="${k}" role="radio" aria-checked="${driveMode === k}">${n}</button>`).join('');
   $('setAmbient').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+!!SETTINGS.ambient === i ? 'on' : ''}" data-ambient="${i}" role="radio" aria-checked="${+!!SETTINGS.ambient === i}">${n}</button>`).join('');
@@ -2489,10 +2506,11 @@ function renderSettings() {
   $('setDiff').innerHTML = [['normal', 'Normal'], ['hard', 'Hard']].map(([k, n]) => `<button class="${SETTINGS.diff === k ? 'on' : ''}" data-diff="${k}" role="radio" aria-checked="${SETTINGS.diff === k}">${n}</button>`).join('');
   $('setCine').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+(SETTINGS.cine !== false) === i ? 'on' : ''}" data-cine="${i}" role="radio" aria-checked="${+(SETTINGS.cine !== false) === i}">${n}</button>`).join('');
   $('setSteer').innerHTML = [['touch', 'Touch'], ['tilt', 'Enable Tilt']].map(([k, n]) => `<button class="${(SETTINGS.steer || 'touch') === k ? 'on' : ''}" data-steer="${k}" role="radio" aria-checked="${(SETTINGS.steer || 'touch') === k}" style="min-height:44px">${n}</button>`).join('');
-  $('setNote').textContent = REDUCED ? 'Reduced motion is on: blur and shake start off, cinematics are short and static.' : '';
+  $('setNote').textContent = REDUCED ? 'Reduced motion is on: blur and shake start off, cinematics are short and static.' : 'Comfort steadies the chase view with almost fixed FOV. Road inversions still rotate the view. Take a break if motion feels uncomfortable.';
 }
 function saveSettings() { try { localStorage.setItem('nightgrid_v4_settings', JSON.stringify(SETTINGS)); } catch (e) { } renderSettings(); }
 $('setBlur').addEventListener('click', e => { const b = e.target.closest('[data-blur]'); if (b) { SETTINGS.blur = +b.dataset.blur; saveSettings(); } });
+$('setComfort').addEventListener('click',e=>{const b=e.target.closest('[data-comfort]');if(b){SETTINGS.comfort=b.dataset.comfort==='1';saveSettings();}});
 $('setShake').addEventListener('click', e => { const b = e.target.closest('[data-shake]'); if (b) { SETTINGS.shake = b.dataset.shake === '1'; saveSettings(); } });
 $('setBtn').addEventListener('click', () => { $('homeMore').open = false; renderSettings();openSheet('setPanel'); });
 $('setCine').addEventListener('click', e => { const b = e.target.closest('[data-cine]'); if (b) { SETTINGS.cine = b.dataset.cine === '1'; saveSettings(); } });

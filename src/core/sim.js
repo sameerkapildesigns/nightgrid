@@ -116,7 +116,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   }
   function addRacers(rivals) {   // single player: rivals: [{ name, css }]
     sim.player = makeRacer('YOU', false, null, '#00f0ff'); sim.player.input = sim.input; sim.player.id = 'p0';
-    for (const [k,{ name, css }] of rivals.entries()) { const pers=name.split(' ')[0],r = makeRacer(name, true, PERS[pers], css || PERS[pers].css); r.persKey=pers;r.id = 'bot'+k; sim.racers.push(r); }
+    for (const [k,{ name, css,persKey,car }] of rivals.entries()) { const pers=PERS[persKey]?persKey:name.split(' ')[0],r = makeRacer(name, true, PERS[pers], css || PERS[pers].css);r.npcCar=car||null; r.persKey=pers;r.id = 'bot'+k; sim.racers.push(r); }
     sim.racers.unshift(sim.player);
     sim.player.gridSlot = sim.racers.length-1; sim.racers.slice(1).forEach((r, k) => { r.gridSlot = k; });
     addDrones();

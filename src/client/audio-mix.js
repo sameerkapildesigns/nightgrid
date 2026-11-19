@@ -22,7 +22,7 @@ export function ambientGains(on) {
 export function engineGains(s01, thr, boost, idleOn) {
   const floor = idleOn ? 1 : Math.min(1, Math.max(thr, s01 * 5, boost));
   return {
-    body: ENGINE_IDLE.body * floor + thr * 0.07 + s01 * 0.06 + boost * 0.05,
-    whine: ENGINE_IDLE.whine * floor + s01 * 0.018 + boost * 0.03
+    body: (ENGINE_IDLE.body * floor + thr * 0.07 + s01 * 0.06 + boost * 0.05) * 0.6,
+    whine: (ENGINE_IDLE.whine * floor + s01 * 0.018 + boost * 0.03) * 0.6
   };
 }
