@@ -29,7 +29,7 @@ export const TRK = (() => {
       for (let k = 0; k < n; k++) {
         const u = (k + 0.5) / n, r = (1 - Math.cos(2 * Math.PI * u)) / n;
         psi += (pc.yaw || 0) * r; th += (pc.pitch || 0) * r; phi += (pc.roll || 0) * r;
-        const f = frameOf(psi, th, pc.bank == null ? phi : pc.bank * Math.sin(Math.PI * u) ** 2);
+        const f = frameOf(psi, th, phi);
         p = add(p, mul(f.T, ds));
         if (pc.shift) { const S = (u2) => u2 - Math.sin(2 * Math.PI * u2) / (2 * Math.PI); const want = pc.shift * S((k + 1) / n); p = add(p, mul(sideH, (want - shiftDone))); shiftDone = want; }
         out.push({ p: p.slice(), U: f.U, sec: pc.sec, w: pc.w, tag: pc.tag || 0 });
@@ -121,7 +121,7 @@ export const TRK = (() => {
     S(25); S(30, { pitch: 0.12 }); S(30, { pitch: -0.24 }); S(30, { pitch: 0.12 }); S(25);   // the kink: a crest that throws you airborne
     // ---- EAU ROUGE ----
     cur.sec = 1;
-    S(110, { yaw: 0.5, roll: 0.15, bank: prm.inwardBanks ? 0.15 : undefined }); S(110, { yaw: -0.5, roll: -0.15, bank: prm.inwardBanks ? -0.15 : undefined });  // local inward bank, no inherited outward half
+    S(110, { yaw: 0.5, roll: 0.15 }); S(110, { yaw: -0.5, roll: -0.15 });  // the classic left-right
     S(70);
     S(230, { pitch: PI });                                         // climb the wall, tip over -> inverted
     S(300, { yaw: 0.0 });                                          // upside down over the city
@@ -133,7 +133,7 @@ export const TRK = (() => {
     S(60);
     // ---- SUZUKA ----
     cur.sec = 2;
-    S(80, { yaw: 0.7, roll: 0.3, bank: prm.inwardBanks ? 0.3 : undefined }); S(100, { yaw: -1.1, roll: -0.6, bank: prm.inwardBanks ? -0.3 : undefined }); S(80, { yaw: 0.6, roll: 0.3, bank: prm.inwardBanks ? 0.3 : undefined });
+    S(80, { yaw: 0.7, roll: 0.3 }); S(100, { yaw: -1.1, roll: -0.6 }); S(80, { yaw: 0.6, roll: 0.3 });
     S(Q.ls);
     S(100, { yaw: PI / 2, pitch: 0.17, roll: 0.75 });              // banked spiral climbing
     S(100, { yaw: PI / 2 });

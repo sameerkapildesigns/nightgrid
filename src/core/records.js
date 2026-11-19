@@ -20,9 +20,9 @@ export const MAX_LAP_SECONDS = 3600;
 // overwritten, never deleted. The revision sits BEFORE the map key, so game.js lapLenOf
 // (k.split('~')[0].endsWith('_' + MAPKEY)) still matches. Bit 4 (night) stays cosmetic: it shares the day record.
 export const R4_LAYOUT_REV = 'r4';
-// R4.1 changes Velocity/Legacy camber. Keep their older records stored, but
+// R4.1 changes Velocity camber. Keep its older records stored, but
 // use separate keys rather than comparing laps under different surface frames.
-export const LAYOUT_REV = Object.freeze({ velocity: 'r41', technical: R4_LAYOUT_REV, legacy: 'r41', casino: R4_LAYOUT_REV, summit: R4_LAYOUT_REV, drift: R4_LAYOUT_REV });
+export const LAYOUT_REV = Object.freeze({ velocity: 'r41', technical: R4_LAYOUT_REV, legacy: R4_LAYOUT_REV, casino: R4_LAYOUT_REV, summit: R4_LAYOUT_REV, drift: R4_LAYOUT_REV });
 const modePart = mode => (mode === 'assisted' ? 'assisted' : 'expert');
 const variantPart = vr => (vr & 3 ? '~' + (vr & 1 ? 'm' : '') + (vr & 2 ? 'r' : '') : '');
 export function recordKey(mode, map, vr = 0) {

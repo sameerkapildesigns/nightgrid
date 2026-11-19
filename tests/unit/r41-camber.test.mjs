@@ -7,7 +7,7 @@ import { bodyLean, cameraLean } from '../../src/client/lean.js';
 
 // Signed plan-view curvature and horizontal normal, not dT dot U: the latter
 // confuses hill compression with road camber. Exclude deliberate walls/loops.
-for (const key of MAP_KEYS) test(`${key}: ordinary banked corners lean inward`, () => {
+for (const key of MAP_KEYS.filter(k=>k!=='legacy')) test(`${key}: ordinary banked corners lean inward`, () => {
  const raw = MAPS[key].build();
  for(const vr of [0,1,2,3]) {
   if(!validVariant(key,vr))continue;
@@ -26,11 +26,8 @@ for (const key of MAP_KEYS) test(`${key}: ordinary banked corners lean inward`, 
  }
 });
 
-test('Legacy camber fix preserves centerline, loop, corkscrew and shortcut positions',()=>{
- const old=TRK.assemble({fastMonaco:true}),next=MAPS.legacy.build();
- assert.deepEqual(next.main.P,old.main.P);
- assert.deepEqual(next.branch.P,old.branch.P);
- for(let i=0;i<old.main.N;i++)if(old.main.U[i][1]<.5)assert.deepEqual(next.main.U[i],old.main.U[i]);
+test('Legacy preserves the complete R4 route and surface frames unchanged',()=>{
+ assert.deepEqual(MAPS.legacy.build(),TRK.assemble({fastMonaco:true}));
 });
 
 test('body and chase camera extra roll both lean into left and right turns',()=>{
@@ -48,7 +45,7 @@ test('body and chase camera extra roll both lean into left and right turns',()=>
 
 test('R4.1 records preserve R4 values without comparing different camber',async()=>{
  const {recordKey,RECORD_PREFIX,memoryStorage,createRecordStore}=await import('../../src/core/records.js');
- const mem=memoryStorage();for(const key of ['velocity','legacy']){
+ const mem=memoryStorage();for(const key of ['velocity']){
   const old=`m3_expert_r4_${key}`;mem.setItem(RECORD_PREFIX+old,'90');
   const st=createRecordStore(mem,{lapLenOf:()=>5400});
   assert.notEqual(recordKey('expert',key),old);
@@ -56,6 +53,7 @@ test('R4.1 records preserve R4 values without comparing different camber',async(
   assert.equal(mem.getItem(RECORD_PREFIX+old),'90');
  }
  assert.equal(recordKey('expert','drift'),'m3_expert_r4_drift');
+ assert.equal(recordKey('expert','legacy'),'m3_expert_r4_legacy');
 });
 
 test('snapshot array gaps are JSON-canonical before transport',async()=>{
