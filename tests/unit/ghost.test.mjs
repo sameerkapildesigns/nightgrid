@@ -69,7 +69,7 @@ test('room server races are ghost and say so in the race message', () => {
   const timers = { now: () => 1000, setInterval: () => 1, clearInterval: () => { }, setTimeout: () => 1, clearTimeout: () => { } };
   const rs = new RoomServer({ code: 'ABCDEF', build: 'b', timers, random: a => { for (let i = 0; i < a.length; i++) a[i] = (i * 37 + 11) & 255; return a; } });
   const conn = { send: t => sent.push(JSON.parse(t)), close: () => { } };
-  rs.connect(conn); rs.message(conn, JSON.stringify({ t: 'hello', p: 2, build: 'b', name: 'H' }));
+  rs.connect(conn); rs.message(conn, JSON.stringify({ t: 'hello', p: 3, build: 'b', name: 'H' }));
   rs.message(conn, JSON.stringify({ t: 'addBot' })); rs.message(conn, JSON.stringify({ t: 'ready', ready: true })); rs.message(conn, JSON.stringify({ t: 'start' }));
   const race = sent.find(m => m.t === 'race');
   assert.ok(race, 'race started'); assert.equal(rs.sim.ghost, true); assert.equal(race.snap.ghost, true);

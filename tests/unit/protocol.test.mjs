@@ -19,8 +19,8 @@ test('parseClient: schema validation, size cap, protocol version, bounded batche
   assert.equal(P.parseClient('[]').error, 'bad-type');
   assert.equal(P.parseClient(J({ t: 'teleport', s: 5 })).error, 'bad-type');
   assert.equal(P.parseClient(J({ t: 'hello', p: 1, build: 'b' })).error, 'protocol-mismatch');
-  assert.equal(P.parseClient(J({ t: 'hello', p: 2 })).error, 'bad-hello');
-  assert.ok(P.parseClient(J({ t: 'hello', p: 2, build: 'b', name: 'N' })).ok);
+  assert.equal(P.parseClient(J({ t: 'hello', p: P.PROTOCOL })).error, 'bad-hello');
+  assert.ok(P.parseClient(J({ t: 'hello', p: P.PROTOCOL, build: 'b', name: 'N' })).ok);
   assert.equal(P.parseClient(J({ t: 'in', q: 0, f: [] })).error, 'bad-input');
   assert.equal(P.parseClient(J({ t: 'in', q: 0, f: Array(25).fill(1) })).error, 'bad-input');
   assert.equal(P.parseClient(J({ t: 'in', q: -1, f: [1] })).error, 'bad-input');

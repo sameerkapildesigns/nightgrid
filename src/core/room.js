@@ -1,3 +1,4 @@
+import{validVariant}from './variants.js';
 // Multiplayer room / lobby model (pure, transport-agnostic; used by the room server).
 // Seats: max 4 TOTAL, humans + server-run bots. The host adds/removes bots in empty seats; bots are
 // always ready. Host picks map + driving mode; each human picks a car/paint and readies. A race needs
@@ -8,7 +9,7 @@
 // Release is gated on real-hardware FPS + 20-client gates (HANDOFF), not on this constant.
 export const MAX_SEATS = 20, MIN_RACERS = 2, RECONNECT_MS = 15000, STALE_INPUT_MS = 250, NAME_MAX = 16;
 export const ROOM_PHASES = ['lobby', 'countdown', 'race', 'results'];
-export const MAPS_OK = ['velocity', 'technical', 'legacy'], MODES_OK = ['assisted', 'expert'];
+export const MAPS_OK = ['velocity', 'technical', 'casino', 'summit', 'legacy'], MODES_OK = ['assisted', 'expert'];
 export const CARS_OK = ['hypercar', 'endurance', 'wedge', 'rally', 'streamliner', 'wipeout'];
 export const PAINT_COUNT = 4;
 export const BOT_PERS = ['GHOST', 'VEX', 'BLITZ'];
@@ -20,7 +21,7 @@ export function cleanName(name) {
   return s || 'Player';
 }
 export function createRoom({ code, build, now = 0, map = 'velocity', mode = 'expert' }) {
-  return { code, build, phase: 'lobby', hostId: null, seats: [], map, mode, seed: 0, countdownAt: 0, createdAt: now, nextBot: 1, nextHuman: 1, version: 0, results: null };
+  return { code, build, phase: 'lobby', hostId: null, seats: [], map, mode, weapons: false, vr: 0, seed: 0, countdownAt: 0, createdAt: now, nextBot: 1, nextHuman: 1, version: 0, results: null };
 }
 const seatOf = (room, id) => room.seats.find(s => s.id === id);
 const bump = room => { room.version++; return { ok: true }; };
@@ -55,12 +56,16 @@ export function removeBot(room, byId, botId) {
   const i = room.seats.findIndex(s => s.id === botId && s.kind === 'bot'); if (i < 0) return err('no-such-bot');
   room.seats.splice(i, 1); return bump(room);
 }
-export function configure(room, byId, { map, mode }) {
+export function configure(room, byId, { map, mode, weapons, vr }) {
   if (!isHost(room, byId)) return err('not-host'); if (room.phase !== 'lobby') return err('not-in-lobby');
   if (map != null && !MAPS_OK.includes(map)) return err('bad-map');
   if (mode != null && !MODES_OK.includes(mode)) return err('bad-mode');
-  const changed = (map != null && map !== room.map) || (mode != null && mode !== room.mode);
+  if (weapons != null && typeof weapons !== 'boolean') return err('bad-config');
+  if (vr != null && (!Number.isInteger(vr)||vr<0||vr>7)) return err('bad-config');
+  if(!validVariant(map??room.map,vr??room.vr??0))return err('unsupported-variant');
+  const changed = (weapons != null && weapons !== room.weapons) || (vr != null && vr !== room.vr) || (map != null && map !== room.map) || (mode != null && mode !== room.mode);
   if (map != null) room.map = map; if (mode != null) room.mode = mode;
+  if (weapons != null) room.weapons = weapons; if (vr != null) room.vr = vr;
   if (changed) for (const s of room.seats) if (s.kind === 'human') s.ready = false;   // settings changed: re-confirm
   return bump(room);
 }
@@ -142,7 +147,7 @@ export function tick(room, now) {
 }
 // What clients may see. Never includes session tokens or other rooms' state.
 export function publicState(room) {
-  return { code: room.code, phase: room.phase, hostId: room.hostId, map: room.map, mode: room.mode, countdownAt: room.countdownAt, version: room.version,
+  return { code: room.code, phase: room.phase, hostId: room.hostId, map: room.map, mode: room.mode, weapons: !!room.weapons, vr: room.vr || 0, weaponsAllowed: !!room.weaponsAllowed, countdownAt: room.countdownAt, version: room.version,
     seats: room.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, car: s.car, paint: s.paint || 0, ready: !!s.ready, connected: !!s.connected, left: !!s.left })),
     canStart: canStart(room), blocker: startBlocker(room), maxSeats: MAX_SEATS, results: room.results };
 }

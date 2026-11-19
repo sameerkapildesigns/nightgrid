@@ -14,17 +14,18 @@ export const HAZ = {
   SHIELD_TIME: 15, SHIELD_PASS: 0.4, SURGE_TIME: 1.8,
   DRONE_HOP: 2.8, DRONE_HOP_RANGE: 9
 };
-export const OB_COUNT = { velocity: 4, technical: 3, legacy: 4 };
+export const OB_COUNT = { velocity: 4, technical: 3, casino: 3, summit: 3, legacy: 4 };
 // Six pickup rows per lap: kinds across the road (left, centre, right). S = shield, B = self-boost.
 export const PAD_ROWS = Array.from({ length: 6 }, (_, i) => i % 2 ? ['B', 'S', 'B'] : ['S', 'B', 'S']);
 
 // Candidate check for a main-path station i (1 m spacing on every map).
-function okStation(td, i, opt) {
+export function okStation(td, i, opt) {
   const M = td.MAIN, N = M.N, ds = M.ds, s = i * ds;
+  if(td.key==='summit'&&M.sec[i]===3)return false;
   const fromStart = Math.min(mod(s - 60, M.L), mod(60 - s, M.L));   // S0 = 60
   if (fromStart < (opt.pad ? 160 : HAZ.START_CLEAR)) return false;
   if (Math.min(s, M.L - s) < HAZ.SEAM_CLEAR) return false;
-  if (td.HASBR && s > td.SAm - 280 && s < td.SBm + 160) return false;   // fork, loop branch and merge
+  if (td.HASBR && !opt.allowFork && s > td.SAm - 280 && s < td.SBm + 160) return false;   // fork, loop branch and merge
   const back = Math.round((opt.pad ? 30 : HAZ.RUNUP) / ds), fwd = Math.round(30 / ds);
   for (let k = -back; k <= fwd; k++) {
     const j = mod(i + k, N);
@@ -37,7 +38,7 @@ function okStation(td, i, opt) {
   return true;
 }
 // nearest valid station to a target fraction of the lap (searching both ways), or -1
-function nearestOk(td, frac, opt) {
+export function nearestOk(td, frac, opt) {
   const M = td.MAIN, i0 = Math.round(mod(60 + frac * M.L, M.L) / M.ds);
   for (let k = 0; k < M.N / 2; k += 5) for (const sg of [1, -1]) { const i = mod(i0 + sg * k, M.N); if (okStation(td, i, opt)) return i; }
   return -1;
@@ -78,4 +79,4 @@ export const gapS = (a, b, L) => { let g = b - a; if (g > L / 2) g -= L; if (g <
 export const encodePads = (pads, t) => pads.map(p => (p.readyAt > t ? Math.round((p.readyAt - t) * 100) / 100 : 0));
 export function applyPads(pads, enc, t) { if (!Array.isArray(enc)) return; for (let k = 0; k < pads.length && k < enc.length; k++) pads[k].readyAt = enc[k] > 0 ? t + enc[k] : 0; }
 // power flags for remote-car presentation: 1 = shield armed, 2 = surge active
-export const powerFlags = r => ((r.shieldT > 0 ? 1 : 0) | (r.surgeT > 0 ? 2 : 0));
+export const powerFlags = r => ((r.shieldT > 0 ? 1 : 0) | (r.surgeT > 0 ? 2 : 0) | (r.empT > 0 ? 4 : 0) | (r.slowT > 0 ? 8 : 0) | (r.wImmT > 0 ? 16 : 0));

@@ -1,3 +1,4 @@
+import {encodeWeaponEntities,encodeWeaponEvents} from '../src/core/weapons.js';
 // Authoritative NIGHTGRID room (transport-agnostic). One instance per private room: one Durable Object
 // in production (server/worker.js), one object in the local Node runtime (server/local.mjs).
 //
@@ -21,6 +22,7 @@ import { parseClient, rateLimiter, compactRacer, decodeFrame, makeToken, NET_HZ,
   MAX_AHEAD_FRAMES, QUEUE_DROP_FRAMES, MAX_LEAD_FRAMES, BACKPRESSURE_BYTES, PROTOCOL, ZERO_FRAME } from '../src/net/protocol.js';
 
 export const ROOM_DEFAULTS = {
+  weaponsAllowed: false, weaponSlice: 2,
   countdownMs: 4500,          // lobby Start -> lights out (includes track/car preload on clients)
   resultsHoldMs: 20000,       // results shown, then the room returns to the lobby (host can return earlier)
   finishGraceMs: 30000,       // after the first human finishes, others get 30 s
@@ -40,6 +42,7 @@ export class RoomServer {
     this.code = code; this.t = timers; this.random = random; this.budget = budget; this.persist = persist; this.onClose = onClose;
     this.cfg = { ...ROOM_DEFAULTS, ...cfg };
     this.room = Room.createRoom({ code, build, now: this.t.now() });
+    this.room.weaponsAllowed = !!this.cfg.weaponsAllowed;
     this.conns = new Map();   // conn -> { id, frames(now,n), msgs(now) }
     this.tokens = new Map();  // session token -> seat id (server memory/storage only; never sent to other clients, never logged)
     this.inputs = new Map();  // seat id -> input queue state
@@ -51,7 +54,7 @@ export class RoomServer {
   }
   restore(meta) {
     const wasRacing = meta.phase && meta.phase !== 'lobby';
-    Object.assign(this.room, { hostId: meta.hostId, map: meta.map, mode: meta.mode, nextBot: meta.nextBot, nextHuman: meta.nextHuman, seats: meta.seats.map(s => ({ ...s })), phase: 'lobby', version: (meta.version || 0) + 1 });
+    Object.assign(this.room, { hostId: meta.hostId, map: meta.map, mode: meta.mode, weapons: !!meta.weapons, vr: meta.vr || 0, nextBot: meta.nextBot, nextHuman: meta.nextHuman, seats: meta.seats.map(s => ({ ...s })), phase: 'lobby', version: (meta.version || 0) + 1 });
     // hibernation wake in the lobby keeps ready flags; a restart that killed a race re-asks everyone
     for (const s of this.room.seats) { if (wasRacing) s.ready = s.kind === 'bot'; if (s.kind === 'human') { s.dcAt = s.connected ? this.t.now() : (s.dcAt || this.t.now()); s.connected = false; } }
     this.room.seats = this.room.seats.filter(s => !s.left);
@@ -63,7 +66,7 @@ export class RoomServer {
     if (wasRacing) this.notice = 'room-restarted-race-aborted';
   }
   // ---------------- transport hooks ----------------
-  connect(conn) { this.conns.set(conn, { id: null, frames: rateLimiter(FRAME_RATE_MAX, FRAME_BURST), msgs: rateLimiter(MSG_RATE_MAX, MSG_BURST) }); }
+  connect(conn) { this.conns.set(conn, { id: null, weaponCursor: 0, frames: rateLimiter(FRAME_RATE_MAX, FRAME_BURST), msgs: rateLimiter(MSG_RATE_MAX, MSG_BURST) }); }
   // Durable Object hibernation: a socket that survived eviction is re-attached to its seat.
   adopt(conn, id) { this.connect(conn); const c = this.conns.get(conn); if (id && this.room.seats.some(s => s.id === id && s.kind === 'human' && !s.left)) { c.id = id; Room.reconnect(this.room, id, this.t.now()); } }
   close(conn) {
@@ -85,7 +88,7 @@ export class RoomServer {
     switch (m.t) {
       case 'addBot': r = Room.addBot(this.room, c.id); break;
       case 'removeBot': r = Room.removeBot(this.room, c.id, m.bot); break;
-      case 'config': r = Room.configure(this.room, c.id, m); break;
+      case 'config': if (m.weapons && !this.cfg.weaponsAllowed) { r = {ok:false,error:'weapons-disabled'}; break; } r = Room.configure(this.room, c.id, m); break;
       case 'car': r = Room.setCar(this.room, c.id, m.car, m.paint); break;
       case 'name': r = Room.setName(this.room, c.id, m.name); break;
       case 'ready': r = Room.setReady(this.room, c.id, m.ready); break;
@@ -127,6 +130,7 @@ export class RoomServer {
     q.early.push(m.q - q.next); if (q.early.length > 8) q.early.shift();
     for (let i = 0; i < m.f.length; i++) { const seq = m.q + i; if (seq >= q.next && !q.buf.has(seq)) q.buf.set(seq, m.f[i]); }
     if (q.buf.size > q.maxQ) q.maxQ = q.buf.size;
+    if (m.a?.length) { const r=this.sim.racers.find(r=>r.id===c.id); if(r&&!r.dnf)this.sim.queueWeaponActions(r,m.a); }
     seat.lastInputAt = now; q.lastAt = now;
   }
   leaveSeat(id) {
@@ -152,11 +156,12 @@ export class RoomServer {
   // ---------------- race lifecycle ----------------
   beginCountdown() {
     const R = this.room, sim = this.sim = createSim({ seed: R.seed });
-    sim.setMode(R.mode); sim.setTrack(R.map); sim.diff = 'normal'; sim.ghost = true;   // multiplayer: no car-to-car contact (sim.js collideRacers)
+    sim.setMode(R.mode); sim.setTrack(R.map,R.vr||0); sim.diff = 'normal'; sim.ghost = true;   // multiplayer: no car-to-car contact (sim.js collideRacers)
+    sim.weapons = !!R.weapons && !!this.cfg.weaponsAllowed; sim.weaponSlice = this.cfg.weaponSlice;
     sim.hazards = true;   // M8: obstacles + server-owned shield/self-boost pads (src/core/hazards.js)
     sim.addSeats(R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, pers: s.pers, carMods: CARS[s.car] ? CARS[s.car].mods : null })), null);
     for (const r of sim.racers) if (!r.isAI) r.wallLim = 1.2;
-    this.inputs.clear();
+    this.inputs.clear(); for(const c of this.conns.values())c.weaponCursor=0;
     for (const s of R.seats) if (s.kind === 'human') this.inputs.set(s.id, { buf: new Map(), next: 0, last: ZERO_FRAME, lastAt: 0, starve: 0, skipped: 0, maxQ: 0, early: [] });
     this.step = 0; this.clock = createClock(); this.lastTick = R.countdownAt; this.firstFinishAt = 0; this.results = null;
     for (const [conn, c] of this.conns) if (c.id) this.sendRace(conn, c.id);
@@ -166,7 +171,7 @@ export class RoomServer {
   sendRace(conn, id) {
     const R = this.room;
     this.send(conn, { t: 'race', p: PROTOCOL, build: R.build, map: R.map, mode: R.mode, seed: R.seed, countdownAt: R.countdownAt, serverNow: this.t.now(), step: this.step,
-      seats: R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, car: s.car, paint: s.paint || 0, pers: s.pers || null })), you: id, snap: this.sim.snapshot() });
+      seats: R.seats.map(s => ({ id: s.id, kind: s.kind, name: s.name, car: s.car, paint: s.paint || 0, pers: s.pers || null })), you: id, rules: {weapons: this.sim.weapons, vr: R.vr || 0}, snap: this.sim.snapshot() });
   }
   // Exactly one frame per racer per step. A frame that has not arrived when its step runs is MISSED:
   // the server holds the last input (or releases everything once input is stale) and moves on; the
@@ -199,7 +204,7 @@ export class RoomServer {
       if (wall > 1.5 / NET_HZ) this.stats.lateTicks++;
       const adv = this.clock.advance(wall); this.stats.droppedMs = this.clock.droppedMs;
       for (let i = 0; i < adv.steps; i++) {
-        for (const r of sim.racers) { if (r.isAI || r.dnf) continue; decodeFrame(this.consume(r.id, now), r.input); }
+        for (const r of sim.racers) { if (r.isAI || r.dnf) continue; decodeFrame(this.consume(r.id, now), r.input); r.wNetLead = Math.min(1.5,(this.inputs.get(r.id)?.buf.size||0)/120); }
         sim.step(SIM_DT); this.step++;
       }
       this.stats.steps += adv.steps;
@@ -235,11 +240,15 @@ export class RoomServer {
     const sim = this.sim, br = sim.track.BR, all = sim.racers.map(r => compactRacer(r, br));
     const dr = sim.drones.map(d => [+d.s.toFixed(3), +d.h.toFixed(4), +d.vh.toFixed(4)]);
     const fo = sim.finishOrder.map(r => r.id), rt = +sim.raceTime().toFixed(4), pk = encodePads(sim.pads, sim.time);
+    const weaponCache=new Map();
+    if(sim.weapons)for(const p of sim.weaponState.shots.concat(sim.weaponState.mines,sim.weaponState.pulses||[]))weaponCache.set(p.id,[p.id,p.kind,sim.racers.findIndex(r=>r.id===p.owner),p.path,+p.s.toFixed(2),+p.d.toFixed(2),+p.h.toFixed(2),p.target?sim.racers.findIndex(r=>r.id===p.target):-1,+p.age.toFixed(2),+(p.speed||0).toFixed(1),p.aid||0]);
     for (const [conn, c] of this.conns) {
       if (!c.id) continue;
       if (conn.bufferedAmount && conn.bufferedAmount() > BACKPRESSURE_BYTES) { this.stats.skippedBackpressure++; continue; }   // drop stale snapshots, never queue
       const q = this.inputs.get(c.id);
-      this.send(conn, { t: 's', k: this.step, sn: now, ph: this.room.phase, rt, tm: sim.time, ack: q ? q.next - 1 : -1, q: q ? q.buf.size : 0, ms: q ? q.starve : 0, el: q && q.early.length ? Math.min(...q.early) : null, me: q ? sim.racerState(c.id) : null, a: all, dr, fo, pk });
+      const ws=sim.weapons ? {wx: encodeWeaponEntities(sim,c.id,weaponCache), wv: encodeWeaponEvents(sim,c.id,c.weaponCursor)} : {};
+      const sent=this.send(conn, { t: 's', ...ws, k: this.step, sn: now, ph: this.room.phase, rt, tm: sim.time, ack: q ? q.next - 1 : -1, q: q ? q.buf.size : 0, ms: q ? q.starve : 0, el: q && q.early.length ? Math.min(...q.early) : null, me: q ? sim.racerState(c.id) : null, a: all, dr, fo, pk });
+      if(sent&&sim.weapons)c.weaponCursor=sim.weaponState.nextEvent-1;
     }
   }
   // ---------------- housekeeping / lifetime ----------------
@@ -282,13 +291,13 @@ export class RoomServer {
   // ---------------- helpers ----------------
   broadcastLobby() { this.broadcast({ t: 'lobby', room: Room.publicState(this.room), notice: this.notice }); }
   broadcast(m) { const txt = JSON.stringify(m); for (const [conn, c] of this.conns) if (c.id) this.sendText(conn, txt); }
-  send(conn, m) { this.sendText(conn, JSON.stringify(m)); }
-  sendText(conn, txt) { this.stats.sentBytes += txt.length; this.stats.sentMsgs++; try { conn.send(txt); } catch (e) { } }
+  send(conn, m) { return this.sendText(conn, JSON.stringify(m)); }
+  sendText(conn, txt) { this.stats.sentBytes += txt.length; this.stats.sentMsgs++; try { conn.send(txt); return true; } catch (e) { return false; } }
   reject(conn, why, fatal = false) {
     this.stats.rejected[why] = (this.stats.rejected[why] || 0) + 1; this.send(conn, { t: 'error', error: why, fatal });
     if (fatal) { try { conn.close(4000, why); } catch (e) { } this.conns.delete(conn); }
   }
-  meta() { const R = this.room; return { code: R.code, build: R.build, phase: R.phase, hostId: R.hostId, map: R.map, mode: R.mode, nextBot: R.nextBot, nextHuman: R.nextHuman, version: R.version, seats: R.seats.map(s => ({ ...s })), tokens: [...this.tokens], createdAt: R.createdAt, lastActivity: this.lastActivity, lastBeat: this.lastBeat, emptySince: this.emptySince }; }
+  meta() { const R = this.room; return { code: R.code, build: R.build, phase: R.phase, hostId: R.hostId, map: R.map, mode: R.mode, weapons: !!R.weapons, vr: R.vr || 0, nextBot: R.nextBot, nextHuman: R.nextHuman, version: R.version, seats: R.seats.map(s => ({ ...s })), tokens: [...this.tokens], createdAt: R.createdAt, lastActivity: this.lastActivity, lastBeat: this.lastBeat, emptySince: this.emptySince }; }
   save() { if (!this.persist || this.closed) return; this.stats.persists++; try { const p = this.persist(this.meta()); if (p && p.catch) p.catch(() => { }); } catch (e) { } }
   get ticking() { return !!this.loop; }
 }

@@ -21,7 +21,7 @@ test('determinism: snapshot -> JSON -> import continues identically for 12 s wit
     const drive = (S, n) => S.racers.forEach((r, k) => { if (!r.isAI) decodeFrame(frameAt(k, n), r.input); });
     for (; n < 600; n++) { drive(A, n); A.step(SIM_DT); }
     // force contact: h2 right behind/inside h1; force h2 off an edge later (respawn path)
-    const [h1, h2] = A.racers; Object.assign(h2, { path: h1.path, s: h1.s - 1, d: h1.d + 0.8, va: h1.va + 15, prevS: h1.s - 1 }); h2.lastRd = A.rdist(h2.path, h2.s); h2.prog = h1.prog - 1;
+    const [h1, h2] = A.racers; Object.assign(h2, { path: h1.path, s: h1.s - 3, d: h1.d + 0.8, va: h1.va + 15, prevS: h1.s - 3 }); h2.lastRd = A.rdist(h2.path, h2.s); h2.prog = h1.prog - 3;
     const mid = JSON.parse(J(A.snapshot()));
     const B = mk(31337); B.importSnapshot(mid); B.events = null;
     assert.equal(J(B.snapshot()), J(A.snapshot()), `${map}: import reproduces state`);
@@ -101,7 +101,7 @@ test('NetClient: lead-control state is per race (a rematch can raise lead again)
   const { NetClient } = await import('../../src/net/client.js');
   const { S, msg } = serverAndRaceMsg('velocity', [{ id: 'p1', kind: 'human' }], 'p1');
   const nc = new NetClient({ wsUrl: 'ws://x', WebSocketImpl: class { }, now: () => 0, build: 'b' }); nc.clock.ready = true;
-  const race = { ...msg, t: 'race', p: 2, build: 'b', countdownAt: 0 };
+  const race = { ...msg, t: 'race', p: 3, build: 'b', countdownAt: 0 };
   nc.beginRace(race); for (let i = 0; i < 40; i++) nc.onSnap({ ph: 'race', el: -50, q: 0, sn: 0, a: [], ack: -1 });
   const l1 = nc.lead; assert.ok(l1 >= 60, 'lead raised in race 1: ' + l1);
   nc.beginRace(race); const l2a = nc.lead; for (let i = 0; i < 40; i++) nc.onSnap({ ph: 'race', el: -50, q: 0, sn: 0, a: [], ack: -1 });

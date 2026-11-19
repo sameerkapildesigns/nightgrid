@@ -11,7 +11,7 @@ export const MAX_LAP_SECONDS = 3600;
 // M3: records are kept per driving mode. Pre-M3 records (nightgrid_v4_rec_<map>, nightgrid_v2_best)
 // were set under v5b physics, which neither mode reproduces; they are NOT migrated into either mode
 // and are left untouched in storage (read-only, never deleted).
-export function recordKey(mode, map) { return `m3_${mode === 'assisted' ? 'assisted' : 'expert'}_${map}`; }
+export function recordKey(mode, map, vr = 0) { return `m3_${mode === 'assisted' ? 'assisted' : 'expert'}_${map}${vr&3 ? '~'+(vr&1?'m':'')+(vr&2?'r':'') : ''}`; }
 export function minPlausibleLap(lapLenM) { return lapLenM / MAX_LAP_SPEED; }
 
 // lap: { time, lapLen, integrity: { teleport, autopilot, debug } }
@@ -21,6 +21,7 @@ export function validateLap(lap) {
   if (lap.time <= 0 || lap.time > MAX_LAP_SECONDS) return { ok: false, reason: 'out-of-range' };
   if (lap.time < minPlausibleLap(lap.lapLen)) return { ok: false, reason: 'faster-than-physics' };
   const g = lap.integrity || {};
+  if (g.weapons) return { ok: false, reason: 'weapons-mode' };
   if (g.teleport) return { ok: false, reason: 'position-jump' };
   if (g.autopilot) return { ok: false, reason: 'autopilot' };
   if (g.debug) return { ok: false, reason: 'debug-session' };

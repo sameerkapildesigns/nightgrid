@@ -56,7 +56,9 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
       const open = room.maxSeats - room.seats.length;
       h += `<ul class="seats" id="mpSeats">${room.seats.map(s => seatRow(s, room, you)).join('')}</ul>${open > 0 ? `<div class="openseats">${open} open seat${open === 1 ? '' : 's'}</div>` : ''}`;
       h += `<div class="glbl">Circuit${host ? '' : ' (host picks)'}</div><div class="seg" id="mpMaps">${MAP_KEYS.map(k => `<button class="${room.map === k ? 'on' : ''}" data-act="map" data-map="${k}" ${host && lobby ? '' : 'disabled'}>${MAPS[k].short}<small>${MAPS[k].laps} laps</small></button>`).join('')}</div>
+
         <div class="glbl">Driving mode (same for everyone)</div><div class="seg" id="mpModes">${[['assisted', 'Assisted'], ['expert', 'Expert']].map(([k, n]) => `<button class="${room.mode === k ? 'on' : ''}" data-act="mode" data-mode="${k}" ${host && lobby ? '' : 'disabled'}>${n}</button>`).join('')}</div>
+        ${room.weaponsAllowed && (import.meta.env.VITE_WEAPONS !== '0') ? `<div class="glbl">Race rules</div><div class="seg">${[false,true].map(on=>`<button data-act="weapons" data-on="${on?1:0}" class="${!!room.weapons===on?'on':''}" ${host&&lobby?'':'disabled'}>${on?'Mines + EMP':'Clean'}</button>`).join('')}</div>` : ''}
         <p class="hint">Your car and paint come from the garage behind this panel.</p>
         <button class="ghost leave" data-act="leave">Leave room</button></div><div class="mpfoot">`;
       if (lobby && me) h += `<button class="btn mpbtn ${me.ready ? 'on' : ''}" data-act="ready">${me.ready ? 'Ready ✓ (tap to undo)' : "I'm ready"}</button>`;
@@ -101,7 +103,9 @@ export function createLobbyUI({ el, onCreate, onJoin, onLeave, getNet, onOpenCha
       case 'addbot': net.addBot(); break;
       case 'rmbot': net.removeBot(d.bot); break;
       case 'rmlastbot': { const b = net.room.seats.filter(s => s.kind === 'bot').pop(); if (b) net.removeBot(b.id); break; }
-      case 'map': net.config({ map: d.map }); break;
+      case 'map': net.config({ map: d.map, vr:['casino','summit'].includes(d.map)?0:d.map==='legacy'?(net.room.vr&4):(net.room.vr||0) }); break;
+      case 'variant': net.config({vr:(net.room.vr||0)^(+d.bit)});break;
+      case 'weapons': net.config({weapons:d.on==='1'}); break;
       case 'mode': net.config({ mode: d.mode }); break;
       case 'ready': { const me = net.me; net.ready(!(me && me.ready)); break; }
       case 'start': net.start(); break;

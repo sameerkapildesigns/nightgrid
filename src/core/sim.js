@@ -5,6 +5,7 @@
 //  - each lap carries an integrity record (position jumps, autopilot, debug) used by
 //    record validation;
 //  - randomness comes from an injected seeded RNG (the city keeps its own stream).
+import { createCombat, resetWeaponRacer, buildWeaponBoxes, newWeaponState } from './weapons.js';
 import { Vec3 } from './vec.js';
 import { clamp, lerp, mod, wrapA, damp, fmtTime } from './math.js';
 import { paceFor, FASTEST_MOD } from './pace.js';
@@ -58,7 +59,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     time: 0, raceStart: 0, phase: 'grid',   // grid | race | finished
     ghost: false,   // true in multiplayer rooms: no car-to-car contact (see collideRacers)
     hazards: false, // M8: static obstacles + shield/self-boost pads (room server and the page turn this on)
-    obstacles: [], pads: [],
+    obstacles: [], pads: [], weapons: false, predictOnly: false, weaponSlice: 3, weaponBoxes: [], weaponState: newWeaponState(), stepIndex: 0,
     racers: [], drones: [], player: null, finishOrder: [],
     input: { up: 0, down: 0, left: 0, right: 0, boost: 0 },
     diff: 'normal', mode: 'expert', pace: null, bestLap: Infinity, bestSplits: [], curSplits: [], wrongWayT: 0,
@@ -71,11 +72,15 @@ export function createSim({ seed = 4242, events = null } = {}) {
     rng: rnd, R
   };
 
-  function setTrack(key) {
-    td = typeof key === 'string' ? buildTrackData(key) : key;
+  const combat = createCombat(sim, seed);
+  Object.assign(sim, { fireWeapon: (r = sim.player, aid = 0) => combat.fire(r, aid), queueWeaponActions: combat.queue, weaponHot: combat.hot });
+
+  function setTrack(key, vr = 0) {
+    td = typeof key === 'string' ? buildTrackData(key, vr) : key;
     ({ MAIN, BR, SAm, SBm, OFF, W0, LAPLEN, LAPS, HASBR, SECTORS } = td);
     sim.pace = paceFor(td.key, sim.mode);
     const hz = buildHazards(td); sim.obstacles = hz.obstacles; sim.pads = hz.pads.map(p => Object.assign({}, p, { readyAt: 0 }));
+    sim.weaponBoxes = buildWeaponBoxes(td); combat.reset();
     for (const r of sim.racers) { r.path = MAIN; r.prevS = undefined; }
     return td;
   }
@@ -127,8 +132,9 @@ export function createSim({ seed = 4242, events = null } = {}) {
     addDrones();
   }
   function addDrones() {
+    const count=['casino','summit'].includes(td.key)?3:7;
     const lanes = [-6, 0, 6, -4, 5, -7, 2];
-    for (let k = 0; k < 7; k++) sim.drones.push({ s: (k + 0.35) * MAIN.L / 7, lane: lanes[k], d: lanes[k], speed: R(30, 41), h: H0 + 0.1, vh: 0, phase: R(0, 10), world: new Vec3(), lastSign: 0, fi: 0 });
+    for (let k = 0; k < count; k++) sim.drones.push({ s: (k + 0.35) * MAIN.L / 7, lane: lanes[k], d: lanes[k], speed: R(30, 41), h: H0 + 0.1, vh: 0, phase: R(0, 10), world: new Vec3(), lastSign: 0, fi: 0 });
     gridUp();
   }
   function placeRacer(r, back, d) {
@@ -139,12 +145,14 @@ export function createSim({ seed = 4242, events = null } = {}) {
     r.sector = MAIN.sec[Math.round(r.s / MAIN.ds) % MAIN.N]; r.takeShort = false; r.air = false; r.airT = 0; r.aiBoostT = 0;
     r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
     r.shieldT = 0; r.surgeT = 0; r.powCD = 0; r.obT = 0; r.passT = 0;
+    resetWeaponRacer(r);
     ev.racerReset(r);
   }
   function gridUp() {
+    combat.reset(); sim.stepIndex = 0;
     const slots = gridSlots(sim.racers.length, W0);
     for (const r of sim.racers.slice().sort((a, b) => a.gridSlot - b.gridSlot)) { const [bk, d] = slots[r.gridSlot]; placeRacer(r, bk, d); if (!r.isAI) r.meter = 0.35; }
-    sim.drones.forEach((d, k) => { d.s = mod(S0 + 380 + k * MAIN.L / 7, MAIN.L); d.speed = R(30, 41); });
+    sim.drones.forEach((d, k) => { d.s = td.key==='casino'?160+k*90:td.key==='summit'?2600+k*55:mod(S0 + 380 + k * MAIN.L / 7, MAIN.L); d.speed = R(30, 41); });
     sim.phase = 'grid'; sim.finishOrder = []; sim.curSplits = []; sim.debugTouched = false;
     for (const p of sim.pads) p.readyAt = 0;
     for (const r of sim.racers) { r.curSplits = []; r.wrongWayT = 0; }
@@ -219,7 +227,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     else { r.boostRelT += dt; r.boostLock = false; }
     // M8 self-boost pickup: surgeT forces boost for its duration without draining the meter
     const wantB = keys.boost && r.meter > 0.01 && !r.boostLock, surge = r.surgeT > 0;
-    r.boost = wantB || surge; if (wantB && !surge) r.meter = Math.max(0, r.meter - dt * 0.32);
+    r.boost = !(r.empT > 0) && (wantB || surge); if (wantB && !surge && !(r.empT > 0)) r.meter = Math.max(0, r.meter - dt * 0.32);
     else if (!keys.boost && !r.finished && r.boostRelT >= BOOST_REGEN_DELAY) r.meter = Math.min(1, r.meter + dt * BOOST_REGEN_RATE);
     const air = r.air;
     let vf = r.va * Math.cos(r.psi) - r.vd * Math.sin(r.psi);
@@ -230,7 +238,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     r.brakeT = brk ? (r.brakeT || 0) + dt : 0;
     let yawT = -r.steer * 2.2 * sf * (vf < -0.5 ? -1 : 1) * (airbrake ? 1.3 : 1) * (air ? 0.35 : 1);
     // racing-line assist when inverted / on the wall: gently aim back toward the middle (player still steers)
-    if ((steep || pth === BR) && vf > 15) {
+    if (sim.mode==='assisted' && (steep || pth === BR) && vf > 15) {
       const dT = 0, lat = clamp((dT - r.d) * 0.05, -0.35, 0.35);
       const psiT = -Math.asin(clamp(lat, -0.5, 0.5)) + kg * 8;
       const k = (inverted ? 1.0 : steep ? 0.6 : 0.4) * (st === 0 ? 1 : 0.35);
@@ -340,6 +348,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     } else r.boost = false;
     if (r.surgeT > 0 && racing) { r.boost = true; vmax = Math.min(vmax * 1.24, PC.boost * Math.min(1, (P0 ? P0.vmax : 70) / 93.75)); }
     if (r.qaBoost) { r.boost = true; vmax *= 1.24; r.meter = 1; }
+    if (r.empT > 0) { r.boost = false; vmax = Math.min(vmax, PC.normal * Math.min(1, (P0 ? P0.vmax : 70) / 93.75)); }
     const vT = Math.min(vmax, vC * (r.boost ? 1.04 : 1) * Math.min(1.04, rub * noise));
     const dv = vT - r.speed;
     r.speed += dv > 0 ? Math.min(dv, ((P0 ? P0.acc : 24) + (r.boost ? 12 : 0)) * dt) : Math.max(dv, -(P0 ? P0.brake : 44) * dt);
@@ -351,7 +360,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
     }
     r.thr = dv > 0.5 ? 1 : 0.3;
     const W = r.path === BR ? WB : W0;
-    let dT = -Math.sign(kn) * Math.min(Math.abs(kn) * 260, 1) * W * 0.55 + (P0 ? P0.off : 0);
+    const lane = gridLane(sim.racers.length, W0, r.gridSlot);
+    let dT = clamp(lane*(r.path===BR ? .45 : .7)+(P0 ? P0.off*.25 : 0),-W*.6,W*.6); // Persistent lane identity, not a shared centre target.
     if (r.path === MAIN) {
       const toFork = SAm - r.s;
       if (toFork > 0 && toFork < 500 && r.decidedLap !== r.lap) { r.decidedLap = r.lap; r.takeShort = P0 ? rnd() < P0.short : false; }
@@ -378,6 +388,12 @@ export function createSim({ seed = 4242, events = null } = {}) {
       if (r.path !== MAIN) break;
       let gp = dr.s - r.s; if (gp > MAIN.L / 2) gp -= MAIN.L; if (gp < -MAIN.L / 2) gp += MAIN.L;
       if (gp > -4 && gp < 40 && Math.abs(dr.d - r.d) < 4.6) { dT = dr.d + (r.d >= dr.d ? 5.2 : -5.2); if (gp < 12 && Math.abs(dr.d - r.d) < 3.2) r.speed = Math.min(r.speed, dr.speed + 10); }
+    }
+    // Hard chooses a box line early, never gains items without physically crossing the same box.
+    if (sim.weapons && sim.diff === 'hard' && !r.wpn && r.path === MAIN && r.prog > 250 && !blocked && Math.abs(kn) < 1/260) {
+      let target = null, nearest = 140;
+      sim.weaponBoxes.forEach((b,j) => { const g=gapS(r.s,b.s,MAIN.L); if (g>10 && g<nearest && !(r.wBoxAt[j]>sim.time)) {nearest=g;target=b;} });
+      if(target)dT=r.d+clamp(target.d-r.d,-6,6);
     }
     // Hold the grid lane for the opening 140 m, then blend into the racing line over 80 m.
     // Obstacles still override this below; launch never changes human steering.
@@ -554,11 +570,12 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (delta > MAX_STEP_ADVANCE(h)) r.lapIntegrity.teleport = true;     // position jumped forward: not a drivable lap
     if (!r.isAI && r.autopilot && !r.finished) r.lapIntegrity.autopilot = true;
     if (sim.debugTouched) r.lapIntegrity.debug = true;
+    if (sim.weapons) r.lapIntegrity.weapons = true;
     r.prog += delta; r.lastRd = nd;
     const rt = sim.raceTime();
     while (!r.finished && r.prog >= (r.lap + 1) * LAPLEN) {
       const lt = rt - r.lapStart, integ = r.lapIntegrity;
-      r.lapTimes.push(lt); r.lapValid.push(!integ.teleport && !integ.autopilot && !integ.debug); r.lapStart = rt; r.lap++;
+      r.lapTimes.push(lt); r.lapValid.push(!integ.teleport && !integ.autopilot && !integ.debug && !integ.weapons); r.lapStart = rt; r.lap++;
       r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
       if (!r.isAI) onHumanLap(r, lt, integ);
       if (r.lap >= LAPS) { r.finished = true; r.finishTime = rt; sim.finishOrder.push(r); if (!r.isAI) onHumanFinish(r); }
@@ -628,7 +645,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   }
   function poseAll() { for (const r of sim.racers) if (!(r.crashed > 0)) pose(r); for (const d of sim.drones) stepDrone(d, 0, false); }
   function stepDrone(d, dt, move) {
-    if (move) d.s = mod(d.s + d.speed * dt, MAIN.L);
+    if(move){const zone=td.key==='casino'?[140,420]:td.key==='summit'?[2520,2790]:null;d.s=zone?zone[0]+mod(d.s-zone[0]+d.speed*dt,zone[1]-zone[0]):mod(d.s+d.speed*dt,MAIN.L);}
     const f = frameAt(MAIN, d.s, _fd);
     d.d = clamp(d.lane * (MAIN.W[f.i] / W0), -MAIN.WL[f.i] + 2.2, MAIN.WR[f.i] - 2.2);
     if (dt > 0) hoverStep(d, MAIN.KN[f.i], d.speed, dt);
@@ -644,12 +661,14 @@ export function createSim({ seed = 4242, events = null } = {}) {
   // One fixed simulation step of h seconds.
   function step(h) {
     sim.time += h;
+    combat.begin(h);
     const racing = sim.phase === 'race' || sim.phase === 'finished';
     if (racing) {
       for (const r of sim.racers) { if (r.crashed > 0) continue; r.autopilot ? stepAI(r, h) : stepPlayer(r, h); }
       if (sim.hazards) hazardTimers(h);
       collideRacers(h);
       if (sim.hazards) claimPads();
+      combat.step(h);
       for (const r of sim.racers) { if (!r.crashed) { slipstream(r, h); checkLaps(r, h); } }
       nearMisses();
       // Assisted: ceiling re-applied after slingshot/collision impulses (AI uses r.speed; player uses va/vd)
@@ -668,6 +687,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     }
     for (const d of sim.drones) stepDrone(d, h, racing);
     for (const r of sim.racers) if (!(r.crashed > 0)) pose(r);
+    sim.stepIndex++;
   }
   // Countdown finished: lights out.
   function startRace() {
@@ -701,15 +721,16 @@ export function createSim({ seed = 4242, events = null } = {}) {
   };
   const encObj = (o) => { const out = {}; for (const k in o) if (!SKIP.has(k) && typeof o[k] !== 'function') out[k] = enc(o[k]); return out; };
   function snapshot() {
-    return { v: 1, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
+    return { v: 2, weapons: !!sim.weapons, weaponSlice: sim.weaponSlice, weaponState: enc(sim.weaponState), weaponPending: combat.snapshotPending(), stepIndex: sim.stepIndex, vr: td.vr || 0, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
       bestLap: enc(sim.bestLap), bestSplits: enc(sim.bestSplits), curSplits: enc(sim.curSplits), debugTouched: sim.debugTouched,
       focus: sim.player ? sim.player.id : null, finishOrder: sim.finishOrder.map(r => r.id),
       racers: sim.racers.map(encObj), drones: sim.drones.map(encObj) };
   }
   // import into a sim created with the same seed-independent setup (track is rebuilt from the map key)
   function importSnapshot(sn) {
-    if (!sn || sn.v !== 1) throw new Error('bad snapshot version');
-    if (!td || td.key !== sn.map) setTrack(sn.map);
+    if (!sn || ![1, 2].includes(sn.v)) throw new Error('bad snapshot version');
+    if (!td || td.key !== sn.map || (td.vr||0)!==(sn.vr||0)) setTrack(sn.map,sn.vr||0);
+    sim.weapons = !!sn.weapons; sim.weaponSlice = sn.weaponSlice || 1; sim.weaponState = dec(sn.weaponState || newWeaponState()); sim.stepIndex = sn.stepIndex || 0; combat.restorePending(sn.weaponPending);
     setMode(sn.mode); sim.diff = sn.diff; sim.ghost = !!sn.ghost; sim.hazards = !!sn.hazards;
     if (Array.isArray(sn.pads)) sn.pads.forEach((t, k) => { if (sim.pads[k]) sim.pads[k].readyAt = t; }); sim.time = sn.time; sim.raceStart = sn.raceStart; sim.phase = sn.phase; rng.a = sn.rng;
     sim.bestLap = dec(sn.bestLap); sim.bestSplits = dec(sn.bestSplits); sim.curSplits = dec(sn.curSplits); sim.debugTouched = sn.debugTouched;

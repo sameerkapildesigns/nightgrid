@@ -15,7 +15,7 @@ function bankDeg(T, U) {
 }
 // Intentional features set the per-map ceiling: Velocity barrel roll 2pi/250 m (raised-cosine peak 2.88 deg/m),
 // Legacy corkscrew 2pi/104 m (peak 6.9 deg/m). Kage has no rolls.
-const CAP = { velocity: 3.2, technical: 1.5, legacy: 7.2 };
+const CAP = { velocity: 3.2, technical: 1.5, casino: 1.5, summit: 1.5, legacy: 7.2 };
 
 for (const k of MAP_KEYS) {
   const td = buildTrackData(k), M = td.MAIN, N = M.N;

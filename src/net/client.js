@@ -1,3 +1,4 @@
+import {decodeWeaponEntities,decodeWeaponEvents} from '../core/weapons.js';
 // Multiplayer connection + race timeline (no DOM, no Three.js). Runs in the browser (src/client/mp.js)
 // and in Node for the headless network tests, with an injected WebSocket implementation and clock.
 //
@@ -18,6 +19,7 @@ export class NetClient {
     this.simEvents = events; this.onEvent = onEvent;
     this.ws = null; this.code = null; this.token = null; this.you = null; this.room = null; this.results = null;
     this.race = null; this.clock = new ClockSync(); this.lead = 8; this.qe = 4; this.snapN = 0; this.frameMs = 16; this.lastFrameAt = 0;
+    this.actions = []; this.nextAid = 1; this.lastWeaponEvent = 0;
     this.outbox = []; this.outSeq = 0; this.lastSend = 0; this.lastPing = -1e9; this.pingN = 0;
     this.closedByUser = false; this.retry = 0; this.status = 'idle'; this.useEventTime = typeof window !== 'undefined';
     this.stats = { sentMsgs: 0, sentBytes: 0, recvMsgs: 0, recvBytes: 0, snapAges: [], recvDelay: [], frameGaps: [], t0: now(), snaps: 0, behindMax: 0, resyncSteps: 0 };
@@ -47,6 +49,11 @@ export class NetClient {
     ws.onerror = () => { };
   }
   leave() { this.closedByUser = true; this.sendRaw({ t: 'leave' }); try { this.ws && this.ws.close(1000, 'leave'); } catch (e) { } this.race = null; this.status = 'closed'; }
+  fireWeapon() {
+    const R=this.race;if(!R||R.ended||this.status!=='open'||!R.pred.sim.weapons||this.actions.length>0)return false;
+    // One pointer-down becomes an action before the worker's next frame batch; taps are never held.
+    this.actions.push([this.nextAid++,R.pred.seq,1]);return true;
+  }
   // ---- lobby actions (the server validates every one; host-only ones are refused for non-hosts) ----
   addBot() { this.sendRaw({ t: 'addBot' }); } removeBot(bot) { this.sendRaw({ t: 'removeBot', bot }); }
   config(o) { this.sendRaw({ t: 'config', ...o }); } car(car, paint) { this.sendRaw({ t: 'car', car, paint }); }
@@ -77,7 +84,9 @@ export class NetClient {
   }
   beginRace(m) {
     if (m.build !== this.build || m.p !== PROTOCOL) { this.onEvent('error', { error: 'build-mismatch', fatal: true }); return; }
+    const sameRace=this.race?.msg.seed===m.seed&&this.race?.msg.countdownAt===m.countdownAt;
     const pred = new Predictor(m, this.simEvents);
+    const lastAid=pred.me.lastAid||0;this.actions=sameRace?this.actions.filter(a=>a[0]>lastAid):[];this.nextAid=Math.max(lastAid,...this.actions.map(a=>a[0]))+1;if(!sameRace)this.lastWeaponEvent=0;
     this.race = { msg: m, pred, interp: new Interpolator(pred.sim.track), startAt: m.countdownAt, ended: false };
     this.results = null; this.outbox = []; this.outSeq = pred.seq; this.qe = 4; this.snapN = 0; this.bumpAt = null;   // per-race lead state (a stale cooldown froze lead control in rematches)
     // initial lead: half the round trip + jitter allowance + 2 steps
@@ -87,7 +96,11 @@ export class NetClient {
   onSnap(s) {
     const R = this.race; if (!R) return;
     this.stats.snaps++; const sn = this.serverNow(); if (this.stats.snapAges.length < 100000) this.stats.snapAges.push(sn - s.sn);
+    const weaponIds=s.a.map(r=>r[0]);
+    s.wx=decodeWeaponEntities(s.wx,weaponIds);s.wv=decodeWeaponEvents(s.wv,weaponIds);
     R.interp.push(s); R.last = s;
+    if(s.me)this.actions=this.actions.filter(a=>a[0]>(s.me.lastAid||0));
+    for(const e of s.wv||[]){if(e.id<=this.lastWeaponEvent)continue;this.lastWeaponEvent=e.id;this.simEvents?.weaponEvent?.(e);}
     if (s.ph === 'race') R.pred.reconcile(s);
     // Lead control from what the server actually observed (not from our clock estimate, which a blocked
     // main thread biases): el = lowest recent arrival margin in steps (negative = our frames were late).
@@ -132,10 +145,10 @@ export class NetClient {
     v.br = me.path === br; v.crashed = me.crashed;
     if (me.crashed > 0) { v.crashVel = me.crashVel ? { x: me.crashVel.x, y: me.crashVel.y, z: me.crashVel.z } : null; v.crashSpin = me.crashSpin ? { x: me.crashSpin.x, y: me.crashSpin.y, z: me.crashSpin.z } : null; v.world = { x: me.world.x, y: me.world.y, z: me.world.z }; }
     return { me: v, corr: { x: P.correction.x, y: P.correction.y, z: P.correction.z }, time: P.sim.time, raceStart: P.sim.raceStart,
-      drones: P.sim.drones.map(d => [d.s, d.d, d.h, d.world.x, d.world.y, d.world.z, d.fi]), fo: R.last ? R.last.fo : [], ended: !!R.ended, pk: encodePads(P.sim.pads, P.sim.time) };
+      drones: P.sim.drones.map(d => [d.s, d.d, d.h, d.world.x, d.world.y, d.world.z, d.fi]), fo: R.last ? R.last.fo : [], ended: !!R.ended, weapons: !!P.sim.weapons, wx: R.last?.wx || [], pendingFire: this.actions.length>0, pk: encodePads(P.sim.pads, P.sim.time) };
   }
   flush(n = this.now()) {
-    while (this.outbox.length) { const f = this.outbox.splice(0, MAX_FRAMES_PER_MSG); this.sendRaw({ t: 'in', q: this.outSeq, f }); this.outSeq += f.length; }
+    while (this.outbox.length) { const f = this.outbox.splice(0, MAX_FRAMES_PER_MSG); this.sendRaw({ t: 'in', q: this.outSeq, f, ...(this.actions.length?{a:this.actions.map(a=>a.slice())}:{}) }); this.outSeq += f.length; }
     this.lastSend = n;
   }
 }

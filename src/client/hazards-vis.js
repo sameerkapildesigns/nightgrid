@@ -19,11 +19,11 @@ function tex(draw, w = 256, h = 256) {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
 }
 // black/amber chevrons with a magenta edge: readable at 300 km/h against the cyan/violet road
-const stripeTex = () => tex((g, w, h) => {
+const stripeTex = (key) => tex((g, w, h) => {
   g.fillStyle = '#0b0a10'; g.fillRect(0, 0, w, h);
-  g.fillStyle = '#ffb21c';
+  g.fillStyle = key==='summit'?'#91a4b5':key==='casino'?'#e8b756':'#ffb21c';
   for (let k = -2; k < 6; k++) { g.beginPath(); const x = k * 64; g.moveTo(x, h); g.lineTo(x + 32, h); g.lineTo(x + 96, 0); g.lineTo(x + 64, 0); g.closePath(); g.fill(); }
-  g.fillStyle = '#ff2bd6'; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 14, w, 14);
+  g.fillStyle = key==='summit'?'#c7e8ff':key==='casino'?'#ff4545':'#ff2bd6'; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 14, w, 14);
 }, 256, 128);
 const padTex = (col, glyph) => tex((g, w, h) => {
   g.clearRect(0, 0, w, h);
@@ -48,7 +48,7 @@ export function createHazardVis({ WORLD, sim, radialTex }) {
   const M = sim.track.MAIN, obs = sim.obstacles, pads = sim.pads;
   const group = new THREE.Group(); group.name = 'HAZARDS'; WORLD.add(group);
   // ---- obstacles: hover barrier block (own geometry; 12 tris) + emissive light bar + ground glow ----
-  const blockMat = new THREE.MeshStandardMaterial({ map: stripeTex(), emissiveMap: null, color: 0xffffff, emissive: new THREE.Color(0.55, 0.32, 0.05), roughness: 0.55, metalness: 0.2 });
+  const blockMat = new THREE.MeshStandardMaterial({ map: stripeTex(sim.track.key), emissiveMap: null, color: 0xffffff, emissive: new THREE.Color(0.55, 0.32, 0.05), roughness: 0.55, metalness: 0.2 });
   blockMat.emissiveMap = blockMat.map;
   const block = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), blockMat, Math.max(1, obs.length));
   const bar = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: new THREE.Color(4.5, 0.4, 2.8), toneMapped: false }), Math.max(1, obs.length));
@@ -65,7 +65,7 @@ export function createHazardVis({ WORLD, sim, radialTex }) {
   const decal = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, map: padTex('#ffffff', 'S'), toneMapped: false }), Math.max(1, pads.length));
   const decalB = new THREE.InstancedMesh(decal.geometry, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, map: padTex('#ffffff', 'B'), toneMapped: false, polygonOffset: true, polygonOffsetFactor: -4 }), Math.max(1, nB));
   const iconS = new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.75, 0), new THREE.MeshBasicMaterial({ color: PAD_COL.S, toneMapped: false }), Math.max(1, nS));
-  const iconB = new THREE.InstancedMesh(new THREE.ConeGeometry(0.6, 1.3, 4, 1), new THREE.MeshBasicMaterial({ color: PAD_COL.B, toneMapped: false }), Math.max(1, nB));
+  const iconB = new THREE.InstancedMesh(new THREE.ConeGeometry(.9, 1.7, 4, 1), new THREE.MeshBasicMaterial({ color: PAD_COL.B, toneMapped: false }), Math.max(1, nB));
   for (const m of [decal, decalB]) m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(Math.max(1, pads.length) * 3), 3);
   decal.count = nS; decalB.count = nB; iconS.count = nS; iconB.count = nB;
   group.add(decal, decalB, iconS, iconB);
@@ -77,7 +77,7 @@ export function createHazardVis({ WORLD, sim, radialTex }) {
       const ready = !(p.readyAt > now), S = p.kind === 'S', j = slot[k];
       const dm = S ? decal : decalB, im = S ? iconS : iconB, col = PAD_COL[p.kind];
       const pulse = ready ? 0.9 + 0.1 * Math.sin(t * 5 + k) : 0.15;
-      dm.setMatrixAt(j, placeMat(M, p.s, p.d, 0.12, 4.6, 1, S ? 7.2 : 14)); _c.copy(col).multiplyScalar(pulse * 1.2); dm.setColorAt(j, _c);
+      dm.setMatrixAt(j, placeMat(M, p.s, p.d, 0.12, 5.6, 1, S ? 10 : 20)); _c.copy(col).multiplyScalar(pulse * 1.8); dm.setColorAt(j, _c);
       const sc = ready ? 1.6 : 0.0001;
       im.setMatrixAt(j, placeMat(M, p.s, p.d, 1.7 + 0.25 * Math.sin(t * 2.4 + k), sc, sc, sc, _m, t * 2.2 + k));
       if (shown[k] !== ready) shown[k] = ready;

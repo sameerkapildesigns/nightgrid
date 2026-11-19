@@ -1,0 +1,14 @@
+import test from 'node:test';import assert from 'node:assert/strict';import WebSocket from 'ws';
+import{startLocalServer}from'../../server/local.mjs';import{createWorkerHost}from'../../src/net/worker-host.js';import{waitFor}from'./scenario.mjs';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+for(const kind of[1,2,3])for(const lagMs of[0,100,200])test(`weapon${kind} action round-trip via worker + real sockets, ${lagMs}ms RTT`,async()=>{
+ const srv=await startLocalServer({port:0,log:false,netsim:true,lagMs,jitterMs:lagMs*.3,room:{weaponsAllowed:true,weaponSlice:3,countdownMs:100,maxRaceMs:30000}});
+ const out=[];const host=createWorkerHost({post:m=>out.push(structuredClone(m)),WebSocketImpl:WebSocket,now:()=>performance.now()});
+ try{const{code}=await fetch(srv.url+'/api/rooms',{method:'POST'}).then(r=>r.json());host.onMessage({t:'connect',wsUrl:srv.url.replace('http','ws'),build:srv.build,name:'Combat',code});await waitFor(()=>host.nc?.you,5000,'welcome');host.onMessage({t:'call',op:'addBot'});host.onMessage({t:'call',op:'config',args:[{weapons:true}]});await waitFor(()=>host.nc.room?.weapons&&host.nc.room?.seats.length===2,5000,'config');host.onMessage({t:'call',op:'ready',args:[true]});await waitFor(()=>host.nc.room.canStart,5000,'ready');host.onMessage({t:'call',op:'start'});await waitFor(()=>host.nc.race,5000,'race');const S=srv.rooms.get(code);await waitFor(()=>S.room.phase==='race',5000,'lights');
+ const r=S.sim.racers.find(r=>r.id===host.nc.you);S.sim.time=7;S.sim.raceStart=0;r.wDistance=400;r.s=S.sim.weaponBoxes[0].s;r.va=r.speed=0;r.wpn=kind;r.wpnAt=0;const target=S.sim.racers.find(t=>t!==r);target.s=r.s+12;target.d=r.d;target.h=r.h;target.autopilot=false;target.va=target.speed=0;target.shieldT=target.wImmT=0;await waitFor(()=>host.nc.race.pred.me.wpn===kind,5000,'inventory');host.onMessage({t:'fire'});await waitFor(()=>host.nc.race.pred.me.lastAid===1,5000,'ack');assert.equal(S.sim.weaponState.events.filter(e=>e.result==='fired').length,1);assert.equal(host.nc.actions.length,0);assert.equal(host.nc.race.pred.me.wpn,0);assert.equal(host.nc.race.pred.sim.predictOnly,true);await waitFor(()=>out.some(m=>m.t==='view'&&m.v.me.lastAid===1),1000,'published ack');
+ // Duplicate retransmission after acknowledgement cannot create another shot.
+ const q=S.inputs.get(r.id).next;host.nc.sendRaw({t:'in',q,f:[1600],a:[[1,S.step,1]]});await sleep(350);assert.equal(S.sim.weaponState.events.filter(e=>e.result==='fired').length,1);
+ // Disconnect and reconnect must retain acknowledged inventory/action history.
+ host.nc.ws.terminate();await waitFor(()=>host.nc.status==='reconnecting',3000,'disconnect');await waitFor(()=>host.nc.status==='open'&&host.nc.race.pred.me.lastAid===1,7000,'rejoin');assert.equal(host.nc.nextAid,2);assert.equal(S.sim.weaponState.events.filter(e=>e.result==='fired').length,1);
+ }finally{host.onMessage({t:'leave'});await srv.close();}
+});

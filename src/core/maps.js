@@ -1,3 +1,5 @@
+import {buildCasino,buildSummit} from './new-tracks.js';
+import {transformTrack,validVariant} from './variants.js';
 // Map catalogue + per-map track data derivation (pure; no Three.js).
 // Sector colours are CSS strings; the client turns them into THREE.Color.
 import { TRK } from './track.js';
@@ -17,9 +19,11 @@ export const MAPS = {
     sectors: [sc('SWEEPERS', 'S1 · BANKED FLAT-OUT', '#3fd8ff'), sc('SKY LOOP', 'S2 · LOOP · CAROUSEL', '#9a7bff'), sc('BARREL', 'S3 · ROLL · FINAL SWEEP', '#ff5ab8')], build: () => TRK.assembleCustom(TRK.DEFS.velocity()) },
   technical: { key: 'technical', name: 'Kage Circuit', short: 'Kage', sub: 'Technical · chicanes · hairpin', blurb: 'Brake · hairpin · 250 avg', laps: 3, W0: 10.5, hasBr: false, ai: { vmax: 1.03, lat: 1.26 },
     sectors: [sc('HARBOUR', 'S1 · BRAKE · CHICANE', '#ffb347'), sc('HAIRPIN', 'S2 · CLIMB · 180°', '#ff4f6d'), sc('ESSES', 'S3 · RHYTHM · CHICANE', '#5de0a0')], build: () => TRK.assembleCustom(TRK.DEFS.technical()) },
+  casino: {key:'casino',name:'Casino Strip',short:'Casino',sub:'Gold boulevard · skyway split · carousel',blurb:'Neon boulevard · 3 laps',laps:3,W0:14,hasBr:true,ai:{vmax:1.03,lat:1.15},sectors:[sc('THE STRIP','S1 · MARQUEE','#ffd56a'),sc('ROULETTE','S2 · BANKED CAROUSEL','#ff8d38'),sc('HIGH ROLLER','S3 · SKYWAY OR THE FLOOR','#ff536e'),sc('CASHOUT','S4 · SLOT GATES · HAIRPIN','#ffe7b8')],build:buildCasino},
+  summit: {key:'summit',name:'Summit Run',short:'Summit',sub:'Arcology climb · switchbacks · tunnel plunge',blurb:'180 m climb · 2 laps',laps:2,W0:14,hasBr:false,ai:{vmax:1.02,lat:1.18},sectors:[sc('BASE CAMP','S1 · VALLEY APPROACH','#71d6ff'),sc('SWITCHBACKS','S2 · CLIMB','#b8e9ff'),sc('SUMMIT','S3 · 180 M PLATEAU','#fa6981'),sc('THE DROP','S4 · DESCENT · TUNNEL','#849fff')],build:buildSummit},
   legacy: { key: 'legacy', name: 'Legacy Grid', short: 'Legacy', sub: 'v3 mixed 5-sector', blurb: 'Mixed · v3 classic', laps: 3, W0: TRK.W0, hasBr: true, ai: { vmax: 1, lat: 1 }, sectors: SECTORS_LEGACY, build: () => TRK.assemble() }
 };
-export const MAP_KEYS = ['velocity', 'technical', 'legacy'];
+export const MAP_KEYS = ['velocity', 'technical', 'casino', 'summit', 'legacy'];
 export const DEFAULT_MAP = 'velocity';
 export const S0 = 60;            // start line (main metres)
 export const H0 = 1.0;           // nominal hover height
@@ -34,9 +38,10 @@ export function mkPath(raw) {
 }
 
 // Builds everything the simulation needs for one map (was loadTrackData in v5b).
-export function buildTrackData(key) {
+export function buildTrackData(key, vr = 0) {
+  if(!validVariant(key,vr))throw new Error('unsupported-variant');
   const def = MAPS[key]; if (!def) throw new Error('unknown map ' + key);
-  const raw = def.build();
+  const raw = transformTrack(def.build(),vr,def.sectors.length);
   const HASBR = !!raw.branch;
   const MAIN = mkPath(raw.main), BR = HASBR ? mkPath(raw.branch) : null;
   let SA, SB, OFF;
@@ -48,11 +53,11 @@ export function buildTrackData(key) {
     if (s >= SBm && s < SBm + 130) ex = 2 * WB * (1 - sstep(SBm + 40, SBm + 120, s));
     MAIN.WR[i] = MAIN.W[i] + ex;
   }
-  const SECTORS = def.sectors;
+  const SECTORS = vr&2 ? [def.sectors[0],...def.sectors.slice(1).reverse()] : def.sectors;
   const SECSTART = SECTORS.map(() => 0);
   for (let i = 1; i < MAIN.N; i++) if (MAIN.sec[i] !== MAIN.sec[i - 1]) SECSTART[MAIN.sec[i]] = i;
   SECSTART[0] = Math.round(S0 / MAIN.ds);
-  return { key, def, MAIN, BR, HASBR, SA, SB, OFF, SAm, SBm, LAPLEN: MAIN.L, LAPS: def.laps, W0: def.W0, SECTORS, SECSTART };
+  return { key, vr, def, MAIN, BR, HASBR, SA, SB, OFF, SAm, SBm, LAPLEN: MAIN.L, LAPS: def.laps, W0: def.W0, SECTORS, SECSTART };
 }
 
 // ---- frame sampling with branch->main delegation (was frameAt/worldPos/raceS/rdist) ----

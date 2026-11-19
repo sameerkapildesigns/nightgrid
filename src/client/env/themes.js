@@ -58,7 +58,10 @@ export const THEMES = {
     taxi: { paint: C(0.95, 0.72, 0.12), glow: C(1.4, 0.75, 0.12) }
   }
 };
-export function themeFor(mapKey) { return THEMES[mapKey] || THEMES.velocity; }
+// New circuits use the same fog density and renderer budget as the original maps.
+THEMES.casino={...THEMES.legacy,key:'casino',label:'CASINO STRIP',fog:H(0x271a18),sky:{...THEMES.legacy.sky,glowA:C(.55,.20,.05),glowB:C(.30,.02,.04)},windows:{...THEMES.legacy.windows,a:C(1,.72,.3),b:C(1,.28,.20),c:C(1,.90,.65),intensity:1.1},strips:[H(0xffc04a),H(0xff4a49),H(0xffd67c),H(0xff536e)],edge:{kind:'posts',a:C(3.2,1.8,.35),b:C(3.0,.3,.45),step:14},rain:C(1,.75,.45),rainA:.35,skyline:'casino',taxi:{paint:C(.10,.025,.035),glow:C(2.8,1.5,.25)}};
+THEMES.summit={...THEMES.velocity,key:'summit',label:'ARCOLOGY SUMMIT',fog:H(0x192235),sky:{...THEMES.velocity.sky,top:C(.005,.012,.03),hor:C(.08,.12,.20),glowA:C(.10,.18,.35)},windows:{...THEMES.velocity.windows,a:C(.55,.80,1),b:C(.80,.92,1),c:C(.8,.14,.22),intensity:.8},strips:[H(0xa4ddff),H(0xb8e9ff),H(0xff6c82),H(0x89a0ff)],edge:{kind:'bollards',a:C(1.8,2.5,3.1),b:C(2.8,.3,.4),step:12},rain:C(.8,.9,1),rainA:.35,skyline:'summit',taxi:{paint:C(.32,.40,.44),glow:C(.6,2,2.6)}};
+export function themeFor(mapKey, vr=0) { const base=THEMES[mapKey]||THEMES.velocity; if(!(vr&4))return base; return {...base,label:base.label+' · NIGHT',fog:base.fog.clone().multiplyScalar(.65),sky:{...base.sky,top:base.sky.top.clone().multiplyScalar(.3),mid:base.sky.mid.clone().multiplyScalar(.35),hor:base.sky.hor.clone().multiplyScalar(.25),sun:null},hemiI:base.hemiI*.65,moonI:base.moonI*.8,windows:{...base.windows,intensity:base.windows.intensity*1.25}}; }
 
 // Sky dome material driven by the theme (replaces the hard-coded night gradient; same dome mesh).
 export function makeSkyMaterial(th) {

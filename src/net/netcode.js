@@ -18,7 +18,7 @@ import { decodeFrame, INTERP_DELAY_MS, EXTRAP_MAX_MS } from './protocol.js';
 import { applyPads } from '../core/hazards.js';
 
 // local-car fields the renderer needs (sim.pose recomputes world/frame from these)
-export const VIEW_FIELDS = ['s', 'd', 'h', 'vh', 'psi', 'va', 'vd', 'yawV', 'steer', 'speed', 'dv', 'prog', 'lastRd', 'lap', 'lapStart', 'lapTimes', 'finished', 'finishTime', 'boost', 'meter', 'drift', 'air', 'airT', 'thr', 'vf', 'vl', 'acc', 'scrape', 'scrapeSide', 'sector', 'draftT', 'tow', 'wrongWayT', 'bestLap', 'curSplits', 'autopilot', 'rollAI', 'edgeAssist', 'cornerAssist', 'shieldT', 'surgeT', 'powCD'];
+export const VIEW_FIELDS = ['s', 'd', 'h', 'vh', 'psi', 'va', 'vd', 'yawV', 'steer', 'speed', 'dv', 'prog', 'lastRd', 'lap', 'lapStart', 'lapTimes', 'finished', 'finishTime', 'boost', 'meter', 'drift', 'air', 'airT', 'thr', 'vf', 'vl', 'acc', 'scrape', 'scrapeSide', 'sector', 'draftT', 'tow', 'wrongWayT', 'bestLap', 'curSplits', 'autopilot', 'rollAI', 'edgeAssist', 'cornerAssist', 'shieldT', 'surgeT', 'powCD', 'wpn', 'wpnAt', 'fireCD', 'wImmT', 'empT', 'slowT', 'slowRate', 'wBoxAt', 'lockId', 'lastAid', 'aLog', 'wDistance', 'wThreats'];
 export const HARD_SNAP_M = 6, SMOOTH_RATE = 12, MAX_PENDING = 360, MAX_CATCHUP_STEPS = 120;   // prediction steps are cheap (one car): up to 1 s per call
 
 export class Predictor {
@@ -26,7 +26,7 @@ export class Predictor {
   constructor(raceMsg, events = null) {
     const sim = this.sim = createSim({ seed: raceMsg.seed });
     sim.setMode(raceMsg.mode); sim.setTrack(raceMsg.map);
-    sim.importSnapshot(raceMsg.snap); sim.ghost = true;   // same rule as the room server (contact-free), so prediction has no contact term to miss
+    sim.importSnapshot(raceMsg.snap); sim.predictOnly = true; sim.ghost = true;   // same rule as the room server (contact-free), so prediction has no contact term to miss
     const me = sim.racers.find(r => r.id === raceMsg.you);
     if (!me) throw new Error('you are not in this race');
     sim.racers.length = 0; sim.racers.push(me);
@@ -61,6 +61,7 @@ export class Predictor {
     const raw = me.world.clone();                   // where prediction had the car (no visual offset)
     const evs = sim.events; sim.events = null;      // replay is silent (no duplicate sfx / flashes / boost FX)
     sim.setRacerState(this.you, s.me);
+    sim.stepIndex = s.k;
     sim.time = s.tm; if (s.ph === 'race') sim.phase = me.finished ? 'finished' : 'race';
     if (s.pk) applyPads(sim.pads, s.pk, s.tm);   // M8: pad availability is the server's, never the prediction's
     if (s.dr) s.dr.forEach((d, k) => { const o = sim.drones[k]; if (o) { o.s = d[0]; o.h = d[1]; o.vh = d[2]; } });

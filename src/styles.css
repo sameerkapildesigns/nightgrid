@@ -523,3 +523,25 @@ body:not(.touchmode) #menuSettings{order:-1}
 body:not(.racing) #mobileReadout,body:not(.racing) #raceProgress{display:none!important}
 body:not(.touchmode).racing #raceProgress:not([hidden]){display:block;position:fixed;left:50%;top:57px;width:210px;height:2px;background:#7a8a9a80;transform:translateX(-50%);z-index:4;pointer-events:none}
 #raceProgress i{position:absolute;top:50%;transform:translate(-50%,-50%);font:600 8px Inter,sans-serif;font-style:normal;border:1px solid var(--r);background:#09111d;color:#fff;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center}
+
+/* Combat is opt-in. A single shot action, never a held driving input. */
+#fireWeapon{display:none}#fireWeapon[hidden],#weaponSlot[hidden],#weaponWarning[hidden]{display:none!important}
+#weaponSlot{position:fixed;left:calc(50% - 200px);top:20px;z-index:7;color:#ffb64c;font:600 11px Inter,sans-serif;padding:10px;border:1px solid #ffb64c88;border-radius:8px;background:#08111dcc;pointer-events:none}
+#weaponWarning{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:7;font:600 12px Inter,sans-serif;color:#ff837b;background:#170a13c9;padding:8px 12px;border-radius:8px;pointer-events:none}
+body.touchmode.racing #fireWeapon{display:block;position:fixed;right:calc(20px + env(safe-area-inset-right));bottom:calc(162px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:2px solid #b7907180;background:#10131ad9;color:#ad9b8c;z-index:12;touch-action:none;pointer-events:auto;font:600 24px Inter,sans-serif}
+body.touchmode.racing #fireWeapon.armed{color:#ffe3a3;border-color:#ffbb5d;background:#392a1ddd;box-shadow:0 0 12px #ff995533}
+body.touchmode #weaponSlot{left:auto;right:calc(86px + env(safe-area-inset-right));top:auto;bottom:calc(178px + env(safe-area-inset-bottom));border:0;padding:4px;font-size:9px;background:#08111d99}
+body.touchmode #weaponWarning{bottom:85px;font-size:10px}
+
+body:not(.racing) #fireWeapon,body:not(.racing) #weaponSlot,body:not(.racing) #weaponWarning{display:none!important}
+#variants{gap:4px;margin-top:6px}#variants button{min-height:44px;font-size:10px;padding:6px}
+
+body.touchmode.racing #fireWeapon.cold{font:600 10px Inter,sans-serif}
+
+#weaponTarget{position:fixed;width:42px;height:30px;transform:translate(-50%,-50%);border:2px solid #ffc46e;border-radius:6px;z-index:6;pointer-events:none;box-shadow:0 0 6px #f908}
+#weaponTarget[hidden]{display:none!important}body.touchmode #weaponTarget{width:32px;height:24px}body:not(.racing) #weaponTarget{display:none!important}
+body.touchmode.racing #fireWeapon.target{border-color:#fff2b0;box-shadow:0 0 14px #ffc26680}body.empLocked #touch [data-k="boost"]{opacity:.38}body.empLocked #boost i{background:#9a869f}
+
+/* Mirrored thumb controls. Brake is inset beside steering; Boost sits above each corner. */
+body.touchmode #touch .brake-right{left:auto;right:calc(90px + env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));width:48px;height:48px;font-size:10px;border-radius:14px}
+body.touchmode #touch .boost-left{right:auto;left:calc(16px + env(safe-area-inset-left));bottom:calc(90px + env(safe-area-inset-bottom));width:64px;height:64px;font-size:12px;border-radius:50%}

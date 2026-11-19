@@ -1,3 +1,6 @@
+import {buildCircuitLandmarks} from './env/circuit-landmarks.js';
+import {variantLabel} from '../core/variants.js';
+import { createWeaponVis, updateWeaponHUD } from './weapons-vis.js';
 import { createMusic } from './music.js';
 import { QUALITY, qualityLimits, qualitySample } from './quality.js';
 // NIGHTGRID client: rendering, world building, car models, garage, FX, HUD, audio, input,
@@ -164,7 +167,7 @@ scene.add(sky);
 // M8-ENV HOOK H3: per-map theme (fog/background colour, sky dome, hemi/moon tint, rain tint). Fog DENSITY unchanged.
 let THEME = themeFor('velocity');
 function applyTheme(key) {
-  THEME = themeFor(key);
+  THEME = themeFor(key, variantMask);
   FOGC.copy(THEME.fog); scene.fog.color.copy(THEME.fog); scene.background.copy(THEME.fog);
   const old = sky.material; sky.material = makeSkyMaterial(THEME); old.dispose();
   hemi.color.copy(THEME.hemiSky); hemi.groundColor.copy(THEME.hemiGround); hemi.intensity = THEME.hemiI;
@@ -196,11 +199,16 @@ function buildEnv() {
 /* ============================== simulation + track data ============================== */
 // The pure simulation owns racers, physics, laps and the per-map track data.
 const sim = createSim({ seed: 4242, events: null });   // events are attached below (SIMEV)
+sim.weaponSlice=2; // Early review slice: mines and EMP only.
 sim.hazards = true;   // M8: obstacles + shield/self-boost pads in single-player too (same layout as rooms)
+const WEAPONS_AVAILABLE = import.meta.env.VITE_WEAPONS !== '0'; // Opt-in mines/EMP release; explicit 0 is the frontend kill switch.
+let WVIS = null;
 let HZV = null;      // hazard visuals for the current map (src/client/hazards-vis.js)
+let variantMask=0; // This review exposes original circuits only.
 let MAPKEY = null, MAPDEF = null, TD, W0, SECTORS, MAIN, BR, SA, SB, OFF, SAm, SBm, LAPLEN, HASBR, SECCOL, SECSTART, LAPS = 3;
 function loadTrackData(key) {
-  TD = sim.setTrack(key);
+  if(key==='legacy')variantMask &=4;if(['casino','summit'].includes(key))variantMask=0;
+  TD = sim.setTrack(key,variantMask);
   ({ MAIN, BR, SA, SB, OFF, SAm, SBm, LAPLEN, HASBR, W0, SECSTART, LAPS } = TD);
   MAPKEY = key; MAPDEF = TD.def;
   SECTORS = TD.SECTORS.map(s => Object.assign({}, s, { col: new THREE.Color(s.colHex != null ? s.colHex : s.css) }));
@@ -691,6 +699,7 @@ function buildCity() {
     });
   };
   mk(signsV, SIGN_V, true); mk(signsH, SIGN_H, false);
+  buildCircuitLandmarks(ENVCTX,WORLD);
   buildSkyline(ENVCTX, WORLD, ENVANN);   // M8-ENV HOOK H7: themed crowns / landmarks / harbour kit
   const GT = THEME.ground;   // M8-ENV HOOK H8: themed ground (grid colours, base colour, gloss)
   const gtex = canvasTex(256, 256, g => { g.fillStyle = '#000'; g.fillRect(0, 0, 256, 256); g.fillStyle = GT.grid1; g.fillRect(0, 0, 256, 2); g.fillRect(0, 0, 2, 256); g.fillStyle = GT.grid2; g.fillRect(0, 128, 256, 1); g.fillRect(128, 0, 1, 256); });
@@ -1272,6 +1281,7 @@ const AU = {
     const g = c.createGain(); this.env(g, t, 0.005, vol, dur); o.connect(f); f.connect(g); g.connect(this.master); o.start(t); o.stop(t + dur + 0.05);
   },
   chime() { [0, 4, 7, 12].forEach((n, k) => setTimeout(() => this.beep(880 * Math.pow(2, n / 12), 0.25, 0.12), k * 70)); },
+  weaponWarning(){const c=this.ctx;if(!c)return;const t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.setValueAtTime(720,t);o.frequency.linearRampToValueAtTime(940,t+.09);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.028,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+.13);o.connect(g);g.connect(this.master);o.start(t);o.stop(t+.15);},
   crash() { const c = this.ctx; if (!c) return; const t = c.currentTime; this.thud(1); this.noiseHit(t, 'lowpass', 2500, 120, 1.4, 0.8, 0.7); },
   setMusic(on) { this.music = on; MUSIC.setEnabled(on); SETTINGS.music = !!on; saveSettings(); if (this.mus) this.mus.gain.setTargetAtTime(on ? 0.2 : 0, this.ctx.currentTime, 0.2); },
   sched() {
@@ -1793,14 +1803,14 @@ let shownResults = false;
 // automated or debug sessions can never write a real record. Every lap is validated
 // (core/records.js) before it is offered: physics bound, position jumps, autopilot, debug.
 const RECORD_STORAGE = DEBUG ? memoryStorage() : (() => { try { return window.localStorage || memoryStorage(); } catch (e) { return memoryStorage(); } })();
-const records = createRecordStore(RECORD_STORAGE, { lapLenOf: k => (k.endsWith('_' + MAPKEY) ? LAPLEN : NaN) });
+const records = createRecordStore(RECORD_STORAGE, { lapLenOf: k => (k.split('~')[0].endsWith('_' + MAPKEY) ? LAPLEN : NaN) });
 let recordLap = Infinity, lastRecordOffer = null;
 // M3 driving mode (Assisted / Expert): separate from AI difficulty and from the input method.
 // Fresh settings use Expert on every device; explicit saved choices persist.
 let driveMode = (() => { try { const v = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (v && DRIVE_MODES.includes(v.mode)) return v.mode; } catch (e) { } return 'expert'; })();
 sim.setMode(driveMode);
 const modeLabel = () => (driveMode === 'assisted' ? 'Assisted' : 'Expert');
-function loadRecord() { recordLap = records.get(recordKey(driveMode, MAPKEY)); }
+function loadRecord() { recordLap = records.get(recordKey(driveMode, MAPKEY, variantMask)); }
 loadRecord();
 const keys = sim.input;
 let lastCount = -1;
@@ -1842,6 +1852,8 @@ function onWallHit(vn, s, Rw) {
   for (let k = 0; k < n; k++) spark(p.x + Rw.x * s * 1.4, p.y + Rw.y * s * 1.4, p.z + Rw.z * s * 1.4, R(-6, 6) - Rw.x * s * R(2, 8), R(1, 8) - Rw.y * s * R(2, 8), R(-6, 6) - Rw.z * s * R(2, 8), k % 3 ? SPARK_HOT : SPARK_CY, R(0.3, 0.8));
 }
 sim.events = {
+  weaponPickup: (r,kind) => {if(r===player){cpFlash(['','MISSILE ARMED','MINE ARMED','EMP ARMED'][kind]||'WEAPON ARMED');AU.chime();}},
+  weaponEvent: e => {if(!['hit','blocked'].includes(e.result))return;if(e.victim===player.id)cpFlash(e.result==='blocked'?'SHIELD BLOCKED':e.kind===3?'EMP · BOOST LOCKED':e.kind===2?'MINE HIT':'MISSILE HIT');else if(e.owner===player.id&&e.result==='hit')cpFlash('HIT');},
   earn: (txt, col) => earnPopup(txt, col),
   flash, cp: cpFlash,
   sfx: (name, ...a) => { if (typeof AU[name] === 'function') AU[name](...a); },
@@ -1863,7 +1875,7 @@ sim.events = {
   sector: sec => { secFlash(sec); $('sector').textContent = `S${sec + 1} · ${SECTORS[sec].name}`; $('sector').style.color = SECTORS[sec].css; },
   lap: lap => {
     if (lap.isBest) { $('best').classList.add('flash'); setTimeout(() => $('best').classList.remove('flash'), 2000); }
-    lastRecordOffer = Object.assign({ time: lap.time, map: lap.map }, records.offer(recordKey(driveMode, MAPKEY), lap));
+    lastRecordOffer = Object.assign({ time: lap.time, map: lap.map }, records.offer(recordKey(driveMode, MAPKEY, variantMask), lap));
     if (lastRecordOffer.saved) recordLap = lap.time;
   },
   playerFinish: () => {
@@ -2099,7 +2111,7 @@ async function startRace() {
   if (!isRaceReady(GAR.sel, assetStatus)) { ensureRaceAssets(GAR.sel); return; }
   raceStarting = true;
   try {
-    AU.init(); sim.diff = SETTINGS.diff; sim.setMode(driveMode);
+    AU.init(); sim.weapons = WEAPONS_AVAILABLE && !!SETTINGS.weapons; sim.diff = SETTINGS.diff; sim.setMode(driveMode);
     refreshRacerCars(); gridUp(); hudCache = {}; $('sector').textContent = `S1 · ${SECTORS[0].name}`; $('sector').style.color = SECTORS[0].css;
     $('go').blur(); $('go').disabled = true; $('go').textContent = 'Preparing…';
     for (const r of racers) updateVisual(r, 0);
@@ -2124,10 +2136,11 @@ function startRaceNow() { // QA: straight into a running race, no intro/countdow
   AU.init(); setPlayerCar(); $('sector').textContent = `S1 · ${SECTORS[0].name}`;
   $('title').classList.add('hide'); $('results').classList.add('hide'); $('hud').classList.add('on');
   shownResults = false; hudCache = {};
-  gridUp(); state = 'race'; sim.startRace();
+  sim.weapons = WEAPONS_AVAILABLE && !!SETTINGS.weapons; gridUp(); state = 'race'; sim.startRace();
   sim.pose(player); chaseTarget(0, true, CC.pos, CC.look, CC.up);
 }
 function toGarage() {
+  document.body.classList.remove('racing');for(const id of ['fireWeapon','weaponSlot','weaponWarning','weaponTarget'])$(id).hidden=true;
   cineUI(false); FIN.on = false; FIN.t = 99;
   if (paused) { paused = false; AU.pause(false); }
   player.qaBoost = false; player.autopilot = false; player.pers = null; QA.mode = null;
@@ -2200,6 +2213,7 @@ addEventListener('keydown', e => {
   const k = KEYMAP[e.code];
   if (k) { keys[k] = 1; e.preventDefault(); mpPushKeys(); }
   if (e.repeat) return;
+  if (e.code === 'KeyF') { e.preventDefault(); if(!e.repeat)requestWeaponFire(); }
   if (state === 'title') { if (e.code === 'ArrowLeft' || e.code === 'KeyA') cycleCar(-1); if (e.code === 'ArrowRight' || e.code === 'KeyD') cycleCar(1); }
   if ((e.code === 'Enter' || e.code === 'Space') && state === 'intro') { endIntro(true); return; }
   if (e.code === 'Enter' && skipFinishCine()) return;
@@ -2310,6 +2324,8 @@ function update(dt, dt0) {
   if (state === 'finished') { cineUI(FIN.on && FIN.t < 3.4, false, FIN.on && FIN.t < 3.4); finishT += dt; if ((FIN.on ? FIN.t > 3.4 : finishT > 2.6) && !shownResults) { shownResults = true; $('results').classList.remove('hide'); } if (shownResults) showResults(); }
   for (const r of racers) updateVisual(r, dt);
   if (HZV) HZV.update(gameTime);
+  if (WVIS) WVIS.update();
+  updateWeaponHUD(sim, player, {enabled:sim.weapons, racing:state==='race', online:!!MP.race, pending:!!MP.net?.race?.view?.pendingFire,camera,warningTone:()=>AU.weaponWarning()});
   updatePowerHUD();
   const s01 = Math.min(player.speed / 92, 1.4);
   const boosting = player.boost && state === 'race' && !player.crashed;
@@ -2373,7 +2389,7 @@ function update(dt, dt0) {
 
 /* ---------- settings: motion blur / camera shake (reduced-motion aware) ---------- */
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled };
+const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled, weapons: false };
 try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
 const BLUR_K = [0, 1, 1.8];
 function qualityUI() {
@@ -2390,6 +2406,7 @@ function applyQuality(q) {
 document.addEventListener('click', e => { const m = e.target.closest('[data-music-toggle]'); if (m) AU.setMusic(!MUSIC.enabled); const b = e.target.closest('[data-quality]'); if (b) applyQuality(b.dataset.quality); });
 function renderSettings() {
   qualityUI();
+  $('setWeapons').innerHTML = WEAPONS_AVAILABLE ? [false,true].map(on=>`<button data-weapons="${on?1:0}" class="${!!SETTINGS.weapons===on?'on':''}" role="radio" aria-checked="${!!SETTINGS.weapons===on}">${on?'Mines + EMP':'Clean'}</button>`).join('') : 'Weapons unavailable';
   for (const b of document.querySelectorAll('[data-music-toggle]')) { b.textContent = MUSIC.enabled ? 'Music: On' : 'Music: Off'; b.setAttribute('aria-pressed', String(MUSIC.enabled)); }
   $('setBlur').innerHTML = ['Off', 'Mild', 'Strong'].map((n, i) => `<button class="${SETTINGS.blur === i ? 'on' : ''}" data-blur="${i}" role="radio" aria-checked="${SETTINGS.blur === i}">${n}</button>`).join('');
   $('setShake').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+SETTINGS.shake === i ? 'on' : ''}" data-shake="${i}" role="radio" aria-checked="${+SETTINGS.shake === i}">${n}</button>`).join('');
@@ -2406,6 +2423,8 @@ $('setBtn').addEventListener('click', () => { $('homeMore').open = false; openSh
 $('setCine').addEventListener('click', e => { const b = e.target.closest('[data-cine]'); if (b) { SETTINGS.cine = b.dataset.cine === '1'; saveSettings(); } });
 $('setMode').addEventListener('click', e => { const b = e.target.closest('[data-mode]'); if (!b || !DRIVE_MODES.includes(b.dataset.mode)) return; SETTINGS.mode = driveMode = b.dataset.mode; if (state === 'title') sim.setMode(driveMode); saveSettings(); loadRecord(); updateGarageUI(); });
 $('setDiff').addEventListener('click', e => { const b = e.target.closest('[data-diff]'); if (b) { SETTINGS.diff = b.dataset.diff; sim.diff = SETTINGS.diff; saveSettings(); } });
+$('setWeapons').addEventListener('click', e => { const b=e.target.closest('[data-weapons]'); if(b&&state==='title'&&!MP.race){SETTINGS.weapons=b.dataset.weapons==='1';sim.weapons=WEAPONS_AVAILABLE&&SETTINGS.weapons;saveSettings();} });
+sim.weapons=WEAPONS_AVAILABLE&&!!SETTINGS.weapons;
 renderSettings();
 
 /* ---------- cinematics: grid intro + finish camera (skippable, setting, reduced-motion aware) ---------- */
@@ -2505,21 +2524,30 @@ let touchHeld = {};
 $('tiltRecenter').addEventListener('click', () => { if (tiltSample) { tilt.recenter(tiltSample, screenAngle()); tiltMsg('Recentred.'); } else tiltMsg('Enable Tilt first.'); });
 $('setSteer').addEventListener('click', e => { const b = e.target.closest('[data-steer]'); if (!b) return; if (b.dataset.steer === 'tilt') enableTilt(); else useTouchSteering('Touch steering.'); });
 
+function requestWeaponFire() {
+  if(state!=='race'||paused||!$('pause').classList.contains('hide')||!sim.weapons)return;
+  if(MP.race){if(MP.net?.fireWeapon)MP.net.fireWeapon();return;}
+  const result=sim.fireWeapon(player);if(!result.ok)cpFlash(result.error==='cold'?'WEAPONS COLD':result.error==='no-weapon'?'FIND A WEAPON BOX':'NOT READY');
+}
+$('fireWeapon').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();requestWeaponFire();});
 /* ---------- touch driving (coarse pointers only): auto-throttle, hold Brake to slow/drift, steer pads, Boost ---------- */
 const TOUCH = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches) || new URLSearchParams(location.search).has('touch');
 document.body.classList.toggle('touchmode', TOUCH);
 if (TOUCH) $('cineSkip').textContent = 'Skip';   // no Enter key on phones
 if (TOUCH) {
-  const held = {};
+  const held = {}, presses = new Map();
   for (const b of document.querySelectorAll('#touch button')) {
     // brake also switches the auto-throttle in the SAME event (not at the next 50 ms timer tick, which a
     // slow render frame can delay): measured 2.2 s brake-to-server latency on a ~1 FPS host before this
     const thr = () => { if (k === 'down' && (state === 'race' || state === 'countdown') && player && !player.autopilot && !paused) keys.up = held.down ? 0 : 1; };
-    const k = b.dataset.k, on = e => { e.preventDefault(); if (!$('pause').classList.contains('hide')) return; held[k] = 1; keys[k] = 1; thr(); b.classList.add('on'); if (b.setPointerCapture) try { b.setPointerCapture(e.pointerId); } catch (err) { } mpPushKeys(); }, off = e => { held[k] = 0; keys[k] = 0; thr(); b.classList.remove('on'); mpPushKeys(e && e.type === 'pointercancel'); };
+    const k = b.dataset.k; if (!presses.has(k)) presses.set(k,new Set());
+    const updateHeld = () => { held[k]=presses.get(k).size?1:0; keys[k]=held[k]; thr(); };
+    const on = e => { e.preventDefault(); if (!$('pause').classList.contains('hide')) return; presses.get(k).add(e.pointerId);updateHeld();b.classList.add('on');if(b.setPointerCapture)try{b.setPointerCapture(e.pointerId);}catch{}mpPushKeys(); };
+    const off = e => { presses.get(k).delete(e.pointerId);updateHeld();b.classList.remove('on');mpPushKeys(e && e.type==='pointercancel'); };
     b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   }
   touchHeld = held;
-  touchRelease = () => { tilt.reset(); for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
+  touchRelease = () => { tilt.reset(); for(const set of presses.values())set.clear(); for (const k in held) held[k] = 0; for (const b of document.querySelectorAll('#touch button')) b.classList.remove('on'); };
   setInterval(() => { const racing = state === 'race' || state === 'countdown'; document.body.classList.toggle('racing', racing); if (racing && !player.autopilot && !paused && $('pause').classList.contains('hide')) { keys.up = held.down ? 0 : 1; mpPushKeys(); } }, 50);
   // (M2 fix) no inline pointer-events here: #cine is interactive only while .on (CSS); the
   // general #cine pointerdown handler above already covers touch.
@@ -2539,26 +2567,29 @@ function disposeWorld() {
   return { geometries: geos.size, materials: mats.size, textures: texs.size };
 }
 let mapBusy = false, lastDispose = null;
-async function switchMap(key, persist = true) {
-  if (!MAPS[key] || key === MAPKEY || mapBusy || state !== 'title') return;
+async function switchMap(key, persist = true, vr = variantMask) {
+  if(key==='legacy')vr &=4;if(['casino','summit'].includes(key))vr=0;
+  if (!MAPS[key] || (key === MAPKEY && vr === variantMask) || mapBusy || state !== 'title') return;
   mapBusy = true; $('go').disabled = true; $('go').textContent = 'Building…'; renderMapSeg(key); await tick(); await tick();
   const t0 = performance.now();
   lastDispose = disposeWorld();
-  loadTrackData(key); applyTheme(key);   // M8-ENV HOOK H13a
-  planDecks(); buildRainShelter(); buildTrack(); planBillboards(); BOUNDS = buildCity(); buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex });
+  variantMask=vr; loadTrackData(key); applyTheme(key);   // M8-ENV HOOK H13a
+  planDecks(); buildRainShelter(); buildTrack(); planBillboards(); BOUNDS = buildCity(); buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex }); WVIS = createWeaponVis({ WORLD, sim });
   for (const r of racers) { r.path = MAIN; r.emPrev = null; r.prevS = undefined; for (const t of r.trails) t.n = 0; }
   gridUp(); initHUD(); loadRecord(); hudCache = {};
   flyS = mod(SECSTART[Math.min(1, SECSTART.length - 1)] + 280, MAIN.L);
   for (const r of racers) updateVisual(r, 0.016);
   renderer.compile(scene, camera);
-  if (persist) try { localStorage.setItem('nightgrid_v4_map', key); } catch (e) { }
+  if (persist) try { localStorage.setItem('nightgrid_v4_map', key);localStorage.setItem('nightgrid_v4_variant',String(variantMask)); } catch (e) { }
   lastDispose.ms = Math.round(performance.now() - t0);
   mapBusy = false; updateGarageUI();
 }
 function renderMapSeg(pending) {
   const cur = pending || MAPKEY;
-  $('maps').innerHTML = MAP_KEYS.map(k => { const M = MAPS[k]; return `<button class="${k === cur ? 'on' : ''}" data-map="${k}" role="radio" aria-checked="${k === cur}" title="${M.name} — ${M.sub} · ${M.laps} laps">${M.short}<small>${k === 'velocity' ? 'Flat-out · 330 km/h avg' : k === 'technical' ? 'Brake · hairpin · 250 avg' : 'Mixed · v3 classic'}</small></button>`; }).join('');
+  if($('variants'))$('variants').innerHTML='';
+  $('maps').innerHTML = MAP_KEYS.map(k => { const M = MAPS[k]; return `<button class="${k === cur ? 'on' : ''}" data-map="${k}" role="radio" aria-checked="${k === cur}" title="${M.name} — ${M.sub} · ${M.laps} laps">${M.short}<small>${M.blurb}</small></button>`; }).join('');
 }
+$('variants').addEventListener('click',e=>{const b=e.target.closest('[data-variant]');if(b&&!MP.race&&!(MP.net?.room))switchMap(MAPKEY,true,variantMask^(+b.dataset.variant));});
 $('maps').addEventListener('click', e => { const b = e.target.closest('[data-map]'); if (b) switchMap(b.dataset.map); });
 
 /* ---------- boot ---------- */
@@ -2578,7 +2609,7 @@ async function boot() {
   applyTheme(MAPKEY);   // M8-ENV HOOK H13b
   scene.add(WORLD); planDecks(); buildRainShelter(); buildTrack(); planBillboards(); await setLoad(0.3, 'RAISING ARCOLOGIES · HANGING THE SKY-DECKS');
   BOUNDS = buildCity(); await setLoad(0.55, 'WIRING NEON');
-  buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex }); buildGarage(); performance.mark('ng:world-built'); await setLoad(0.7, `DOWNLOADING ${CARS[GAR.sel].title} (REAL GLB)…`);
+  buildProps(); HZV = createHazardVis({ WORLD, sim, radialTex }); WVIS = createWeaponVis({ WORLD, sim }); buildGarage(); performance.mark('ng:world-built'); await setLoad(0.7, `DOWNLOADING ${CARS[GAR.sel].title} (REAL GLB)…`);
   await Promise.race([selLoad, new Promise(r => setTimeout(r, 60000))]);
   updateAssetUI();
   await setLoad(0.86, 'BUILDING FLEET');
@@ -2612,6 +2643,7 @@ const MPC = resolveMpConfig({ mode: import.meta.env.MODE, apiBase: import.meta.e
 const mpApi = path => MPC.http + '/' + path;
 const mpWsBase = () => MPC.ws;
 const mpSimEvents = {
+  weaponEvent:e=>sim.events.weaponEvent(e),
   earn: (t, c) => earnPopup(t, c), cp: cpFlash, sfx: (name, ...a) => { if (typeof AU[name] === 'function') AU[name](...a); },
   shake: x => { CC.shake += x; }, kick: x => { CC.kick += x; },
   flash: (t, c) => { if (t !== 'VICTORY' && t !== 'FINISH') flash(t, c); },   // finishing is announced from the server state
@@ -2714,7 +2746,7 @@ function mpOnEvent(type, m) {
     case 'lobby': {
       const room = m.room;
       for (const s of room.seats) ensureAsset(s.car);   // preload every car in the room
-      if (state === 'title' && room.phase === 'lobby' && room.map !== MAPKEY && !mapBusy) switchMap(room.map, false);   // preload the circuit
+      if (state === 'title' && room.phase === 'lobby' && (room.map !== MAPKEY || (room.vr||0)!==variantMask) && !mapBusy) switchMap(room.map, false, room.vr||0);   // preload the circuit
       if (room.phase === 'lobby' && MP.race && state !== 'countdown' && state !== 'race') { /* stay on results until the player taps back */ }
       MP.ui.render(); break;
     }
@@ -2735,14 +2767,14 @@ function mpPowerSnap(m) {
 }
 const mpPw = () => (MP.race && MP.race.pwGate ? MP.race.pwGate.flags : 0);
 async function mpBeginRace(m) {
-  if (MP.race && MP.race.msg.seed === m.seed) { MP.race.msg = m; return; }   // reconnect into the same race
+  if (MP.race && MP.race.msg.seed === m.seed && MP.race.msg.countdownAt === m.countdownAt) { MP.race.msg = m; return; }   // reconnect into the same race
   if (MP.preparing) return; MP.preparing = true;
   try {
     if (state !== 'title') mpEndRaceView();
     while (mapBusy) await tick();
-    if (m.map !== MAPKEY) await switchMap(m.map, false);
+    if (m.map !== MAPKEY || (m.rules?.vr||0)!==variantMask) await switchMap(m.map, false,m.rules?.vr||0);
     for (const st of m.seats) ensureAsset(st.car);
-    mpSetupRacers(m); sim.setMode(m.mode);
+    mpSetupRacers(m); sim.setMode(m.mode); sim.weapons=!!m.rules?.weapons;
     MP.race = { msg: m, startAt: m.countdownAt }; MP.results = null;
     // input sampling, prediction steps and sending run on their own 25 ms timer, not on render frames,
     // so a slow render frame does not decide when inputs leave (the render frame only reads state)
@@ -2780,6 +2812,7 @@ function mpFrame(wall, dt0, nowMs = performance.now()) {
     player.s = O.s; player.d = O.d; player.h = O.h; player.psi = O.psi; player.path = O.br ? BR : MAIN;
     sim.pose(player); player.world.x += O.corr.x; player.world.y += O.corr.y; player.world.z += O.corr.z;
   }
+  sim.weapons=!!V.weapons; sim.weaponState.shots=(V.wx||[]).filter(p=>p.kind===1);sim.weaponState.mines=(V.wx||[]).filter(p=>p.kind===2);sim.weaponState.pulses=(V.wx||[]).filter(p=>p.kind===3);
   sim.time = V.time; sim.raceStart = V.raceStart; sim.phase = state === 'countdown' ? 'grid' : (me.finished ? 'finished' : 'race'); sim.bestLap = me.bestLap;
   // remote cars <- dead-reckoned into the local car's timeline with soft correction (src/client/present.js)
   const PR = mpPresenter(RC), ownStep = stepAt(presT, MP.race.msg);
@@ -2889,7 +2922,7 @@ if (DEBUG) {
     get records() { return { storage: 'memory (debug/test build)', current: isFinite(recordLap) ? recordLap : null, lastOffer: lastRecordOffer, rejected: records.rejected.slice() }; },
     get results() { return { lapTimes: player ? player.lapTimes.slice() : [], lapValid: player ? player.lapValid.slice() : [], finishTime: player ? player.finishTime : 0, order: sim.finishOrder.map(r => r.name), visible: !$('results').classList.contains('hide') }; },
     get ground() { const cl = CLEARANCE; if (!cl) return null; const w = worstClearance(TD, (x, z) => groundHeightAt(cl, x, z)); const fp = []; for (const b of bList) if (b.y0 === 0) { let hit = false; for (let u = -0.5; u <= 0.5 && !hit; u += 0.125) for (let v = -0.5; v <= 0.5 && !hit; v += 0.125) if (groundHeightAt(cl, b.x + u * b.w, b.z + v * b.d) < GROUND_Y - 1e-4) hit = true; if (hit) fp.push([Math.round(b.x), Math.round(b.z)]); } return { worst: w, pitBlocks: cl.blocks.length, buildingsOverPits: fp.length, buildingsChecked: bList.filter(b => b.y0 === 0).length }; },
-    get drive() { return { mode: driveMode, simMode: sim.mode, pace: sim.pace && { normalKmh: +(sim.pace.normal * 3.6).toFixed(1), boostKmh: +(sim.pace.boost * 3.6).toFixed(1) }, recordKey: recordKey(driveMode, MAPKEY), recordLabel: $('record').textContent }; },
+    get drive() { return { mode: driveMode, simMode: sim.mode, pace: sim.pace && { normalKmh: +(sim.pace.normal * 3.6).toFixed(1), boostKmh: +(sim.pace.boost * 3.6).toFixed(1) }, recordKey: recordKey(driveMode, MAPKEY, variantMask), recordLabel: $('record').textContent }; },
     get rain() { return { shelterOn: rainMat.uniforms.uShelterOn.value, cells: SHELTER_MAP ? SHELTER_MAP.nx * SHELTER_MAP.nz : 0, camSheltered: SHELTER_MAP ? camera.position.y < shelterTop(SHELTER_MAP, camera.position.x, camera.position.z) - 0.15 : null }; },
     get tilt() { return { pref: SETTINGS.steer, live: tiltLive, listening: tiltListening, steer: tilt.steer, neutral: tilt.neutral, msg: $('tiltMsg').textContent }; },
     get mobile() { return { touch: TOUCH, portrait: isPortrait(), orientLock, keys: { ...keys } }; },

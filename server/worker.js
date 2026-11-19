@@ -100,7 +100,7 @@ export class Room extends DurableObject {
     // wake(): one storage alarm; only rewritten when it must fire earlier (each setAlarm is a storage write)
     const timers = { now: () => Date.now(), setInterval, clearInterval, setTimeout, clearTimeout,
       wake: ms => { if (this.booting) return; const at = Date.now() + ms; if (!this.alarmAt || at < this.alarmAt - 500 || this.alarmAt < Date.now()) { this.alarmAt = at; ctx.storage.setAlarm(at); } } };
-    this.srv = new RoomServer({ code, build: BUILD, timers, random, cfg: {},
+    this.srv = new RoomServer({ code, build: BUILD, timers, random, cfg: {weaponsAllowed:this.env.WEAPONS_ALLOWED === '1'},
       budget: { beat: c => this.registry().beat(c), canRace: c => this.registry().canRace(c), release: c => this.registry().release(c) },
       persist: m => ctx.storage.put('meta', m),
       onClose: () => { ctx.storage.deleteAlarm(); ctx.storage.deleteAll(); this.srv = null; this.alarmAt = 0; },

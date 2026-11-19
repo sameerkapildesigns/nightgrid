@@ -36,6 +36,7 @@ export class WorkerNet {
   post(m) { try { this.w.postMessage(m); } catch (e) { } }
   connect(code, token = null) { code = normalizeCode(code); if (!validCode(code)) { this.onEvent('error', { error: 'bad-code', fatal: true }); return false; } this.code = code; this.status = 'connecting'; this.post({ t: 'connect', wsUrl: this.wsUrl, build: this.build, name: this.name, code, token }); return true; }
   call(op, ...args) { this.post({ t: 'call', op, args }); }
+  fireWeapon() { this.post({t:'fire'}); }
   addBot() { this.call('addBot'); } removeBot(b) { this.call('removeBot', b); } config(o) { this.call('config', o); } car(c, p) { this.call('car', c, p); }
   setName(n) { this.name = n; this.call('setName', n); } ready(r) { this.call('ready', r); } start() { this.call('start'); } toLobby() { this.call('toLobby'); }
   leave() { this.post({ t: 'leave' }); this.status = 'closed'; this.race = null; setTimeout(() => { try { this.w.terminate(); } catch (e) { } }, 500); }

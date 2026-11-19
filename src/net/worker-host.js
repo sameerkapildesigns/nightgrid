@@ -23,6 +23,7 @@ export function createWorkerHost({ post, WebSocketImpl, now, timeOrigin = 0, set
     earn: (t, c) => send('earn', t, c), flash: (t, c) => send('flash', t, c), cp: h => send('cp', h), sfx: (n, ...a) => send('sfx', n, ...a),
     shake: x => send('shake', x), kick: x => send('kick', x), wallHit: (r, vn, s, Rw) => send('wallHit', vn, s, { x: Rw.x, y: Rw.y, z: Rw.z }),
     crash: () => send('crash'), respawn: () => send('respawn'), droneHit: () => send('droneHit'), sector: sec => send('sector', sec),
+    weaponEvent: e => send('weaponEvent', e),
     pickup: (r, kind) => send('pickup', kind), shieldPop: (r, what) => send('shieldPop', what), obstacleHit: (r, v) => send('obstacleHit', v),
     racerReset: () => { }, lap: () => { }, playerFinish: () => { }, bump: () => { }, racer: () => { }
   };
@@ -39,6 +40,7 @@ export function createWorkerHost({ post, WebSocketImpl, now, timeOrigin = 0, set
             timer = si(() => host.tick(), LOOP_MS);
           }
           nc.name = m.name; nc.connect(m.code, m.token); break;
+        case 'fire': if(nc)nc.fireWeapon(); break;
         case 'keys': if (loop && Number.isInteger(m.f)) loop.setFrame(m.f); break;
         case 'call': if (nc && typeof nc[m.op] === 'function' && /^(addBot|removeBot|config|car|setName|ready|start|toLobby)$/.test(m.op)) nc[m.op](...(m.args || [])); post({ t: 'state', st: state() }); break;
         case 'state': post({ t: 'state', st: state() }); break;

@@ -16,11 +16,15 @@ export const MODE = {
 export const PACE = {
   velocity: { assisted: { kmh: [240, 300], cornerA: 64 }, expert: { kmh: [310, 380], cornerA: 104 } },
   technical: { assisted: { kmh: [180, 225], cornerA: 54 }, expert: { kmh: [240, 300], cornerA: 95 } },
+  casino: { assisted: { kmh: [210, 265], cornerA: 60 }, expert: { kmh: [280, 350], cornerA: 100 } },
+  summit: { assisted: { kmh: [205, 260], cornerA: 62 }, expert: { kmh: [275, 340], cornerA: 103 } },
   legacy: { assisted: { kmh: [210, 260], cornerA: 67 }, expert: { kmh: [280, 345], cornerA: 115 } }
 };
 export const PACE_TARGETS = {   // tight-corner speed ranges (km/h), user candidate hypotheses
   velocity: { assisted: [150, 180], expert: [190, 230] },
   technical: { assisted: [75, 110], expert: [100, 145] },
+  casino: { assisted: [190, 215], expert: [250, 285] },
+  summit: { assisted: [190, 215], expert: [250, 285] },
   legacy: { assisted: [95, 135], expert: [125, 175] }
 };
 export const FASTEST_MOD = 1.035;

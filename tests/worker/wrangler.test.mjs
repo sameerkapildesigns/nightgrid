@@ -68,10 +68,11 @@ test('worker: 2 humans + 1 bot race 14 s in a Room DO through the shipping NetCl
   b = client('B', (t, m) => ev.push(['b', t, m && m.error]));
   a.connect(r.code); await waitFor(() => a.you, 10000, 'a welcome'); b.connect(r.code); await waitFor(() => b.you, 10000, 'b welcome');
   assert.equal(a.you, 'p1'); assert.equal(b.you, 'p2');
-  a.addBot(); a.config({ map: 'technical', mode: 'assisted' }); await waitFor(() => a.room && a.room.seats.length === 3 && a.room.map === 'technical', 5000, 'bot');
+  a.addBot(); a.config({ map: 'casino', mode: 'expert', weapons: true }); await waitFor(() => a.room && a.room.seats.length === 3 && a.room.map === 'casino' && a.room.weapons === true, 5000, 'bot');
   b.addBot(); await new Promise(x => setTimeout(x, 300)); assert.ok(ev.some(e => e[0] === 'b' && e[2] === 'not-host'), 'host-only enforced in the DO');
   a.ready(true); b.ready(true); await waitFor(() => a.room.canStart, 5000, 'canStart'); a.start();
   await waitFor(() => a.race && b.race, 10000, 'race');
+  assert.equal(a.room.weaponsAllowed, true); assert.equal(a.race.pred.sim.weapons, true); assert.equal(a.race.pred.sim.weaponSlice, 2);
   const da = driver(0), db = driver(1); let stop = false;
   const loop = (async () => { while (!stop) { a.frame(da(a.race && a.race.pred)); b.frame(db(b.race && b.race.pred)); a.race && a.race.pred.decay(0.016); b.race && b.race.pred.decay(0.016); await new Promise(x => setTimeout(x, 16)); } })();
   await new Promise(x => setTimeout(x, 14000)); stop = true; await loop;

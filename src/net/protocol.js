@@ -5,7 +5,7 @@
 // un-acknowledged input after an authoritative correction (prediction / reconciliation).
 import { MAX_SEATS } from '../core/room.js';   // room-full text states the real cap
 import { powerFlags } from '../core/hazards.js';
-export const PROTOCOL = 2;
+export const PROTOCOL = 3;
 export const NET_HZ = 20, SIM_HZ = 120, STEPS_PER_TICK = SIM_HZ / NET_HZ;
 export const MAX_MSG_BYTES = 1024;          // client -> server text frame cap
 export const MAX_FRAMES_PER_MSG = 24;       // 200 ms of input per message at most
@@ -49,12 +49,14 @@ export function parseClient(text) {
       return { ok: true, msg: { t: 'hello', p: m.p, build: m.build, name: m.name == null ? '' : String(m.name).slice(0, 40), token: m.token || null } };
     case 'in': {
       if (!Number.isInteger(m.q) || m.q < 0 || m.q > 1e7 || !Array.isArray(m.f) || m.f.length < 1 || m.f.length > MAX_FRAMES_PER_MSG || !m.f.every(validFrame)) return bad('bad-input');
-      return { ok: true, msg: { t: 'in', q: m.q, f: m.f } };
+      if (m.a != null && (!Array.isArray(m.a) || m.a.length > 4 || !m.a.every(a => Array.isArray(a) && a.length === 3 && Number.isSafeInteger(a[0]) && a[0] > 0 && a[0] <= 1e7 && Number.isSafeInteger(a[1]) && a[1] >= 0 && a[1] <= 1e7 && a[2] === 1))) return bad('bad-action');
+      return { ok: true, msg: { t: 'in', q: m.q, f: m.f, ...(m.a ? { a: m.a.map(a=>a.slice()) } : {}) } };
     }
     case 'removeBot': if (!str(m.bot, 12)) return bad('bad-bot'); return { ok: true, msg: { t: m.t, bot: m.bot } };
     case 'config':
+      if ((m.weapons != null && typeof m.weapons !== 'boolean') || (m.vr != null && (!Number.isInteger(m.vr) || m.vr < 0 || m.vr > 7))) return bad('bad-config');
       if ((m.map != null && !str(m.map, 16)) || (m.mode != null && !str(m.mode, 16))) return bad('bad-config');
-      return { ok: true, msg: { t: m.t, map: m.map == null ? null : m.map, mode: m.mode == null ? null : m.mode } };
+      return { ok: true, msg: { t: m.t, map: m.map == null ? null : m.map, mode: m.mode == null ? null : m.mode, weapons: m.weapons == null ? null : m.weapons, vr: m.vr == null ? null : m.vr } };
     case 'car': if (!str(m.car, 16) || (m.paint != null && !Number.isInteger(m.paint))) return bad('bad-car'); return { ok: true, msg: { t: m.t, car: m.car, paint: m.paint || 0 } };
     case 'name': if (typeof m.name !== 'string' || m.name.length > 40) return bad('bad-name'); return { ok: true, msg: { t: m.t, name: m.name } };
     case 'ready': if (typeof m.ready !== 'boolean') return bad('bad-ready'); return { ok: true, msg: { t: m.t, ready: m.ready } };
@@ -86,6 +88,7 @@ export function compactRacer(r, branch) {
 export function expandRacer(a) { const o = {}; COMPACT_FIELDS.forEach((k, i) => { o[k] = a[i]; }); return o; }
 // human-readable error text for the lobby UI
 export const ERROR_TEXT = {
+  'weapons-disabled': 'Weapons are unavailable on this server.',
   'room-full': `That room is full (${MAX_SEATS} seats).`, 'race-in-progress': 'That room is already racing. Wait for it to finish.',
   'build-mismatch': 'Your game version differs from the room server. Reload the page to update.', 'protocol-mismatch': 'Your game version differs from the room server. Reload the page to update.',
   'no-room': 'No room with that code. Check the code or create a new room.', 'bad-code': 'Room codes are 6 letters/numbers.',

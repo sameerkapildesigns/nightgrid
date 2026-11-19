@@ -40,7 +40,7 @@ test('M7: Velocity/Kage differ from v5b only on the final straight, and only sli
 
 test('core track generator is byte-for-byte the v5b generator on every map', () => {
   for (const k of MAP_KEYS) {
-    if (k in M7_FROM) continue;   // covered by the M7 test above
+    if (k in M7_FROM || !v5bBuild[k]) continue;   // covered by the M7 test above
     const a = J(MAPS[k].build()), b = J(v5bBuild[k]());
     assert.equal(a.main.N, b.main.N, k + ' sample count');
     assert.deepEqual(a.main.P, b.main.P, k + ' positions');
@@ -55,8 +55,8 @@ test('core track generator is byte-for-byte the v5b generator on every map', () 
 
 test('map catalogue matches v5b (names, laps, widths, sector count, lengths)', () => {
   const expect = { velocity: { laps: 2, W0: 14, sectors: 3, N: 5870, br: false }, technical: { laps: 3, W0: 10.5, sectors: 3, N: 2420, br: false }, legacy: { laps: 3, W0: TRK.W0, sectors: 5, N: 5055, br: true } };
-  assert.deepEqual(MAP_KEYS, ['velocity', 'technical', 'legacy']);
-  for (const k of MAP_KEYS) {
+  assert.deepEqual(MAP_KEYS, ['velocity', 'technical', 'casino', 'summit', 'legacy']);
+  for (const k of Object.keys(expect)) {
     const td = buildTrackData(k), e = expect[k];
     assert.equal(td.LAPS, e.laps); assert.equal(td.W0, e.W0); assert.equal(td.SECTORS.length, e.sectors);
     assert.equal(td.MAIN.N, e.N); assert.equal(td.HASBR, e.br);
