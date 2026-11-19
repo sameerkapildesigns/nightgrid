@@ -25,6 +25,7 @@ export function validateLap(lap) {
   if (g.teleport) return { ok: false, reason: 'position-jump' };
   if (g.autopilot) return { ok: false, reason: 'autopilot' };
   if (g.debug) return { ok: false, reason: 'debug-session' };
+  if (g.assist) return { ok: false, reason: 'catch-up-assist' };
   return { ok: true, reason: null };
 }
 

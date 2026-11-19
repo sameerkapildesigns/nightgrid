@@ -12,7 +12,7 @@ test('server-issued ids; first human is host; names are cleaned and bounded', ()
 });
 test('1 human + bots: bots auto-ready with matching personality/car, seat MAX_SEATS+1 rejected, start needs the human ready', () => {
   const r = room(); const h = j(r, 'h').id; for (let k = 0; k < 3; k++) assert.ok(R.addBot(r, h).ok);
-  assert.deepEqual(r.seats.filter(s => s.kind === 'bot').map(s => [s.pers, s.car, s.ready]), [['GHOST', 'hypercar', true], ['VEX', 'wedge', true], ['BLITZ', 'endurance', true]]);
+  assert.deepEqual(r.seats.filter(s => s.kind === 'bot').map(s => [s.pers, s.car, s.ready]), [['GHOST', 'wipeout', true], ['VEX', 'wedge', true], ['BLITZ', 'endurance', true]]);
   while (r.seats.length < R.MAX_SEATS) assert.ok(R.addBot(r, h).ok);
   assert.equal(R.addBot(r, h).error, 'room-full'); assert.equal(r.seats.length, R.MAX_SEATS);
   assert.equal(R.canStart(r), false); assert.equal(R.startBlocker(r), 'not-all-ready');

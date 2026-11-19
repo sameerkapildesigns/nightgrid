@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { existsSync, statSync } from 'node:fs';
 import { CARS, CAR_KEYS, DEFAULT_CAR, RIVAL_LIV, bootLoadOrder, raceCarKeys, isRaceReady } from '../../src/core/roster.js';
 
-test('six approved models, Hypercar default, no Z-32S', () => {
-  assert.deepEqual(CAR_KEYS, ['hypercar', 'endurance', 'wedge', 'rally', 'streamliner', 'wipeout']);
+test('six imported plus two original models, Hypercar default, no Z-32S', () => {
+  assert.deepEqual(CAR_KEYS, ['hypercar', 'endurance', 'wedge', 'rally', 'streamliner', 'wipeout','kestrel','manta']);
   assert.equal(DEFAULT_CAR, 'hypercar');
   assert.ok(!('z32s' in CARS)); assert.ok(!CAR_KEYS.some(k => /z32/i.test(k)));
-  for (const k of CAR_KEYS) { const f = new URL(`../../assets/models/${k}.glb`, import.meta.url); assert.ok(existsSync(f) && statSync(f).size > 1e6, k + '.glb present'); }
+  for (const k of CAR_KEYS.filter(k=>!CARS[k].proc)) { const f = new URL(`../../assets/models/${k}.glb`, import.meta.url); assert.ok(existsSync(f) && statSync(f).size > 1e6, k + '.glb present'); }
   assert.ok(!existsSync(new URL('../../assets/models/z32s.glb', import.meta.url)));
 });
 test('load order: selected car first, then rival cars; nothing else at boot', () => {

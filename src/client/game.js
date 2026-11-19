@@ -2,6 +2,7 @@ import {buildCircuitLandmarks} from './env/circuit-landmarks.js';
 import {variantLabel} from '../core/variants.js';
 import { createWeaponVis, updateWeaponHUD } from './weapons-vis.js';
 import { createMusic } from './music.js';
+import { ambientGains, engineGains } from './audio-mix.js';
 import { QUALITY, qualityLimits, qualitySample } from './quality.js';
 // NIGHTGRID client: rendering, world building, car models, garage, FX, HUD, audio, input,
 // cinematics. Moved from v5b game.html; simulation rules live in ../core (pure modules).
@@ -35,6 +36,7 @@ import { buildShelter, shelterTop } from '../core/shelter.js';
 import { buildClearance, groundHeightAt, worstClearance, GROUND_Y } from '../core/terrain.js';
 import { CARS, CAR_KEYS, SHORT, PAINTS, RIVAL_LIV, RIVAL_ORDER, raceCarKeys, isRaceReady } from '../core/roster.js';
 import { MODEL_URLS } from './model-urls.js';
+import { buildProcShip, shipStats } from './proc-ships.js';
 import { createHazardVis, updateShield } from './hazards-vis.js';
 import { applyPads } from '../core/hazards.js';
 import { createPowerGate, ownFlags, PW_SHIELD, PW_SURGE } from './power-gate.js';
@@ -1240,8 +1242,9 @@ const AU = {
     const sn = noise(), sf = c.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 520; sf.Q.value = 3;
     const sgn = this.slipG = c.createGain(); sgn.gain.value = 0; sn.connect(sf); sf.connect(sgn); sgn.connect(m);
     const rn = noise(), rf = c.createBiquadFilter(); rf.type = 'highpass'; rf.frequency.value = 1200; const rf2 = c.createBiquadFilter(); rf2.type = 'lowpass'; rf2.frequency.value = 7000;
-    const rg = c.createGain(); rg.gain.value = 0.035; rn.connect(rf); rf.connect(rf2); rf2.connect(rg); rg.connect(m);
-    const hn = noise(), hf = c.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 140; const hg = this.humG = c.createGain(); hg.gain.value = 0.22; hn.connect(hf); hf.connect(hg); hg.connect(m);
+    const amb0 = ambientGains(!!SETTINGS.ambient);   // R2: always-on beds now opt-in (Settings)
+    const rg = this.rainG = c.createGain(); rg.gain.value = amb0.rain; rn.connect(rf); rf.connect(rf2); rf2.connect(rg); rg.connect(m);
+    const hn = noise(), hf = c.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 140; const hg = this.humG = c.createGain(); hg.gain.value = amb0.hum; hn.connect(hf); hf.connect(hg); hg.connect(m);
     this.mus = c.createGain(); this.mus.gain.value = this.music ? 0.2 : 0; this.mus.connect(m);
     const dl = this.dl = c.createDelay(1); dl.delayTime.value = 60 / 108 * 0.75; const fb = c.createGain(); fb.gain.value = 0.32;
     const dlf = c.createBiquadFilter(); dlf.type = 'lowpass'; dlf.frequency.value = 2400; dl.connect(dlf); dlf.connect(fb); fb.connect(dl); dlf.connect(this.mus);
@@ -1252,8 +1255,9 @@ const AU = {
     const f = 46 + s01 * 120 + thr * 10 + boost * 34;
     this.o1.frequency.setTargetAtTime(f, t, 0.06); this.o2.frequency.setTargetAtTime(f * 0.5 + 0.7, t, 0.06); this.o3.frequency.setTargetAtTime(600 + s01 * 1500 + boost * 700, t, 0.08);
     this.ef.frequency.setTargetAtTime(220 + s01 * 1600 + thr * 500 + boost * 1800, t, 0.08);
-    this.eg.gain.setTargetAtTime(0.09 + thr * 0.07 + s01 * 0.06 + boost * 0.05, t, 0.1);
-    this.wg.gain.setTargetAtTime(0.006 + s01 * 0.018 + boost * 0.03, t, 0.1);
+    const eng = engineGains(s01, thr, boost, !!SETTINGS.engineIdle);   // R2: idle floor opt-in (audio-mix.js)
+    this.eg.gain.setTargetAtTime(eng.body, t, 0.1);
+    this.wg.gain.setTargetAtTime(eng.whine, t, 0.1);
     this.windG.gain.setTargetAtTime(s01 * s01 * 0.22 + boost * 0.16, t, 0.1); this.wf.frequency.setTargetAtTime(500 + s01 * 1400, t, 0.1);
     this.driftG.gain.setTargetAtTime(drift * 0.1, t, 0.04);
     this.slipG.gain.setTargetAtTime(slip * 0.16, t, 0.1);
@@ -1286,6 +1290,7 @@ const AU = {
   chime() { [0, 4, 7, 12].forEach((n, k) => setTimeout(() => this.beep(880 * Math.pow(2, n / 12), 0.25, 0.12), k * 70)); },
   weaponWarning(){const c=this.ctx;if(!c)return;const t=c.currentTime,o=c.createOscillator(),g=c.createGain();o.type='sine';o.frequency.setValueAtTime(720,t);o.frequency.linearRampToValueAtTime(940,t+.09);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.028,t+.015);g.gain.exponentialRampToValueAtTime(.0001,t+.13);o.connect(g);g.connect(this.master);o.start(t);o.stop(t+.15);},
   crash() { const c = this.ctx; if (!c) return; const t = c.currentTime; this.thud(1); this.noiseHit(t, 'lowpass', 2500, 120, 1.4, 0.8, 0.7); },
+  setAmbient(on) { SETTINGS.ambient = !!on; saveSettings(); if (!this.ctx) return; const a = ambientGains(!!on), t = this.ctx.currentTime; this.humG.gain.setTargetAtTime(a.hum, t, 0.2); this.rainG.gain.setTargetAtTime(a.rain, t, 0.2); },
   setMusic(on) { this.music = on; MUSIC.setEnabled(on); SETTINGS.music = !!on; saveSettings(); if (this.mus) this.mus.gain.setTargetAtTime(on ? 0.2 : 0, this.ctx.currentTime, 0.2); },
   sched() {
     const c = this.ctx; if (!c || c.state !== 'running') return;
@@ -1356,6 +1361,7 @@ const ensureRaceAssets = sel => Promise.all(raceCarKeys(sel).map(ensureAsset));
 function loadCarAsset(k) {
   const A = ASSETS[k] = { key: k, status: 'loading', source: null, url: null, bytes: 0, total: 0, ms: 0, tris: 0, meshes: 0, materials: 0, error: null, attempts: [] };
   updateAssetUI();
+  if (CARS[k].proc) return loadProcAsset(k, A);
   return (async () => {
     for (const src of carSources(k)) {
       const t0 = performance.now(); A.trying = src.label;
@@ -1379,6 +1385,19 @@ function loadCarAsset(k) {
     A.status = 'failed'; A.error = A.attempts.join(' | '); updateAssetUI(); return A;
   })();
 }
+// R2: original procedural ships: built once per session (no network), shared by every instance.
+function loadProcAsset(k, A) {
+  return Promise.resolve().then(() => {
+    const t0 = performance.now(), C0 = CARS[k];
+    try {
+      const gltf = buildProcShip(k), st = shipStats(gltf.scene);
+      if (st.meshes < C0.minMeshes || st.tris < C0.minTris) throw new Error(`built but suspicious: ${st.meshes} meshes / ${st.tris} tris`);
+      Object.assign(A, { status: 'ok', maxTex: 0, anims: [], source: 'procedural', url: null, ms: Math.round(performance.now() - t0), tris: st.tris, meshes: st.meshes, materials: st.materials, gltf, bytes: 0 });
+      A.attempts.push('procedural: OK');
+    } catch (e) { A.attempts.push('procedural: ' + ((e && e.message) || String(e))); A.status = 'failed'; A.error = A.attempts.join(' | '); }
+    updateAssetUI(); return A;
+  });
+}
 function fmtMB(b) { return (b / 1048576).toFixed(1) + ' MB'; }
 function updateAssetUI() {
   const el = $('assetList'); if (!el) return;
@@ -1386,6 +1405,7 @@ function updateAssetUI() {
     const A = ASSETS[k], C = CARS[k];
     if (!A) return `<div class="wait">◌ ${C.title} · queued</div>`;
     if (A.status === 'loading') return `<div class="wait">◌ ${C.title} · ${A.trying || ''} ${A.bytes ? fmtMB(A.bytes) + (A.total ? ' / ' + fmtMB(A.total) : '') : 'connecting…'}</div>`;
+    if (A.status === 'ok' && C.proc) return `<div class="ok">✓ ${C.title} · original procedural · ${A.tris.toLocaleString()} tris · ${A.meshes} meshes</div>`;
     if (A.status === 'ok') return `<div class="ok">✓ ${C.title} · GLB parsed · ${A.tris.toLocaleString()} tris · ${A.meshes} meshes · ${A.source}</div>`;
     return `<div class="bad">✗ ${C.title} · LOAD FAILED → PROCEDURAL FALLBACK<br><span style="opacity:.75">${A.error}</span></div>`;
   }).join('');
@@ -1470,7 +1490,7 @@ function buildCar(k, liv, mode, isPlayer = false) {
     const nm = o.name + '|' + (o.parent ? o.parent.name : '');
     const mn = o.material.name || '';
     let role;
-    if (ship) role = C.glassMat && C.glassMat.test(mn) && /Cristal/.test(mn) ? 'glass' : C.tintMat && C.tintMat.test(mn) ? 'shipPaint' : 'other';
+    if (ship) role = C.glassMat && C.glassMat.test(mn) && /Cristal/.test(mn) ? 'glass' : C.neonMat && C.neonMat.test(mn) ? 'neon' : C.accentMat && C.accentMat.test(mn) ? 'accent' : C.tintMat && C.tintMat.test(mn) ? 'shipPaint' : 'other';
     else {
       role = /Paint|LiquidGraphite/i.test(mn) ? 'paint' : /Glass/i.test(mn) ? 'glass' : /Light_Red/i.test(mn) ? 'tail' : /Light_White|BrightRing/i.test(mn) ? 'light' : 'other';
       if (C.accent.test(nm) && role !== 'light') role = 'accent';
@@ -1529,7 +1549,7 @@ const shadowTex = canvasTex(128, 256, (g, w, h) => {
   g.fillStyle = gr; g.beginPath(); g.arc(0, 0, w / 2, 0, 7); g.fill(); g.restore();
 });
 // Explicitly-labelled procedural fallback (only used when a GLB could not be fetched/parsed)
-const FB_MAP = { hypercar: 'GHOST', endurance: 'BLITZ', wedge: 'VEX', rally: 'BLITZ', streamliner: 'GHOST', wipeout: 'VEX' };
+const FB_MAP = { hypercar: 'GHOST', endurance: 'BLITZ', wedge: 'VEX', rally: 'BLITZ', streamliner: 'GHOST', wipeout: 'VEX', kestrel: 'VEX', manta: 'GHOST' };
 function buildFallbackCar(k, liv, mode, isPlayer) {
   const base = SHIPCFG[FB_MAP[k]];
   const cfg = Object.assign({}, base, { neonA: new THREE.Color(liv.neon), neonB: new THREE.Color(liv.accent), base: liv.paint, sponsor: 'FALLBACK' });
@@ -1586,6 +1606,7 @@ function updateGarageUI() {
   // diagnostics live only in the QA panel
   const src = $('carSrc'); const fb = !!A && A.status === 'failed';
   if (!A || A.status === 'loading') { src.className = ''; src.innerHTML = `Loading real model… ${A && A.bytes ? fmtMB(A.bytes) : ''}`; }
+  else if (A.status === 'ok' && C.proc) { src.className = ''; src.innerHTML = `Original NIGHTGRID design · procedural, no imported model<br>${A.tris.toLocaleString()} tris · ${A.meshes} meshes · ${A.materials} materials`; }
   else if (A.status === 'ok' && C.kind === 'ship') { const cr = C.credit; src.className = ''; src.innerHTML = `Imported GLB · “${cr.title}” by ${cr.author} · CC BY 4.0<br>${A.tris.toLocaleString()} tris · ${A.meshes} meshes · ${A.materials} mats · textures ≤${A.maxTex}px (race cap 1024)<br>${C.anims ? `rig · ${A.anims.length} clips · playing: flying idle + canopy closed` : 'static hull (no animation in source)'} · ${A.source} · ${(A.ms / 1000).toFixed(1)} s`; }
   else if (A.status === 'ok') { src.className = ''; src.innerHTML = `Real GLB · Collect Cars “${C.key}” by drcollect<br>${A.tris.toLocaleString()} tris · ${A.meshes} meshes · ${A.materials} materials · ${A.source} · ${(A.ms / 1000).toFixed(1)} s`; }
   else { src.className = 'fb'; src.innerHTML = `PROCEDURAL FALLBACK — not the real model<br>${A.error}`; }
@@ -1779,7 +1800,7 @@ function setPlayerCar() {
   makeTrailsFor(player);
   const tag = $('carTag');
   if (player.ship.fallback) { tag.className = 'fb'; tag.textContent = `${CARS[GAR.sel].title} · PROCEDURAL FALLBACK (GLB FAILED)`; }
-  else { tag.className = ''; tag.textContent = `${CARS[GAR.sel].nick} · REAL GLB`; }
+  else { tag.className = ''; tag.textContent = `${CARS[GAR.sel].nick} · ${CARS[GAR.sel].proc ? 'ORIGINAL DESIGN' : 'REAL GLB'}`; }
 }
 // Rival bodies are (re)built when their GLB arrives, so boot never waits for them.
 function setRivalCar(r) {
@@ -2117,7 +2138,7 @@ async function startRace() {
   if (!isRaceReady(GAR.sel, assetStatus)) { ensureRaceAssets(GAR.sel); return; }
   raceStarting = true;
   try {
-    AU.init(); sim.weapons = WEAPONS_AVAILABLE && !!SETTINGS.weapons; sim.diff = SETTINGS.diff; sim.setMode(driveMode);
+    AU.init(); sim.weapons = WEAPONS_AVAILABLE && !!SETTINGS.weapons; sim.catchup = SETTINGS.catchup !== false; sim.diff = SETTINGS.diff; sim.setMode(driveMode);
     refreshRacerCars(); gridUp(); hudCache = {}; $('sector').textContent = `S1 · ${SECTORS[0].name}`; $('sector').style.color = SECTORS[0].css;
     $('go').blur(); $('go').disabled = true; $('go').textContent = 'Preparing…';
     for (const r of racers) updateVisual(r, 0);
@@ -2142,7 +2163,7 @@ function startRaceNow() { // QA: straight into a running race, no intro/countdow
   AU.init(); setPlayerCar(); $('sector').textContent = `S1 · ${SECTORS[0].name}`;
   $('title').classList.add('hide'); $('results').classList.add('hide'); $('hud').classList.add('on');
   shownResults = false; hudCache = {};
-  sim.weapons = WEAPONS_AVAILABLE && !!SETTINGS.weapons; gridUp(); state = 'race'; sim.startRace();
+  sim.weapons = WEAPONS_AVAILABLE && !!SETTINGS.weapons; sim.catchup = SETTINGS.catchup !== false; gridUp(); state = 'race'; sim.startRace();
   sim.pose(player); chaseTarget(0, true, CC.pos, CC.look, CC.up);
 }
 function toGarage() {
@@ -2403,7 +2424,7 @@ function update(dt, dt0) {
 
 /* ---------- settings: motion blur / camera shake (reduced-motion aware) ---------- */
 const REDUCED = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
-const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled, weapons: false, npcs:raceNPCCount,laps:raceLapsSetting };
+const SETTINGS = { blur: REDUCED ? 0 : 1, shake: !REDUCED, diff: 'normal', cine: true, steer: 'touch', mode: driveMode, quality: qualityMode, music: MUSIC.enabled, weapons: false, npcs:raceNPCCount,laps:raceLapsSetting, catchup: true, ambient: false, engineIdle: false };
 try { const s = JSON.parse(localStorage.getItem('nightgrid_v4_settings') || 'null'); if (s) Object.assign(SETTINGS, s); } catch (e) { }
 const BLUR_K = [0, 1, 1.8];
 function qualityUI() {
@@ -2428,6 +2449,9 @@ function renderSettings() {
   $('setBlur').innerHTML = ['Off', 'Mild', 'Strong'].map((n, i) => `<button class="${SETTINGS.blur === i ? 'on' : ''}" data-blur="${i}" role="radio" aria-checked="${SETTINGS.blur === i}">${n}</button>`).join('');
   $('setShake').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+SETTINGS.shake === i ? 'on' : ''}" data-shake="${i}" role="radio" aria-checked="${+SETTINGS.shake === i}">${n}</button>`).join('');
   $('setMode').innerHTML = [['assisted', 'Assisted'], ['expert', 'Expert']].map(([k, n]) => `<button class="${driveMode === k ? 'on' : ''}" data-mode="${k}" role="radio" aria-checked="${driveMode === k}">${n}</button>`).join('');
+  $('setAmbient').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+!!SETTINGS.ambient === i ? 'on' : ''}" data-ambient="${i}" role="radio" aria-checked="${+!!SETTINGS.ambient === i}">${n}</button>`).join('');
+  $('setEngineIdle').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+!!SETTINGS.engineIdle === i ? 'on' : ''}" data-engine-idle="${i}" role="radio" aria-checked="${+!!SETTINGS.engineIdle === i}">${n}</button>`).join('');
+  $('setCatchup').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+(SETTINGS.catchup !== false) === i ? 'on' : ''}" data-catchup="${i}" role="radio" aria-checked="${+(SETTINGS.catchup !== false) === i}">${n}</button>`).join('');
   $('setDiff').innerHTML = [['normal', 'Normal'], ['hard', 'Hard']].map(([k, n]) => `<button class="${SETTINGS.diff === k ? 'on' : ''}" data-diff="${k}" role="radio" aria-checked="${SETTINGS.diff === k}">${n}</button>`).join('');
   $('setCine').innerHTML = ['Off', 'On'].map((n, i) => `<button class="${+(SETTINGS.cine !== false) === i ? 'on' : ''}" data-cine="${i}" role="radio" aria-checked="${+(SETTINGS.cine !== false) === i}">${n}</button>`).join('');
   $('setSteer').innerHTML = [['touch', 'Touch'], ['tilt', 'Enable Tilt']].map(([k, n]) => `<button class="${(SETTINGS.steer || 'touch') === k ? 'on' : ''}" data-steer="${k}" role="radio" aria-checked="${(SETTINGS.steer || 'touch') === k}" style="min-height:44px">${n}</button>`).join('');
@@ -2442,6 +2466,9 @@ $('setMode').addEventListener('click', e => { const b = e.target.closest('[data-
 $('setDiff').addEventListener('click', e => { const b = e.target.closest('[data-diff]'); if (b) { SETTINGS.diff = b.dataset.diff; sim.diff = SETTINGS.diff; saveSettings(); } });
 $('setNPCs').addEventListener('click',e=>{const b=e.target.closest('[data-npcs]');if(!b||state!=='title'||MP.net?.room)return;raceNPCCount=SETTINGS.npcs=+b.dataset.npcs;swapRacers(()=>sim.addRacers(soloRivals()));refreshRacerCars();gridUp();saveSettings();updateGarageUI();});
 $('setLaps').addEventListener('click',e=>{const b=e.target.closest('[data-laps]');if(!b||state!=='title'||MP.net?.room)return;raceLapsSetting=SETTINGS.laps=+b.dataset.laps;saveSettings();switchMap(MAPKEY,true,variantMask,true);});
+$('setAmbient').addEventListener('click', e => { const b = e.target.closest('[data-ambient]'); if (b) AU.setAmbient(b.dataset.ambient === '1'); });
+$('setEngineIdle').addEventListener('click', e => { const b = e.target.closest('[data-engine-idle]'); if (b) { SETTINGS.engineIdle = b.dataset.engineIdle === '1'; saveSettings(); } });
+$('setCatchup').addEventListener('click', e => { const b = e.target.closest('[data-catchup]'); if (!b) return; SETTINGS.catchup = b.dataset.catchup === '1'; if (!MP.race) sim.catchup = SETTINGS.catchup; saveSettings(); });
 $('setWeapons').addEventListener('click', e => { const b=e.target.closest('[data-weapons]'); if(b&&state==='title'&&!MP.race){SETTINGS.weapons=b.dataset.weapons==='1';sim.weapons=WEAPONS_AVAILABLE&&SETTINGS.weapons;saveSettings();} });
 sim.weapons=WEAPONS_AVAILABLE&&!!SETTINGS.weapons;
 renderSettings();
@@ -2797,7 +2824,7 @@ async function mpBeginRace(m) {
     while (mapBusy) await tick();
     if (m.map !== MAPKEY || (m.rules?.vr||0)!==variantMask) await switchMap(m.map, false,m.rules?.vr||0);
     for (const st of m.seats) ensureAsset(st.car);
-    soloRaceRules=false;LAPS=sim.setRaceLaps(0);mpSetupRacers(m); sim.setMode(m.mode); sim.weapons=!!m.rules?.weapons;
+    soloRaceRules=false;LAPS=sim.setRaceLaps(0);mpSetupRacers(m); sim.setMode(m.mode); sim.weapons=!!m.rules?.weapons; sim.catchup=false;
     MP.race = { msg: m, startAt: m.countdownAt }; MP.results = null;
     // input sampling, prediction steps and sending run on their own 25 ms timer, not on render frames,
     // so a slow render frame does not decide when inputs leave (the render frame only reads state)
@@ -2938,6 +2965,7 @@ if (DEBUG) {
     get paused() { return paused; },
     get map() { return { key: MAPKEY, name: MAPDEF.name, lengthM: Math.round(MAIN.L), laps: LAPS, sectors: SECTORS.map(s => s.name), record: isFinite(recordLap) ? recordLap : null, worldMeshes: WORLD.children.length, lastSwitch: lastDispose }; },
     get music() { return MUSIC.status; },
+    get audioMix(){return {ambient:SETTINGS.ambient,engineIdle:SETTINGS.engineIdle,hum:AU.humG?.gain.value,rain:AU.rainG?.gain.value,engine:AU.eg?.gain.value,whine:AU.wg?.gain.value};},
     get render() { return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, fps: +lastFps.toFixed(1), pixelRatio: PR, programs: renderer.info.programs.length, bloom: bloom.enabled, quality: qualityMode, fxFallbacks }; },
     get clock() { return clockInfo(); },
     get intro() { return introStats ? Object.assign({ len: CINE.len }, introStats) : null; },

@@ -58,3 +58,5 @@ by Animateria (CC BY 4.0). That model is **not** in the repository's assets, ros
 
 No open-source licence for the NIGHTGRID game code has been chosen yet. Making the repository
 public does not by itself grant one. The third-party licences above apply to their assets only.
+
+Release 2: KESTREL and MANTA are original procedural NIGHTGRID designs. Per-map CC0 music sources, authors, changes and retained CC BY fallback credits are listed in licenses/MUSIC.md and public/licenses/music-credits.txt.

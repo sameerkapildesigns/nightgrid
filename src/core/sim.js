@@ -10,6 +10,7 @@ import { Vec3 } from './vec.js';
 import { clamp, lerp, mod, wrapA, damp, fmtTime, sstep } from './math.js';
 import { paceFor, FASTEST_MOD } from './pace.js';
 import { buildHazards, HAZ, gapS } from './hazards.js';
+import { updateCatchup } from './catchup.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
 
 export { H0, S0 };
@@ -58,6 +59,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   const sim = {
     time: 0, raceStart: 0, phase: 'grid',   // grid | race | finished
     ghost: false,   // true in multiplayer rooms: no car-to-car contact (see collideRacers)
+    catchup: false, // R2: solo-only catch-up assist (catchup.js); the page opts in, rooms never do
     hazards: false, // M8: static obstacles + shield/self-boost pads (room server and the page turn this on)
     obstacles: [], pads: [], weapons: false, predictOnly: false, weaponSlice: 3, weaponBoxes: [], weaponState: newWeaponState(), stepIndex: 0,
     racers: [], drones: [], player: null, finishOrder: [],
@@ -106,7 +108,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
       vf: 0, vl: 0, acc: 0, phase: R(0, 10), scrape: false, scrapeSide: 0, droneT: 0, sector: 0, takeShort: false,
       draftT: 0, tow: 0, slingT: 0, crashed: 0, phA: R(0, 10), phB: R(0, 10), aiBoostT: 0, aiBoostCD: R(4, 10), blockD: 0,
       world: new Vec3(), F: new Vec3(), Uw: new Vec3(), lastSign: {}, nearRail: 0, flapK: 0,
-      carMods: null, wallLim: 1.2, shieldT: 0, surgeT: 0, powCD: 0, obT: 0, passT: 0, lapIntegrity: { teleport: false, autopilot: false, debug: false },
+      carMods: null, wallLim: 1.2, shieldT: 0, surgeT: 0, powCD: 0, obT: 0, passT: 0, lapIntegrity: { teleport: false, autopilot: false, debug: false, assist: false }, catchMul: 1,
       input: { up: 0, down: 0, left: 0, right: 0, boost: 0, drift: 0 }, wrongWayT: 0, bestLap: Infinity, bestSplits: [], curSplits: [], id: null
     };
   }
@@ -144,7 +146,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     r.lap = 0; r.lapTimes = []; r.lapValid = []; r.finished = false; r.finishTime = 0; r.lapStart = 0; r.boost = false; r.boostRelT = 0; r.boostLock = false; r.drift = false; r.hardSteerT = 0; r.thr = 0;
     r.autopilot = r.isAI; r.vf = 0; r.vl = 0; r.acc = 0; r.yawV = 0; r.steer = 0; r.draftT = 0; r.tow = 0; r.slingT = 0; r.crashed = 0; r.droneT = 0;
     r.sector = MAIN.sec[Math.round(r.s / MAIN.ds) % MAIN.N]; r.takeShort = false; r.air = false; r.airT = 0; r.aiBoostT = 0;
-    r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
+    r.lapIntegrity = { teleport: false, autopilot: false, debug: false, assist: false }; r.catchMul = 1;
     r.shieldT = 0; r.surgeT = 0; r.powCD = 0; r.obT = 0; r.passT = 0;
     resetWeaponRacer(r);
     ev.racerReset(r);
@@ -255,7 +257,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
     vf = r.va * c - r.vd * sn; let vl = r.va * sn + r.vd * c;
     const tow = r.tow;
     const CM = r.carMods || { vmax: 1, acc: 1, grip: 1 };
-    const capN = PC.normal * CM.vmax / FASTEST_MOD, capB = PC.boost * CM.vmax / FASTEST_MOD;
+    const CU = r.catchMul || 1;   // R2 catch-up assist: 1 except solo and far behind (catchup.js)
+    const capN = PC.normal * CM.vmax / FASTEST_MOD * CU, capB = PC.boost * CM.vmax / FASTEST_MOD * CU;
     const vmax = (r.boost ? capB : capN) * (MD.draftOverCap ? 1 + 0.06 * tow : 1);
     let a = 0;
     const tm = air ? 0.25 : 1;
@@ -601,8 +604,8 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const rt = sim.raceTime();
     while (!r.finished && r.prog >= (r.lap + 1) * LAPLEN) {
       const lt = rt - r.lapStart, integ = r.lapIntegrity;
-      r.lapTimes.push(lt); r.lapValid.push(!integ.teleport && !integ.autopilot && !integ.debug && !integ.weapons); r.lapStart = rt; r.lap++;
-      r.lapIntegrity = { teleport: false, autopilot: false, debug: false };
+      r.lapTimes.push(lt); r.lapValid.push(!integ.teleport && !integ.autopilot && !integ.debug && !integ.weapons && !integ.assist); r.lapStart = rt; r.lap++;
+      r.lapIntegrity = { teleport: false, autopilot: false, debug: false, assist: false };
       if (!r.isAI) onHumanLap(r, lt, integ);
       if (r.lap >= LAPS) { r.finished = true; r.finishTime = rt; sim.finishOrder.push(r); if (!r.isAI) onHumanFinish(r); }
     }
@@ -696,6 +699,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     combat.begin(h);
     const racing = sim.phase === 'race' || sim.phase === 'finished';
     if (racing) {
+      updateCatchup(sim);
       for (const r of sim.racers) { if (r.crashed > 0) continue; r.autopilot ? stepAI(r, h) : stepPlayer(r, h); }
       if (sim.hazards) hazardTimers(h);
       collideRacers(h);
@@ -753,7 +757,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
   };
   const encObj = (o) => { const out = {}; for (const k in o) if (!SKIP.has(k) && typeof o[k] !== 'function') out[k] = enc(o[k]); return out; };
   function snapshot() {
-    return { v: 2, laps:LAPS, weapons: !!sim.weapons, weaponSlice: sim.weaponSlice, weaponState: enc(sim.weaponState), weaponPending: combat.snapshotPending(), stepIndex: sim.stepIndex, vr: td.vr || 0, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
+    return { v: 2, laps:LAPS, catchup:!!sim.catchup, weapons: !!sim.weapons, weaponSlice: sim.weaponSlice, weaponState: enc(sim.weaponState), weaponPending: combat.snapshotPending(), stepIndex: sim.stepIndex, vr: td.vr || 0, map: td.key, mode: sim.mode, diff: sim.diff, ghost: !!sim.ghost, hazards: !!sim.hazards, pads: sim.pads.map(p => p.readyAt), time: sim.time, raceStart: sim.raceStart, phase: sim.phase, rng: rng.a,
       bestLap: enc(sim.bestLap), bestSplits: enc(sim.bestSplits), curSplits: enc(sim.curSplits), debugTouched: sim.debugTouched,
       focus: sim.player ? sim.player.id : null, finishOrder: sim.finishOrder.map(r => r.id),
       racers: sim.racers.map(encObj), drones: sim.drones.map(encObj) };
@@ -763,7 +767,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
     if (!sn || ![1, 2].includes(sn.v)) throw new Error('bad snapshot version');
     if (!td || td.key !== sn.map || (td.vr||0)!==(sn.vr||0)) setTrack(sn.map,sn.vr||0);
     setRaceLaps(sn.laps);sim.weapons = !!sn.weapons; sim.weaponSlice = sn.weaponSlice || 1; sim.weaponState = dec(sn.weaponState || newWeaponState()); sim.stepIndex = sn.stepIndex || 0; combat.restorePending(sn.weaponPending);
-    setMode(sn.mode); sim.diff = sn.diff; sim.ghost = !!sn.ghost; sim.hazards = !!sn.hazards;
+    setMode(sn.mode); sim.diff = sn.diff; sim.ghost = !!sn.ghost; sim.catchup=!!sn.catchup;sim.hazards = !!sn.hazards;
     if (Array.isArray(sn.pads)) sn.pads.forEach((t, k) => { if (sim.pads[k]) sim.pads[k].readyAt = t; }); sim.time = sn.time; sim.raceStart = sn.raceStart; sim.phase = sn.phase; rng.a = sn.rng;
     sim.bestLap = dec(sn.bestLap); sim.bestSplits = dec(sn.bestSplits); sim.curSplits = dec(sn.curSplits); sim.debugTouched = sn.debugTouched;
     const old = new Map(sim.racers.map(r => [r.id, r]));
