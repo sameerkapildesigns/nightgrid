@@ -7,7 +7,7 @@
 //  - randomness comes from an injected seeded RNG (the city keeps its own stream).
 import { createCombat, resetWeaponRacer, buildWeaponBoxes, newWeaponState } from './weapons.js';
 import { Vec3 } from './vec.js';
-import { clamp, lerp, mod, wrapA, damp, fmtTime } from './math.js';
+import { clamp, lerp, mod, wrapA, damp, fmtTime, sstep } from './math.js';
 import { paceFor, FASTEST_MOD } from './pace.js';
 import { buildHazards, HAZ, gapS } from './hazards.js';
 import { buildTrackData, frameAt as frameAtTD, kgAt as kgAtTD, raceS as raceSTD, rdist as rdistTD, mkF, S0, H0, WB } from './maps.js';
@@ -331,7 +331,17 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const kn = kgAt(r.path, r.s + 8 + r.speed * 0.3);
     const DF = DIFF[sim.diff] || DIFF.normal;
     // M3: corner speed from the mode's lateral accel (personality lat relative to 84, difficulty lat)
-    const vC = Math.sqrt(PC.cornerA * (P0 ? P0.lat / 84 : 1) * DF.lat / Math.max(km, 1e-4));
+    // Brake toward upcoming corners instead of adopting their minimum speed the instant
+    // they enter the lookahead window. Current curvature still sets an immediate limit.
+    const cornerA = PC.cornerA * (P0 ? P0.lat / 84 : 1) * DF.lat;
+    let vC = Math.sqrt(cornerA / Math.max(Math.abs(kgAt(r.path,r.s)),1e-4));
+    for(let ahead=6;ahead<look;ahead+=3){const s=r.s+ahead;
+      const branch=r.path===MAIN&&r.takeShort&&r.s<SAm&&s>=SAm;
+      const curvature=Math.abs(kgAt(branch?BR:r.path,branch?s-SAm:s));
+      const cornerV2=cornerA/Math.max(curvature,1e-4);
+      vC=Math.min(vC,Math.sqrt(cornerV2+2*(P0?P0.brake:44)*.8*Math.max(0,ahead-8)));
+    }
+    if(sim.mode!=='expert')vC=Math.sqrt(cornerA/Math.max(km,1e-4));
     const noise = 1 + 0.018 * Math.sin(sim.time * 0.21 + r.phA) + 0.012 * Math.sin(sim.time * 0.67 + r.phB);
     let rub = 1;
     if (r.isAI && ref && racing) {
@@ -649,9 +659,15 @@ export function createSim({ seed = 4242, events = null } = {}) {
     const f = frameAt(MAIN, d.s, _fd);
     d.d = clamp(d.lane * (MAIN.W[f.i] / W0), -MAIN.WL[f.i] + 2.2, MAIN.WR[f.i] - 2.2);
     if (dt > 0) hoverStep(d, MAIN.KN[f.i], d.speed, dt);
-    if (sim.hazards) for (const o of sim.obstacles) {   // M8: traffic hops over a static block (deterministic lift)
-      const g = gapS(d.s, o.s, MAIN.L);
-      if (Math.abs(g) < HAZ.DRONE_HOP_RANGE && Math.abs(o.d - d.d) < o.hw + 1.6) { const lift = H0 + 0.1 + HAZ.DRONE_HOP * 0.5 * (1 + Math.cos(Math.PI * g / HAZ.DRONE_HOP_RANGE)); if (d.h < lift) { d.h = lift; if (d.vh < 0) d.vh = 0; } }
+    // Deterministic lane excursion derived from track position. No new network state:
+    // the predictor and renderer derive the same lane from authoritative drone s.
+    if (sim.hazards) for (const o of sim.obstacles) {
+      const g=gapS(d.s,o.s,MAIN.L), reach=o.hw+1.6;
+      if(g < -60 || g > 90 || Math.abs(o.d-d.d)>=reach)continue;
+      const left=o.d-reach-.6,right=o.d+reach+.6,lo=-MAIN.WL[f.i]+2.2,hi=MAIN.WR[f.i]-2.2;
+      const target=(left>=lo && (right>hi || Math.abs(left-d.d)<Math.abs(right-d.d)))?left:right;
+      const blend=sstep(-60,-12,g)*(1-sstep(20,90,g));
+      d.d=clamp(lerp(d.d,target,blend),lo,hi);
     }
     d.world.copy(f.P).addScaledVector(f.R, d.d).addScaledVector(f.U, d.h);
     d.fi = f.i;

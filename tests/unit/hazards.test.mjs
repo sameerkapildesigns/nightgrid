@@ -1,3 +1,4 @@
+import{Vec3}from'../../src/core/vec.js';
 // M8 hazards: deterministic layout, bounded obstacle contact, shield / self-boost pads owned by the
 // authoritative sim (room server), predictor pad sync, snapshot resume determinism.
 import { test } from 'node:test';
@@ -137,18 +138,15 @@ test('bots dodge obstacles (8 bots, full race, every map) and keep their pace', 
   }
 });
 
-test('traffic hops over obstacles (never overlaps a block at road height)', () => {
-  const sim = createSim({ seed: 5 }); sim.setTrack('velocity'); sim.hazards = true;
-  sim.addSeats([{ id: 'a', kind: 'bot' }, { id: 'b', kind: 'bot' }], null); sim.startRace();
-  let overlaps = 0, hops = 0;
-  for (let i = 0; i < 120 * 90; i++) {
-    sim.step(SIM_DT);
-    for (const d of sim.drones) for (const o of sim.obstacles) {
-      if (Math.abs(gapS(d.s, o.s, sim.track.MAIN.L)) < o.hl + 2.6 && Math.abs(o.d - d.d) < o.hw + 1.3) { if (d.h - 0.75 < 1 + o.h - 1.0 + 0.05 && d.h < 1 + o.h) overlaps++; else hops++; }
-    }
+test('traffic changes lane around obstacles without a scripted hop or block overlap',()=>{
+ for(const map of MAP_KEYS){const sim=createSim({seed:5});sim.setTrack(map);sim.hazards=true;sim.addSeats([{id:'b',kind:'bot'}]);sim.startRace();
+  for(const o of sim.obstacles){const d=sim.drones[0];d.lane=o.d;d.speed=35;let passed=false;
+   for(let gap=90;gap>=-60;gap-=.5){d.s=mod(o.s-gap,sim.track.MAIN.L);d.h=1.1;d.vh=0;sim.poseAll();
+    const f=sim.frameAt(sim.track.MAIN,d.s,{P:new Vec3(),T:new Vec3(),U:new Vec3(),R:new Vec3()});assert.ok(d.d>=-sim.track.MAIN.WL[f.i]+2.2-1e-6&&d.d<=sim.track.MAIN.WR[f.i]-2.2+1e-6);
+    assert.equal(d.h,1.1,'pose does not script an obstacle jump');if(Math.abs(gap)<4){passed=true;assert.ok(Math.abs(d.d-o.d)>=o.hw+1.6,`${map}: gap ${gap}, d ${d.d}`);}
+   }assert.ok(passed);
   }
-  assert.ok(hops > 0, 'some traffic passed an obstacle lane');
-  assert.equal(overlaps, 0);
+ }
 });
 
 test('snapshot: hazards flag + pad state + racer power fields survive export/import; resumed run is identical', () => {
