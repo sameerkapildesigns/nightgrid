@@ -523,7 +523,7 @@ export function createSim({ seed = 4242, events = null } = {}) {
         if ((p.kind === 'S' && r.shieldT > 0) || (p.kind === 'B' && r.surgeT > 0)) continue;
         if (Math.abs(gapS(r.s, p.s, MAIN.L)) >= HAZ.PAD_HALF_LEN || Math.abs(p.d - r.d) >= HAZ.PAD_HALF_W + 0.6) continue;
         p.readyAt = sim.time + HAZ.PAD_RESPAWN; r.powCD = HAZ.CLAIM_COOLDOWN;
-        if (p.kind === 'S') { r.shieldT = HAZ.SHIELD_TIME; r.passT = 0; } else r.surgeT = HAZ.SURGE_TIME;
+        if (p.kind === 'S') { r.shieldT = HAZ.SHIELD_TIME; r.passT = 0; } else { r.surgeT = HAZ.SURGE_TIME; r.meter = Math.min(1, r.meter + HAZ.BOOST_REFILL); r.boostLock = false; }
         ev.racer('pickup', r, p.kind); if (isFocus(r)) ev.pickup(r, p.kind);
         break;
       }
